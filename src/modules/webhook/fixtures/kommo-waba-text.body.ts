@@ -1,0 +1,22 @@
+/** Payload real de Kommo (message add, WhatsApp). Claves planas. */
+export const kommoWabaTextBody = {
+  'account[subdomain]': 'marketingfagmotorsurfacom',
+  'account[id]': '35199648',
+  'account[_links][self]': 'https://marketingfagmotorsurfacom.amocrm.com',
+  'message[add][0][id]': 'ae7243c7-e973-4aa5-ad43-ae3a95d74233',
+  'message[add][0][chat_id]': '059977cf-fd0f-45c2-a43e-1523bb8a314a',
+  'message[add][0][talk_id]': '71302',
+  'message[add][0][contact_id]': '59458509',
+  'message[add][0][text]': 'Hola. Me interesa el Suzuki Grand Vitara 2015',
+  'message[add][0][created_at]': '1789340833',
+  'message[add][0][message_type]': 'text',
+  'message[add][0][element_type]': '2',
+  'message[add][0][entity_type]': 'lead',
+  'message[add][0][element_id]': '41807269',
+  'message[add][0][entity_id]': '41807269',
+  'message[add][0][type]': 'incoming',
+  'message[add][0][author][id]': 'd306c506-7819-4704-a0e1-996af2195d32',
+  'message[add][0][author][type]': 'external',
+  'message[add][0][author][name]': 'Rosa Gonzalez',
+  'message[add][0][origin]': 'waba',
+} as const;

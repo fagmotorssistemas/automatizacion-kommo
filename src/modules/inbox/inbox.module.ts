@@ -1,0 +1,41 @@
+import { Module } from '@nestjs/common';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
+import { QueueModule } from '../../common/queue/queue.module';
+import { RedisModule } from '../../common/redis/redis.module';
+import { AgentModule } from '../agent/agent.module';
+import { ConversationModule } from '../conversation/conversation.module';
+import { IntelligenceModule } from '../intelligence/intelligence.module';
+import { OutboundModule } from '../outbound/outbound.module';
+import { PersistenceModule } from '../persistence/persistence.module';
+import { InboxDebounceProcessor } from './inbox-debounce.processor';
+import {
+  INBOX_DEBOUNCE_QUEUE,
+  INBOX_DEBOUNCE_QUEUE_CLIENT,
+  InboxDebounceJobData,
+} from './inbox-debounce.queue';
+import { InboxService } from './inbox.service';
+
+@Module({
+  imports: [
+    RedisModule,
+    QueueModule,
+    PersistenceModule,
+    ConversationModule,
+    AgentModule,
+    OutboundModule,
+    IntelligenceModule,
+    BullModule.registerQueue({ name: INBOX_DEBOUNCE_QUEUE }),
+  ],
+  providers: [
+    {
+      provide: INBOX_DEBOUNCE_QUEUE_CLIENT,
+      inject: [getQueueToken(INBOX_DEBOUNCE_QUEUE)],
+      useFactory: (queue: Queue<InboxDebounceJobData>) => queue,
+    },
+    InboxService,
+    InboxDebounceProcessor,
+  ],
+  exports: [InboxService],
+})
+export class InboxModule {}

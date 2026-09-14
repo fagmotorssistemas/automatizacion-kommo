@@ -1,0 +1,26 @@
+/** Payload real de Kommo: nota de voz. Texto vacío, adjunto .ogg. */
+export const kommoWabaVoiceBody = {
+  'account[subdomain]': 'marketingfagmotorsurfacom',
+  'account[id]': '35199648',
+  'account[_links][self]': 'https://marketingfagmotorsurfacom.amocrm.com',
+  'message[add][0][id]': 'ff41b03f-510e-4349-aefb-a53a8a8dfef6',
+  'message[add][0][chat_id]': '605555d7-5091-49f3-b018-31ad0ccf72c5',
+  'message[add][0][talk_id]': '66363',
+  'message[add][0][contact_id]': '57444397',
+  'message[add][0][text]': '',
+  'message[add][0][created_at]': '1789341666',
+  'message[add][0][message_type]': 'voice',
+  'message[add][0][attachment][type]': 'voice',
+  'message[add][0][attachment][link]':
+    'https://amojo.kommo.com/v2/1fd0768e-b507-41c2-997d-e87466587813/attachments/dd39a094-601c-4b10-9ee9-d5e5a19757ff/file.ogg',
+  'message[add][0][attachment][file_name]': 'file.ogg',
+  'message[add][0][element_type]': '2',
+  'message[add][0][entity_type]': 'lead',
+  'message[add][0][element_id]': '41423821',
+  'message[add][0][entity_id]': '41423821',
+  'message[add][0][type]': 'incoming',
+  'message[add][0][author][id]': '43d5eb2d-cd5a-4091-8b86-ed83ba8a271f',
+  'message[add][0][author][type]': 'external',
+  'message[add][0][author][name]': 'prueba2',
+  'message[add][0][origin]': 'waba',
+} as const;
