@@ -2,12 +2,13 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CatalogModule } from '../catalog/catalog.module';
 import { ConversationModule } from '../conversation/conversation.module';
+import { PersistenceModule } from '../persistence/persistence.module';
 import { AgentService } from './agent.service';
 import { OpenAiAgentClient } from './openai-agent.client';
 import { OPENAI_AGENT_CONFIG } from './openai-agent.config';
 
 @Module({
-  imports: [CatalogModule, ConversationModule],
+  imports: [CatalogModule, ConversationModule, PersistenceModule],
   providers: [
     {
       provide: OPENAI_AGENT_CONFIG,

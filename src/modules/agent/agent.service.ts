@@ -14,7 +14,10 @@ import {
 } from './assemble-dynamic-context';
 import { OpenAiAgentClient } from './openai-agent.client';
 import { AgentTurnResult, parseAgentOutput } from './parse-agent-output';
+import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
+import { PersistenceService } from '../persistence/persistence.service';
 import { INTENTS_SYSTEM_PROMPT } from './prompts/intents.prompt';
+import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
 
@@ -26,6 +29,7 @@ export class AgentService {
     private readonly openai: OpenAiAgentClient,
     private readonly catalog: CatalogService,
     private readonly conversation: ConversationService,
+    private readonly persistence: PersistenceService,
   ) {}
 
   async handleTurn(input: {
@@ -41,16 +45,21 @@ export class AgentService {
     }
 
     const history = await this.conversation.recentMessages(input.contactId);
+    const handoffBrief = await this.attachHandoffBrief(
+      input.contactId,
+      history,
+    );
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
       content: input.customerText,
     });
 
+    const resumenInput = handoffBrief
+      ? `RESUMEN DEL TRAMO CON ASESOR:\n${handoffBrief}\n\nMENSAJE ACTUAL:\n${input.customerText}`
+      : input.customerText;
     const resumen =
-      (await this.openai.complete(
-        RESUMEN_SYSTEM_PROMPT,
-        input.customerText,
-      )) ?? input.customerText;
+      (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
+      input.customerText;
 
     const intentsRaw =
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
@@ -110,5 +119,40 @@ export class AgentService {
     }
 
     return JSON.stringify({ error: true, mensaje: `Tool desconocida: ${name}` });
+  }
+
+  private async attachHandoffBrief(
+    contactId: string,
+    history: { role: 'user' | 'assistant'; content: string }[],
+  ): Promise<string | null> {
+    const existing = history.find((item) =>
+      item.content.startsWith('CONTEXTO ASESOR'),
+    );
+    if (existing) {
+      return existing.content.replace(/^CONTEXTO ASESOR \(bot estuvo apagado\):\n?/, '');
+    }
+
+    const brief = await this.persistence.loadHandoffBrief(contactId);
+    if (!brief) {
+      return null;
+    }
+
+    const crudo = formatHandoffTurnsForSummarizer(brief.turns);
+    let resumen =
+      brief.resumen ??
+      (await this.openai.complete(HANDOFF_SUMMARIZER_SYSTEM_PROMPT, crudo));
+    if (!resumen) {
+      resumen = crudo;
+    }
+    await this.persistence.saveHandoffResumen(brief.leadId, resumen);
+
+    const content = `CONTEXTO ASESOR (bot estuvo apagado):\n${resumen}`;
+    history.unshift({ role: 'assistant', content });
+    await this.conversation.appendMessage(contactId, {
+      role: 'assistant',
+      content,
+    });
+    this.logger.log(`Handoff masticado contactId=${contactId}`);
+    return resumen;
   }
 }

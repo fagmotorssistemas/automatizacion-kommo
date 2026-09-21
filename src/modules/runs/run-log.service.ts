@@ -33,10 +33,19 @@ export class RunLogService {
     const prefix = `[${input.status.toUpperCase()}] ${input.step}${
       input.reason ? ` (${input.reason})` : ''
     }`;
+    const extras = [
+      input.leadId ? `lead=${input.leadId}` : '',
+      typeof input.detail?.texto === 'string' && input.detail.texto
+        ? `texto=${String(input.detail.texto).slice(0, 180)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const lineText = extras ? `${prefix} ${extras}` : prefix;
     if (input.status === 'error') {
-      this.logger.error(`${prefix} ${input.error ?? ''}`.trim());
+      this.logger.error(`${lineText} ${input.error ?? ''}`.trim());
     } else {
-      this.logger.log(prefix);
+      this.logger.log(lineText);
     }
 
     await Promise.allSettled([this.writeFile(line), this.writeSupabase(line)]);

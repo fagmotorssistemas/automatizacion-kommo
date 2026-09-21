@@ -14,6 +14,8 @@ describe('PersistenceService', () => {
     updateLeadAnalysis: jest.fn(),
     insertTradeIn: jest.fn(),
     updateLeadAssignee: jest.fn(),
+    updateLeadHandoff: jest.fn(),
+    updateHandoffResumen: jest.fn(),
   };
   const service = new PersistenceService(supabase);
 
@@ -29,6 +31,7 @@ describe('PersistenceService', () => {
     supabase.updateLeadRecovery.mockReset();
     supabase.updateLeadAnalysis.mockReset();
     supabase.insertTradeIn.mockReset();
+    supabase.updateLeadHandoff.mockReset();
   });
 
   const input = {
@@ -160,6 +163,7 @@ describe('PersistenceService', () => {
         name: 'Rosa',
         phone: '+593999000111',
         source: 'waba',
+        assignedTo: null,
         mensajesEnviados: [],
         behaviorSignals: {},
       },
@@ -203,6 +207,115 @@ describe('PersistenceService', () => {
       responseText: 'no me escribas',
       stop: true,
     });
+  });
+
+  it('marca bot_apagado y acumula el hilo cliente/asesor', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      leadIdKommo: '41807269',
+      name: 'Rosa',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+      botApagado: false,
+      handoffTurns: [],
+    });
+
+    await service.recordStoppedMessage({
+      ...input,
+      role: 'customer',
+      text: 'Hola, sigo aquí',
+    });
+
+    expect(supabase.updateLeadHandoff).toHaveBeenCalledWith(
+      'lead-row-1',
+      expect.objectContaining({
+        botApagado: true,
+        ultimoMensajeIgnorado: 'Hola, sigo aquí',
+        handoffTurns: [
+          expect.objectContaining({
+            role: 'customer',
+            text: 'Hola, sigo aquí',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('al prender el bot suelta el tramo y devuelve el array', async () => {
+    const turns = [
+      { role: 'customer' as const, name: null, text: 'Hola', at: 't1' },
+      { role: 'seller' as const, name: 'Vanessa', text: 'ya le llamo', at: 't2' },
+    ];
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      leadIdKommo: '41807269',
+      name: 'Rosa',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+      botApagado: true,
+      botApagadoAt: '2026-09-21T22:00:00.000Z',
+      ultimoMensajeIgnorado: 'Hola',
+      handoffTurns: turns,
+    });
+
+    await expect(service.consumeHandoffTurns('59458509')).resolves.toEqual(turns);
+    expect(supabase.updateLeadHandoff).toHaveBeenCalledWith(
+      'lead-row-1',
+      expect.objectContaining({ botApagado: false, handoffTurns: turns }),
+    );
+  });
+
+  it('carga el brief solo si el tramo está pendiente de masticar', async () => {
+    const turns = [
+      { role: 'customer' as const, name: null, text: 'Hola', at: 't1' },
+    ];
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      leadIdKommo: '41807269',
+      name: 'Rosa',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+      botApagado: false,
+      handoffTurns: turns,
+      handoffResumen: null,
+    });
+
+    await expect(service.loadHandoffBrief('59458509')).resolves.toEqual({
+      leadId: 'lead-row-1',
+      turns,
+      resumen: null,
+    });
+  });
+
+  it('no reinyecta el brief si ya hay resumen masticado', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      leadIdKommo: '41807269',
+      name: 'Rosa',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+      botApagado: false,
+      handoffTurns: [{ role: 'customer', name: null, text: 'Hola', at: 't1' }],
+      handoffResumen: 'VEHÍCULO:\nRanger',
+    });
+
+    await expect(service.loadHandoffBrief('59458509')).resolves.toBeNull();
   });
 
   it('sin gateway no toca Supabase', async () => {

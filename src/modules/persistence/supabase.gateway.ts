@@ -1,4 +1,5 @@
 import {
+  HandoffTurn,
   InterestedCarInput,
   LeadAnalysisPatch,
   LeadRecoveryPatch,
@@ -7,6 +8,14 @@ import {
   RequestedClientDataInput,
   TradeInInput,
 } from './lead.types';
+
+export type LeadHandoffPatch = {
+  botApagado: boolean;
+  botApagadoAt: string | null;
+  ultimoMensajeIgnorado: string | null;
+  handoffTurns: HandoffTurn[];
+  handoffResumen?: string | null;
+};
 
 export const SUPABASE_GATEWAY = 'SUPABASE_GATEWAY';
 
@@ -28,6 +37,8 @@ export type SupabaseGateway = {
   findLeadByContactId(contactId: string): Promise<LeadRow | null>;
   insertLead(row: LeadInsert): Promise<LeadRow | null>;
   updateLeadAssignee(leadId: string, assignedTo: string): Promise<void>;
+  updateLeadHandoff(leadId: string, patch: LeadHandoffPatch): Promise<void>;
+  updateHandoffResumen(leadId: string, resumen: string): Promise<void>;
   matchCtwaClick(phone: string): Promise<unknown>;
   fetchAgentPrompts(names: string[]): Promise<AgentPromptRow[]>;
   matchInventory(embedding: number[], topK: number): Promise<unknown>;

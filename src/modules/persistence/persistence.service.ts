@@ -3,12 +3,15 @@ import { parseCtwaMatch } from './parse-ctwa-match';
 import {
   CtwaMatch,
   EnsureLeadResult,
+  HandoffBrief,
+  HandoffTurn,
   InterestedCarInput,
   LeadAnalysisPatch,
   LeadRecoveryPatch,
   LeadRow,
   LeadSignalWrites,
   PersistLeadInput,
+  StoppedHandoffInput,
   TradeInInput,
 } from './lead.types';
 import {
@@ -180,6 +183,135 @@ export class PersistenceService {
     } catch (error) {
       this.logger.error(
         `applyLeadAnalysis falló lead=${input.leadId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async recordStoppedMessage(input: StoppedHandoffInput): Promise<LeadRow | null> {
+    if (!input.text.trim()) {
+      return null;
+    }
+
+    const ensured = await this.ensureLead(input);
+    if (ensured.status !== 'created' && ensured.status !== 'existing') {
+      return null;
+    }
+
+    const lead = ensured.lead;
+    const at = new Date().toISOString();
+    const turn = {
+      role: input.role,
+      name:
+        input.role === 'seller' && input.authorName?.trim()
+          ? input.authorName.trim()
+          : null,
+      text: input.text.trim(),
+      at,
+    };
+    const starting = !lead.botApagado;
+    const turns = starting ? [turn] : [...(lead.handoffTurns ?? []), turn];
+
+    try {
+      await this.supabase?.updateLeadHandoff(lead.id, {
+        botApagado: true,
+        botApagadoAt: starting ? at : lead.botApagadoAt ?? at,
+        ultimoMensajeIgnorado:
+          input.role === 'customer'
+            ? input.text.trim()
+            : lead.ultimoMensajeIgnorado ?? null,
+        handoffTurns: turns,
+        ...(starting ? { handoffResumen: null } : {}),
+      });
+    } catch (error) {
+      this.logger.error(
+        `bot_apagado falló contactId=${input.contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return lead;
+    }
+
+    return {
+      ...lead,
+      botApagado: true,
+      botApagadoAt: starting ? at : lead.botApagadoAt ?? at,
+      ultimoMensajeIgnorado:
+        input.role === 'customer'
+          ? input.text.trim()
+          : lead.ultimoMensajeIgnorado ?? null,
+      handoffTurns: turns,
+    };
+  }
+
+  /** Si el asesor ya destildó atiende IA?, suelta el tramo y devuelve los turnos. */
+  async consumeHandoffTurns(contactId: string): Promise<HandoffTurn[]> {
+    if (!this.supabase || !contactId) {
+      return [];
+    }
+
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (!lead?.botApagado) {
+        return [];
+      }
+
+      const turns = lead.handoffTurns ?? [];
+      await this.supabase.updateLeadHandoff(lead.id, {
+        botApagado: false,
+        botApagadoAt: lead.botApagadoAt ?? null,
+        ultimoMensajeIgnorado: lead.ultimoMensajeIgnorado ?? null,
+        handoffTurns: turns,
+      });
+      return turns;
+    } catch (error) {
+      this.logger.error(
+        `consumeHandoff falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
+    }
+  }
+
+  async loadHandoffBrief(contactId: string): Promise<HandoffBrief | null> {
+    if (!this.supabase || !contactId) {
+      return null;
+    }
+
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (
+        !lead ||
+        lead.botApagado ||
+        !lead.handoffTurns?.length ||
+        lead.handoffResumen
+      ) {
+        return null;
+      }
+
+      return {
+        leadId: lead.id,
+        turns: lead.handoffTurns,
+        resumen: lead.handoffResumen ?? null,
+      };
+    } catch (error) {
+      this.logger.error(
+        `loadHandoffBrief falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveHandoffResumen(leadId: string, resumen: string): Promise<void> {
+    if (!this.supabase || !leadId || !resumen.trim()) {
+      return;
+    }
+
+    try {
+      await this.supabase.updateHandoffResumen(leadId, resumen.trim());
+    } catch (error) {
+      this.logger.error(
+        `handoff_resumen falló lead=${leadId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

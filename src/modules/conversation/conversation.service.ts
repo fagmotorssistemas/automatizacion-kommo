@@ -60,7 +60,15 @@ export class ConversationService {
     contactId: string,
     message: MemoryMessage,
   ): Promise<void> {
-    if (!contactId || !message.content) {
+    await this.appendMessages(contactId, [message]);
+  }
+
+  async appendMessages(
+    contactId: string,
+    messages: MemoryMessage[],
+  ): Promise<void> {
+    const usable = messages.filter((message) => message.content);
+    if (!contactId || usable.length === 0) {
       return;
     }
 
@@ -68,7 +76,7 @@ export class ConversationService {
       const key = memoryKey(contactId);
       await this.redis
         .multi()
-        .rpush(key, JSON.stringify(message))
+        .rpush(key, ...usable.map((message) => JSON.stringify(message)))
         .ltrim(key, -MEMORY_MAX_MESSAGES, -1)
         .expire(key, MEMORY_TTL_SECONDS)
         .exec();

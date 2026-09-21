@@ -10,11 +10,16 @@ import {
   RequestedClientDataInput,
   TradeInInput,
 } from './lead.types';
-import { LeadInsert, SupabaseGateway } from './supabase.gateway';
+import { parseHandoffTurns } from './parse-handoff-turns';
+import {
+  LeadHandoffPatch,
+  LeadInsert,
+  SupabaseGateway,
+} from './supabase.gateway';
 import { SUPABASE_CONFIG, type SupabaseConfig } from './supabase.config';
 
 const LEAD_COLUMNS =
-  'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals';
+  'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals, bot_apagado, bot_apagado_at, ultimo_mensaje_ignorado, handoff_transcript, handoff_resumen';
 
 @Injectable()
 export class SupabasePersistenceClient implements SupabaseGateway {
@@ -78,6 +83,48 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
 
     return data ? this.mapLead(data) : null;
+  }
+
+  async updateLeadHandoff(leadId: string, patch: LeadHandoffPatch): Promise<void> {
+    const client = this.requireClient();
+    if (!client || !leadId) {
+      return;
+    }
+
+    const { error } = await client
+      .from('leads')
+      .update({
+        bot_apagado: patch.botApagado,
+        bot_apagado_at: patch.botApagadoAt,
+        ultimo_mensaje_ignorado: patch.ultimoMensajeIgnorado,
+        handoff_transcript: patch.handoffTurns,
+        ...(patch.handoffResumen !== undefined
+          ? { handoff_resumen: patch.handoffResumen }
+          : {}),
+      })
+      .eq('id', leadId);
+
+    if (error) {
+      this.logger.warn(`UPDATE leads handoff id=${leadId}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async updateHandoffResumen(leadId: string, resumen: string): Promise<void> {
+    const client = this.requireClient();
+    if (!client || !leadId || !resumen) {
+      return;
+    }
+
+    const { error } = await client
+      .from('leads')
+      .update({ handoff_resumen: resumen })
+      .eq('id', leadId);
+
+    if (error) {
+      this.logger.warn(`UPDATE leads handoff_resumen id=${leadId}: ${error.message}`);
+      throw error;
+    }
   }
 
   async updateLeadAssignee(leadId: string, assignedTo: string): Promise<void> {
@@ -403,6 +450,13 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         row.behavior_signals && typeof row.behavior_signals === 'object'
           ? (row.behavior_signals as LeadRow['behaviorSignals'])
           : {},
+      botApagado: row.bot_apagado === true,
+      botApagadoAt: row.bot_apagado_at ? String(row.bot_apagado_at) : null,
+      ultimoMensajeIgnorado: row.ultimo_mensaje_ignorado
+        ? String(row.ultimo_mensaje_ignorado)
+        : null,
+      handoffTurns: parseHandoffTurns(row.handoff_transcript),
+      handoffResumen: row.handoff_resumen ? String(row.handoff_resumen) : null,
     };
   }
 }

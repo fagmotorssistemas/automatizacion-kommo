@@ -1,3 +1,7 @@
+import { HandoffTurn } from './parse-handoff-turns';
+
+export type { HandoffTurn };
+
 export type PersistLeadInput = {
   contactId: string;
   leadIdKommo: string;
@@ -32,6 +36,23 @@ export type LeadRow = {
   assignedTo: string | null;
   mensajesEnviados: string[];
   behaviorSignals: Partial<BehaviorSignals>;
+  botApagado?: boolean;
+  botApagadoAt?: string | null;
+  ultimoMensajeIgnorado?: string | null;
+  handoffTurns?: HandoffTurn[];
+  handoffResumen?: string | null;
+};
+
+export type HandoffBrief = {
+  leadId: string;
+  turns: HandoffTurn[];
+  resumen: string | null;
+};
+
+export type StoppedHandoffInput = PersistLeadInput & {
+  role: 'customer' | 'seller';
+  text: string;
+  authorName?: string;
 };
 
 export type LeadAnalysisPatch = {

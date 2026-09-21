@@ -30,3 +30,13 @@ export type KommoInboundMessage = z.infer<typeof kommoInboundMessageSchema>;
 export function isCustomerInbound(message: KommoInboundMessage): boolean {
   return message.direction === 'incoming' && message.authorType === 'external';
 }
+
+/** Saliente de un humano (no salesbot). */
+export function isSellerOutgoing(message: KommoInboundMessage): boolean {
+  if (message.direction !== 'outgoing') {
+    return false;
+  }
+
+  const type = (message.authorType || '').toLowerCase();
+  return type !== 'bot' && type !== 'external';
+}

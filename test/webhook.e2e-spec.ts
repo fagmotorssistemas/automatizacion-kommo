@@ -3,8 +3,12 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { CrmService } from './../src/modules/crm/crm.service';
+import { HandoffService } from './../src/modules/handoff/handoff.service';
 import { InboxService } from './../src/modules/inbox/inbox.service';
 import { MediaService } from './../src/modules/media/media.service';
+import { PersistenceService } from './../src/modules/persistence/persistence.service';
+import { RunLogService } from './../src/modules/runs/run-log.service';
+import { DEFAULT_ASSIGNEE } from './../src/modules/handoff/seller-map';
 import { kommoWabaTextBody } from './../src/modules/webhook/fixtures/kommo-waba-text.body';
 import { WebhookController } from './../src/modules/webhook/webhook.controller';
 import { WebhookService } from './../src/modules/webhook/webhook.service';
@@ -28,7 +32,24 @@ describe('Webhook (e2e)', () => {
           provide: CrmService,
           useValue: {
             getContactPhone: jest.fn().mockResolvedValue(null),
-            isLeadBotStopped: jest.fn().mockResolvedValue(false),
+            inspectLead: jest.fn().mockResolvedValue({ stopped: false, raw: {} }),
+          },
+        },
+        {
+          provide: HandoffService,
+          useValue: {
+            assigneeFromKommoLead: jest.fn().mockReturnValue(DEFAULT_ASSIGNEE),
+          },
+        },
+        {
+          provide: RunLogService,
+          useValue: { record: jest.fn() },
+        },
+        {
+          provide: PersistenceService,
+          useValue: {
+            recordStoppedMessage: jest.fn(),
+            consumeHandoffTurns: jest.fn().mockResolvedValue([]),
           },
         },
         {
