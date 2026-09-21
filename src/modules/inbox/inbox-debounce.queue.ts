@@ -2,6 +2,8 @@ export const INBOX_DEBOUNCE_QUEUE = 'inbox-debounce';
 
 export const INBOX_DEBOUNCE_QUEUE_CLIENT = 'INBOX_DEBOUNCE_QUEUE_CLIENT';
 
+export const INBOX_FLUSH = 'INBOX_FLUSH';
+
 export type InboxDebounceJobData = {
   contactId: string;
   messageId: string;

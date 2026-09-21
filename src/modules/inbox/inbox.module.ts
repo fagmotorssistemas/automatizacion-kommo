@@ -13,6 +13,7 @@ import { InboxDebounceProcessor } from './inbox-debounce.processor';
 import {
   INBOX_DEBOUNCE_QUEUE,
   INBOX_DEBOUNCE_QUEUE_CLIENT,
+  INBOX_FLUSH,
   InboxDebounceJobData,
 } from './inbox-debounce.queue';
 import { InboxService } from './inbox.service';
@@ -37,6 +38,10 @@ import { InboxService } from './inbox.service';
     },
     InboxService,
     InboxDebounceProcessor,
+    {
+      provide: INBOX_FLUSH,
+      useExisting: InboxDebounceProcessor,
+    },
   ],
   exports: [InboxService],
 })

@@ -17,8 +17,13 @@ describe('InboxService', () => {
     del: jest.fn(),
   };
   const queue = { add: jest.fn() };
+  const moduleRef = { get: jest.fn() };
   const pipeline = { rpush: jest.fn(), expire: jest.fn(), exec: jest.fn() };
-  const service = new InboxService(redis as never, queue as never);
+  const service = new InboxService(
+    redis as never,
+    queue as never,
+    moduleRef as never,
+  );
 
   beforeEach(() => {
     redis.set.mockReset();
@@ -62,6 +67,7 @@ describe('InboxService', () => {
   });
 
   it('empuja el mensaje y agenda el flush a 30 s', async () => {
+    jest.useFakeTimers();
     await expect(
       service.scheduleDebounce({
         contactId: '59458509',
@@ -104,6 +110,7 @@ describe('InboxService', () => {
         attempts: 1,
       }),
     );
+    jest.useRealTimers();
   });
 
   it('no agenda si falta contactId', async () => {

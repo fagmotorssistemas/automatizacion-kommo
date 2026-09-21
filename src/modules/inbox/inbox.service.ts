@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import {
@@ -19,6 +20,8 @@ import {
 } from './inbox.constants';
 import {
   INBOX_DEBOUNCE_QUEUE_CLIENT,
+  INBOX_FLUSH,
+  type InboxDebounceJobData,
   type InboxDebounceQueue,
 } from './inbox-debounce.queue';
 
@@ -39,6 +42,7 @@ export class InboxService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(INBOX_DEBOUNCE_QUEUE_CLIENT)
     private readonly debounceQueue: InboxDebounceQueue,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async claimMessage(
@@ -98,25 +102,27 @@ export class InboxService {
         .expire(key, BUFFER_TTL_SECONDS)
         .exec();
 
-      await this.debounceQueue.add(
-        'flush',
-        {
-          contactId: input.contactId,
-          messageId: input.messageId,
-          leadId: input.leadId,
-          name: input.name,
-          phone: input.phone,
-          source: input.source,
-          createdAt: input.createdAt,
-        },
-        {
-          delay: DEBOUNCE_DELAY_MS,
-          jobId: flushJobId(input.contactId, input.messageId),
-          attempts: 1,
-          removeOnComplete: true,
-          removeOnFail: 50,
-        },
-      );
+      const jobData: InboxDebounceJobData = {
+        contactId: input.contactId,
+        messageId: input.messageId,
+        leadId: input.leadId,
+        name: input.name,
+        phone: input.phone,
+        source: input.source,
+        createdAt: input.createdAt,
+      };
+
+      await this.debounceQueue.add('flush', jobData, {
+        delay: DEBOUNCE_DELAY_MS,
+        jobId: flushJobId(input.contactId, input.messageId),
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: 50,
+      });
+
+      // Redis Cloud se come las keys de BullMQ (delayed queda en 0).
+      // El timer del proceso sí corre; flushIfLatest evita doble envío.
+      this.scheduleLocalFlush(jobData);
 
       return 'scheduled';
     } catch (error) {
@@ -125,6 +131,30 @@ export class InboxService {
         error instanceof Error ? error.stack : undefined,
       );
       return 'skipped';
+    }
+  }
+
+  private scheduleLocalFlush(data: InboxDebounceJobData): void {
+    this.logger.log(
+      `Debounce local en ${DEBOUNCE_DELAY_MS / 1000}s contactId=${data.contactId} messageId=${data.messageId}`,
+    );
+
+    setTimeout(() => {
+      void this.runLocalFlush(data);
+    }, DEBOUNCE_DELAY_MS);
+  }
+
+  private async runLocalFlush(data: InboxDebounceJobData): Promise<void> {
+    try {
+      const flush = this.moduleRef.get<{
+        run(job: InboxDebounceJobData): Promise<void>;
+      }>(INBOX_FLUSH, { strict: false });
+      await flush.run(data);
+    } catch (error) {
+      this.logger.error(
+        `Flush local falló contactId=${data.contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 

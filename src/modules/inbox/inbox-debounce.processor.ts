@@ -30,14 +30,19 @@ export class InboxDebounceProcessor extends WorkerHost {
   }
 
   async process(job: Job<InboxDebounceJobData>): Promise<void> {
+    await this.run(job.data);
+  }
+
+  /** Mismo flush que el worker; lo usa el timer local si BullMQ no persiste en Redis Cloud. */
+  async run(data: InboxDebounceJobData): Promise<void> {
     const ctx = {
-      contactId: job.data.contactId,
-      leadId: job.data.leadId,
-      messageId: job.data.messageId,
+      contactId: data.contactId,
+      leadId: data.leadId,
+      messageId: data.messageId,
     };
 
     try {
-      await this.processUnsafe(job, ctx);
+      await this.processUnsafe(data, ctx);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await this.runLog.record({
@@ -52,12 +57,12 @@ export class InboxDebounceProcessor extends WorkerHost {
   }
 
   private async processUnsafe(
-    job: Job<InboxDebounceJobData>,
+    data: InboxDebounceJobData,
     ctx: { contactId: string; leadId: string; messageId: string },
   ): Promise<void> {
     const result = await this.inboxService.flushIfLatest(
-      job.data.contactId,
-      job.data.messageId,
+      data.contactId,
+      data.messageId,
     );
 
     if (result.status !== 'won') {
@@ -79,11 +84,11 @@ export class InboxDebounceProcessor extends WorkerHost {
     });
 
     const synced = await this.persistenceService.syncInboundLead({
-      contactId: job.data.contactId,
-      leadIdKommo: job.data.leadId,
-      name: job.data.name,
-      phone: job.data.phone,
-      source: job.data.source,
+      contactId: data.contactId,
+      leadIdKommo: data.leadId,
+      name: data.name,
+      phone: data.phone,
+      source: data.source,
     });
 
     if (synced.lead.status === 'unavailable' || synced.lead.status === 'skipped') {
@@ -109,7 +114,7 @@ export class InboxDebounceProcessor extends WorkerHost {
 
     const inbound = this.conversationService.resolveInboundText({
       joinedText: result.text,
-      createdAtUnix: job.data.createdAt,
+      createdAtUnix: data.createdAt,
       ctwa: synced.ctwa,
     });
 
@@ -125,8 +130,8 @@ export class InboxDebounceProcessor extends WorkerHost {
 
     if (
       await this.inboxService.hasOutboundSent(
-        job.data.contactId,
-        job.data.messageId,
+        data.contactId,
+        data.messageId,
       )
     ) {
       await this.runLog.record({
@@ -141,7 +146,7 @@ export class InboxDebounceProcessor extends WorkerHost {
     let turn;
     try {
       turn = await this.agentService.handleTurn({
-        contactId: job.data.contactId,
+        contactId: data.contactId,
         customerText: inbound.message,
       });
     } catch (error) {
@@ -182,12 +187,12 @@ export class InboxDebounceProcessor extends WorkerHost {
     });
 
     const outbound = await this.outboundService.dispatch(
-      job.data.leadId,
+      data.leadId,
       turn.reply,
     );
     await this.inboxService.markOutboundSent(
-      job.data.contactId,
-      job.data.messageId,
+      data.contactId,
+      data.messageId,
     );
 
     await this.runLog.record({
@@ -212,8 +217,8 @@ export class InboxDebounceProcessor extends WorkerHost {
 
     try {
       await this.intelligenceService.afterReply({
-        contactId: job.data.contactId,
-        leadId: job.data.leadId,
+        contactId: data.contactId,
+        leadId: data.leadId,
         lead: storedLead,
         customerText: inbound.message,
         resumen: turn.resumen,
