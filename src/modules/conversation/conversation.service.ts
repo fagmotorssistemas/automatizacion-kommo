@@ -8,6 +8,10 @@ import {
   memoryKey,
 } from './conversation.constants';
 import {
+  isRealCustomerText,
+  keepCustomerFacingMessages,
+} from './is-real-customer-text';
+import {
   InboundTextResult,
   resolveInboundText,
 } from './resolve-inbound-text';
@@ -38,15 +42,17 @@ export class ConversationService {
 
     try {
       const raw = await this.redis.lrange(memoryKey(contactId), 0, -1);
-      return raw
-        .map((row) => {
-          try {
-            return JSON.parse(row) as MemoryMessage;
-          } catch {
-            return null;
-          }
-        })
-        .filter((item): item is MemoryMessage => Boolean(item?.role && item.content));
+      return keepCustomerFacingMessages(
+        raw
+          .map((row) => {
+            try {
+              return JSON.parse(row) as MemoryMessage;
+            } catch {
+              return null;
+            }
+          })
+          .filter((item): item is MemoryMessage => Boolean(item?.role && item.content)),
+      );
     } catch (error) {
       this.logger.error(
         `No se pudo leer memoria contactId=${contactId}`,
@@ -67,7 +73,11 @@ export class ConversationService {
     contactId: string,
     messages: MemoryMessage[],
   ): Promise<void> {
-    const usable = messages.filter((message) => message.content);
+    const usable = messages.filter(
+      (message) =>
+        message.content &&
+        (message.role !== 'user' || isRealCustomerText(message.content)),
+    );
     if (!contactId || usable.length === 0) {
       return;
     }

@@ -18,6 +18,8 @@ describe('AgentService', () => {
   const persistence = {
     loadHandoffBrief: jest.fn(),
     saveHandoffResumen: jest.fn(),
+    appendChatHistory: jest.fn(),
+    loadRecentChat: jest.fn(),
   };
   const service = new AgentService(
     openai as never,
@@ -39,6 +41,9 @@ describe('AgentService', () => {
     persistence.loadHandoffBrief.mockReset();
     persistence.loadHandoffBrief.mockResolvedValue(null);
     persistence.saveHandoffResumen.mockReset();
+    persistence.appendChatHistory.mockReset();
+    persistence.loadRecentChat.mockReset();
+    persistence.loadRecentChat.mockResolvedValue([]);
     catalog.fetchAgentPrompts.mockResolvedValue([
       { name: 'rol', content: 'sé cordial' },
     ]);
@@ -49,6 +54,17 @@ describe('AgentService', () => {
       service.handleTurn({ contactId: '1', customerText: '  ' }),
     ).resolves.toBeNull();
     expect(openai.complete).not.toHaveBeenCalled();
+  });
+
+  it('no trata un RESUMEN PREVIO como mensaje del cliente', async () => {
+    await expect(
+      service.handleTurn({
+        contactId: '1',
+        customerText: 'RESUMEN PREVIO:\nVehículo: Hilux\nContexto: pidió precio',
+      }),
+    ).resolves.toBeNull();
+    expect(openai.complete).not.toHaveBeenCalled();
+    expect(conversation.appendMessage).not.toHaveBeenCalled();
   });
 
   it('resumen → intenciones → agente → parser', async () => {
@@ -76,7 +92,47 @@ describe('AgentService', () => {
       },
     });
     expect(conversation.appendMessage).toHaveBeenCalledTimes(2);
+    expect(persistence.appendChatHistory).toHaveBeenCalledWith({
+      contactId: '59458509',
+      human: 'me interesa una hilux',
+      ai: 'Tenemos una Hilux disponible.',
+    });
     expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(['rol', 'compra']);
+    expect(openai.complete).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      'MENSAJE ACTUAL:\nme interesa una hilux',
+    );
+  });
+
+  it('el RESUMEN PREVIO recibe el hilo cliente-bot', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'hay ranger?' },
+      { role: 'assistant', content: 'Sí, tenemos una Ranger 2024.' },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN PREVIO:\nVehículo: Ranger')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Cuesta 28990.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59458509',
+      customerText: 'cuánto cuesta',
+    });
+
+    expect(openai.complete).toHaveBeenNthCalledWith(
+      1,
+      expect.any(String),
+      expect.stringMatching(
+        /HISTORIAL:\nCliente: hay ranger\?\nAsesor: Sí, tenemos una Ranger 2024\.\n\nMENSAJE ACTUAL:\ncuánto cuesta/,
+      ),
+    );
+    expect(persistence.loadRecentChat).not.toHaveBeenCalled();
   });
 
   it('mastica el hilo del asesor y se lo pasa al agente de ventas', async () => {
@@ -118,6 +174,11 @@ describe('AgentService', () => {
       2,
       expect.any(String),
       expect.stringContaining('RESUMEN DEL TRAMO CON ASESOR'),
+    );
+    expect(openai.complete).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      expect.stringContaining('MENSAJE ACTUAL:\nok'),
     );
   });
 });

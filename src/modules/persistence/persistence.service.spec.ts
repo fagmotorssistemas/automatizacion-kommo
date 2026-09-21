@@ -16,6 +16,8 @@ describe('PersistenceService', () => {
     updateLeadAssignee: jest.fn(),
     updateLeadHandoff: jest.fn(),
     updateHandoffResumen: jest.fn(),
+    insertChatHistory: jest.fn(),
+    listChatHistory: jest.fn(),
   };
   const service = new PersistenceService(supabase);
 
@@ -32,6 +34,8 @@ describe('PersistenceService', () => {
     supabase.updateLeadAnalysis.mockReset();
     supabase.insertTradeIn.mockReset();
     supabase.updateLeadHandoff.mockReset();
+    supabase.insertChatHistory.mockReset();
+    supabase.listChatHistory.mockReset();
   });
 
   const input = {
@@ -316,6 +320,56 @@ describe('PersistenceService', () => {
     });
 
     await expect(service.loadHandoffBrief('59458509')).resolves.toBeNull();
+  });
+
+  it('lee el hilo real y salta el RESUMEN PREVIO', async () => {
+    supabase.listChatHistory.mockResolvedValue([
+      { message: { type: 'ai', content: 'Tenemos Ranger.' } },
+      {
+        message: { type: 'human', content: 'RESUMEN PREVIO:\nVehículo: Ranger' },
+      },
+      { message: { type: 'human', content: 'hay ranger?' } },
+    ]);
+
+    await expect(service.loadRecentChat('59458509')).resolves.toEqual([
+      { role: 'user', content: 'hay ranger?' },
+      { role: 'assistant', content: 'Tenemos Ranger.' },
+    ]);
+  });
+
+  it('escribe cliente como human y bot como ai', async () => {
+    await service.appendChatHistory({
+      contactId: '59458509',
+      human: 'me interesa una hilux',
+      ai: 'Tenemos una Hilux disponible.',
+    });
+
+    expect(supabase.insertChatHistory).toHaveBeenCalledWith([
+      expect.objectContaining({
+        session_id: '59458509',
+        message: expect.objectContaining({
+          type: 'human',
+          content: 'me interesa una hilux',
+        }),
+      }),
+      expect.objectContaining({
+        session_id: '59458509',
+        message: expect.objectContaining({
+          type: 'ai',
+          content: 'Tenemos una Hilux disponible.',
+        }),
+      }),
+    ]);
+  });
+
+  it('no escribe RESUMEN PREVIO en n8n_chat_histories', async () => {
+    await service.appendChatHistory({
+      contactId: '59458509',
+      human: 'RESUMEN PREVIO:\nVehículo: Hilux',
+      ai: 'RESUMEN PREVIO:\nVehículo: Hilux',
+    });
+
+    expect(supabase.insertChatHistory).not.toHaveBeenCalled();
   });
 
   it('sin gateway no toca Supabase', async () => {

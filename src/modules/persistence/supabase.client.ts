@@ -405,6 +405,45 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
   }
 
+  async insertChatHistory(
+    rows: Array<{ session_id: string; message: Record<string, unknown> }>,
+  ): Promise<void> {
+    const client = this.requireClient();
+    if (!client || rows.length === 0) {
+      return;
+    }
+
+    const { error } = await client.from('n8n_chat_histories').insert(rows);
+    if (error) {
+      this.logger.warn(`INSERT n8n_chat_histories: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async listChatHistory(
+    sessionId: string,
+    limit: number,
+  ): Promise<Array<{ message: unknown }>> {
+    const client = this.requireClient();
+    if (!client || !sessionId || limit <= 0) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('n8n_chat_histories')
+      .select('message')
+      .eq('session_id', sessionId)
+      .order('id', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      this.logger.warn(`GET n8n_chat_histories session=${sessionId}: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? []) as Array<{ message: unknown }>;
+  }
+
   async insertRunLog(row: {
     created_at: string;
     contact_id: string | null;

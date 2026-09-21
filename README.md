@@ -218,9 +218,8 @@ No `forwardRef`. The processor is the only orchestrator.
 | `lead_recovery` | Answers to 2d/7d/15d/30d |
 | `vehicle_salesbots` | `bot_id` per car / prefix |
 | `agent_prompts` | Dynamic sales system sections |
-| Redis | Debounce, anti-dupe, outbound mark, last 8 messages |
-
-Chat history is **not** `n8n_chat_histories`. That SELECT was disconnected / replaced by Redis.
+| Redis | Debounce, anti-dupe, outbound mark, last 24 messages |
+| `n8n_chat_histories` | Durable chat: `human` = cliente, `ai` = respuesta del bot. Never `RESUMEN PREVIO` as human. |
 
 Two `lead_id` meanings: Kommo id for `vehicle_uid` (FNV-1a `lead_id\|inventory_id`); Supabase `leads.id` for child tables.
 

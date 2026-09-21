@@ -3,6 +3,10 @@ import { OpenAiAgentClient } from '../agent/openai-agent.client';
 import { ParsedAgentOutput } from '../agent/parse-agent-output';
 import { LEAD_ANALYZER_SYSTEM_PROMPT } from '../agent/prompts/lead-analyzer.prompt';
 import { ConversationService } from '../conversation/conversation.service';
+import {
+  isRealCustomerText,
+  keepCustomerFacingMessages,
+} from '../conversation/is-real-customer-text';
 import { LeadRow } from '../persistence/lead.types';
 import { PersistenceService } from '../persistence/persistence.service';
 import { analyzeTurn, TurnSignals } from './analyze-turn';
@@ -45,10 +49,12 @@ export class IntelligenceService {
     });
 
     const recent = await this.conversation.recentMessages(input.contactId);
-    const mensajes = recent.slice(-3).map((item) => ({
-      type: item.role,
-      content: item.content,
-    }));
+    const mensajes = keepCustomerFacingMessages(recent)
+      .slice(-3)
+      .map((item) => ({
+        type: item.role === 'user' ? 'human' : 'ai',
+        content: item.content,
+      }));
 
     if (signals.vehicleUid && signals.inventoryId && input.lead?.id) {
       await this.persistence.saveInterestedCar({
@@ -58,9 +64,12 @@ export class IntelligenceService {
       });
     }
 
+    const customerText = isRealCustomerText(input.customerText)
+      ? input.customerText
+      : '';
     const recovery = planRecoveryWrite({
       mensajesEnviados: input.lead?.mensajesEnviados,
-      message: input.customerText,
+      message: customerText,
     });
     if (recovery && input.lead?.id) {
       await this.persistence.saveRecoveryResponse({
@@ -78,10 +87,10 @@ export class IntelligenceService {
       writes: planLeadSignalWrites(signals),
     });
 
-    if (input.lead?.id) {
+    if (input.lead?.id && customerText) {
       await this.enrichFromAnalyzer({
         lead: input.lead,
-        customerText: input.customerText,
+        customerText,
         agentMessage: input.reply.mensaje,
       });
     }

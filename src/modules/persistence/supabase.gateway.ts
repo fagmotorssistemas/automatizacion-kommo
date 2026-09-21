@@ -54,6 +54,14 @@ export type SupabaseGateway = {
   updateLeadRecovery(row: LeadRecoveryPatch): Promise<void>;
   updateLeadAnalysis(leadId: string, patch: LeadAnalysisPatch): Promise<void>;
   insertTradeIn(row: TradeInInput): Promise<void>;
+  insertChatHistory(rows: Array<{
+    session_id: string;
+    message: Record<string, unknown>;
+  }>): Promise<void>;
+  listChatHistory(
+    sessionId: string,
+    limit: number,
+  ): Promise<Array<{ message: unknown }>>;
   insertRunLog(row: {
     created_at: string;
     contact_id: string | null;

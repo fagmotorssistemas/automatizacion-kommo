@@ -16,6 +16,8 @@ import { OpenAiAgentClient } from './openai-agent.client';
 import { AgentTurnResult, parseAgentOutput } from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
 import { PersistenceService } from '../persistence/persistence.service';
+import { buildResumenInput } from '../conversation/build-resumen-input';
+import { isRealCustomerText } from '../conversation/is-real-customer-text';
 import { INTENTS_SYSTEM_PROMPT } from './prompts/intents.prompt';
 import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
@@ -36,7 +38,7 @@ export class AgentService {
     contactId: string;
     customerText: string;
   }): Promise<AgentTurnResult | null> {
-    if (!input.customerText.trim()) {
+    if (!isRealCustomerText(input.customerText)) {
       return null;
     }
 
@@ -44,7 +46,7 @@ export class AgentService {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
 
-    const history = await this.conversation.recentMessages(input.contactId);
+    const history = await this.recentDialogue(input.contactId);
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
       history,
@@ -54,9 +56,11 @@ export class AgentService {
       content: input.customerText,
     });
 
-    const resumenInput = handoffBrief
-      ? `RESUMEN DEL TRAMO CON ASESOR:\n${handoffBrief}\n\nMENSAJE ACTUAL:\n${input.customerText}`
-      : input.customerText;
+    const resumenInput = buildResumenInput({
+      history,
+      customerText: input.customerText,
+      handoffBrief,
+    });
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
@@ -89,11 +93,25 @@ export class AgentService {
       });
     }
 
+    await this.persistence.appendChatHistory({
+      contactId: input.contactId,
+      human: input.customerText,
+      ai: parsed.mensaje,
+    });
+
     this.logger.log(
       `Agente listo contactId=${input.contactId} inventory=${parsed.meta.vehiculo?.inventory_id ?? 'ninguno'}`,
     );
 
     return { reply: parsed, resumen };
+  }
+
+  private async recentDialogue(contactId: string) {
+    const live = await this.conversation.recentMessages(contactId);
+    if (live.length > 0) {
+      return live;
+    }
+    return this.persistence.loadRecentChat(contactId);
   }
 
   private async executeTool(name: string, argsJson: string): Promise<string> {

@@ -19,6 +19,10 @@ import {
   SupabaseGateway,
 } from './supabase.gateway';
 import { phoneForLeadColumn, usablePhone } from './usable-phone';
+import { buildChatHistoryRows } from './chat-history';
+import { chatRowToMemoryMessage } from './parse-chat-history';
+import { MemoryMessage } from '../conversation/conversation.service';
+import { RESUMEN_HISTORY_MAX } from '../conversation/build-resumen-input';
 
 export type SyncInboundLeadResult = {
   lead: EnsureLeadResult;
@@ -327,6 +331,59 @@ export class PersistenceService {
     } catch (error) {
       this.logger.error(
         `assigned_to falló lead=${leadId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadRecentChat(contactId: string): Promise<MemoryMessage[]> {
+    if (!this.supabase || !contactId) {
+      return [];
+    }
+
+    try {
+      const rows = await this.supabase.listChatHistory(
+        contactId,
+        RESUMEN_HISTORY_MAX * 2,
+      );
+      return rows
+        .slice()
+        .reverse()
+        .map((row) => chatRowToMemoryMessage(row.message))
+        .filter((item): item is MemoryMessage => Boolean(item))
+        .slice(-RESUMEN_HISTORY_MAX);
+    } catch (error) {
+      this.logger.error(
+        `leer n8n_chat_histories falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
+    }
+  }
+
+  async appendChatHistory(input: {
+    contactId: string;
+    human?: string;
+    ai?: string;
+  }): Promise<void> {
+    if (!this.supabase || !input.contactId) {
+      return;
+    }
+
+    const rows = buildChatHistoryRows({
+      sessionId: input.contactId,
+      human: input.human,
+      ai: input.ai,
+    });
+    if (rows.length === 0) {
+      return;
+    }
+
+    try {
+      await this.supabase.insertChatHistory(rows);
+    } catch (error) {
+      this.logger.error(
+        `n8n_chat_histories falló contactId=${input.contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

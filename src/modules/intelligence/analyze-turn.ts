@@ -114,7 +114,7 @@ function nowInEcuadorIso(now = new Date()): string {
   return local.toISOString();
 }
 
-/** Junta los 7 Code de n8n en una pasada. No lee n8n_chat_histories. */
+/** Junta los 7 Code de n8n en una pasada. El hilo durable va a n8n_chat_histories aparte. */
 export function analyzeTurn(input: {
   leadId: string;
   mensaje: string;
