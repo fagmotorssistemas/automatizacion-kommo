@@ -191,10 +191,12 @@ export class InboxDebounceProcessor extends WorkerHost {
       data.leadId,
       turn.reply,
     );
-    await this.inboxService.markOutboundSent(
-      data.contactId,
-      data.messageId,
-    );
+    if (!outbound.shadow) {
+      await this.inboxService.markOutboundSent(
+        data.contactId,
+        data.messageId,
+      );
+    }
 
     await this.runLog.record({
       ...ctx,

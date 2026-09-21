@@ -166,6 +166,11 @@ export class InboxService {
     fallbackText?: string,
   ): Promise<DebounceFlushResult> {
     try {
+      const claimed = await this.claimFlush(contactId, messageId);
+      if (!claimed) {
+        return { status: 'lost' };
+      }
+
       const key = bufferKey(contactId);
       const raw = await this.redis.lrange(key, 0, -1);
       const items = itemsForContact(parseBufferedItems(raw), contactId);
@@ -173,16 +178,11 @@ export class InboxService {
       if (isLatestMessage(items, messageId)) {
         const text = joinBufferedTexts(items);
         await this.redis.del(key);
-        await this.markFlushDone(contactId, messageId);
         return { status: 'won', text };
       }
 
       // Redis Cloud a veces evicta inbox:buf antes de los 30 s.
       if (items.length === 0 && fallbackText?.trim()) {
-        const claimed = await this.claimFlush(contactId, messageId);
-        if (!claimed) {
-          return { status: 'lost' };
-        }
         return { status: 'won', text: fallbackText };
       }
 
@@ -194,13 +194,6 @@ export class InboxService {
       );
       return { status: 'unavailable' };
     }
-  }
-
-  private async markFlushDone(
-    contactId: string,
-    messageId: string,
-  ): Promise<void> {
-    await this.redis.set(flushDoneKey(contactId, messageId), '1', 'EX', 300);
   }
 
   private async claimFlush(

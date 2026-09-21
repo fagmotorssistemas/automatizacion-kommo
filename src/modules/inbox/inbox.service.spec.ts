@@ -146,6 +146,7 @@ describe('InboxService', () => {
   });
 
   it('pierde si no es el último y no borra', async () => {
+    redis.set.mockResolvedValue('OK');
     redis.lrange.mockResolvedValue([
       serializeBufferedMessage({ contactId: 'c1', messageId: '1', text: 'hola' }),
       serializeBufferedMessage({ contactId: 'c1', messageId: '2', text: 'hilux' }),
