@@ -28,8 +28,11 @@ export class MediaService {
     try {
       if (input.kind === 'voice') {
         return (
-          (await this.openai.transcribe(file, input.attachmentFileName)) ??
-          input.text
+          (await this.openai.transcribe(
+            file,
+            input.attachmentFileName,
+            input.attachmentLink,
+          )) ?? input.text
         );
       }
 

@@ -5,6 +5,7 @@ import {
   type OpenAiMediaConfig,
 } from './openai-media.config';
 import { vehicleImagePrompt } from './vehicle-image.prompt';
+import { looksLikeAudio, prepareWhisperUpload } from './whisper-audio';
 
 @Injectable()
 export class OpenAiMediaClient {
@@ -17,13 +18,25 @@ export class OpenAiMediaClient {
     this.openai = config.apiKey ? new OpenAI({ apiKey: config.apiKey }) : null;
   }
 
-  async transcribe(file: Buffer, fileName: string): Promise<string | null> {
+  async transcribe(
+    file: Buffer,
+    fileName: string,
+    link = '',
+  ): Promise<string | null> {
     if (!this.openai) {
       this.logger.warn('OPENAI_API_KEY vacío; no se transcribe');
       return null;
     }
 
-    const upload = await toFile(file, fileName || 'file.ogg');
+    if (!looksLikeAudio(file)) {
+      this.logger.warn(
+        `Adjunto de voz no es audio (${file.length} bytes); se omite Whisper`,
+      );
+      return null;
+    }
+
+    const prepared = await prepareWhisperUpload(file, fileName, link);
+    const upload = await toFile(prepared.file, prepared.fileName);
     const result = await this.openai.audio.transcriptions.create({
       file: upload,
       model: 'whisper-1',
