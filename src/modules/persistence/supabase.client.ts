@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import {
   InterestedCarInput,
   LeadAnalysisPatch,
@@ -25,6 +26,8 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       config.url && config.serviceRoleKey
         ? createClient(config.url, config.serviceRoleKey, {
             auth: { persistSession: false, autoRefreshToken: false },
+            // Node 20 no trae WebSocket nativo; Supabase Realtime lo exige al instanciar.
+            realtime: { transport: ws as unknown as typeof WebSocket },
           })
         : null;
   }
