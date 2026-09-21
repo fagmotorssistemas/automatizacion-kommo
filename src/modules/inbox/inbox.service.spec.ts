@@ -103,6 +103,7 @@ describe('InboxService', () => {
         phone: '+593999000111',
         source: 'waba',
         createdAt: '1789340833',
+        text: 'hola',
       },
       expect.objectContaining({
         delay: DEBOUNCE_DELAY_MS,
@@ -130,6 +131,7 @@ describe('InboxService', () => {
   });
 
   it('gana si es el último y borra la lista', async () => {
+    redis.set.mockResolvedValue('OK');
     redis.lrange.mockResolvedValue([
       serializeBufferedMessage({ contactId: 'c1', messageId: '1', text: 'hola' }),
       serializeBufferedMessage({ contactId: 'c1', messageId: '2', text: 'hilux' }),
@@ -156,6 +158,7 @@ describe('InboxService', () => {
   });
 
   it('al ganar no junta texto de otro contactId', async () => {
+    redis.set.mockResolvedValue('OK');
     redis.lrange.mockResolvedValue([
       serializeBufferedMessage({ contactId: 'c1', messageId: '1', text: 'rosa' }),
       serializeBufferedMessage({ contactId: 'c2', messageId: '2', text: 'otro' }),
@@ -167,5 +170,26 @@ describe('InboxService', () => {
       status: 'won',
       text: 'rosa\nhilux',
     });
+  });
+
+  it('si Redis evictó el buffer, usa el texto del timer', async () => {
+    redis.lrange.mockResolvedValue([]);
+    redis.set.mockResolvedValue('OK');
+
+    await expect(
+      service.flushIfLatest('c1', 'msg-1', 'Sí, por favor'),
+    ).resolves.toEqual({
+      status: 'won',
+      text: 'Sí, por favor',
+    });
+  });
+
+  it('si el buffer ya se flushó, el fallback pierde', async () => {
+    redis.lrange.mockResolvedValue([]);
+    redis.set.mockResolvedValue(null);
+
+    await expect(
+      service.flushIfLatest('c1', 'msg-1', 'Sí, por favor'),
+    ).resolves.toEqual({ status: 'lost' });
   });
 });

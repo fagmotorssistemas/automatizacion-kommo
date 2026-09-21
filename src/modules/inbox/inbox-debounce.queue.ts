@@ -12,6 +12,7 @@ export type InboxDebounceJobData = {
   phone: string | null;
   source: string;
   createdAt: string;
+  text?: string;
 };
 
 /** Evita importar @nestjs/bullmq en InboxService (Jest + ESM). */

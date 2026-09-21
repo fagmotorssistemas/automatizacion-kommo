@@ -15,5 +15,8 @@ export const bufferKey = (contactId: string) => `inbox:buf:${contactId}`;
 export const outboundSentKey = (contactId: string, messageId: string) =>
   `inbox:out:${contactId}:${messageId}`;
 
+export const flushDoneKey = (contactId: string, messageId: string) =>
+  `inbox:flush:${contactId}:${messageId}`;
+
 export const flushJobId = (contactId: string, messageId: string) =>
   `inbox-flush:${contactId}:${messageId}`;

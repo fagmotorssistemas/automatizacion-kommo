@@ -14,6 +14,7 @@ import {
   DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
   bufferKey,
+  flushDoneKey,
   flushJobId,
   messageIdKey,
   outboundSentKey,
@@ -110,6 +111,7 @@ export class InboxService {
         phone: input.phone,
         source: input.source,
         createdAt: input.createdAt,
+        text: input.text,
       };
 
       await this.debounceQueue.add('flush', jobData, {
@@ -161,19 +163,30 @@ export class InboxService {
   async flushIfLatest(
     contactId: string,
     messageId: string,
+    fallbackText?: string,
   ): Promise<DebounceFlushResult> {
     try {
       const key = bufferKey(contactId);
       const raw = await this.redis.lrange(key, 0, -1);
       const items = itemsForContact(parseBufferedItems(raw), contactId);
 
-      if (!isLatestMessage(items, messageId)) {
-        return { status: 'lost' };
+      if (isLatestMessage(items, messageId)) {
+        const text = joinBufferedTexts(items);
+        await this.redis.del(key);
+        await this.markFlushDone(contactId, messageId);
+        return { status: 'won', text };
       }
 
-      const text = joinBufferedTexts(items);
-      await this.redis.del(key);
-      return { status: 'won', text };
+      // Redis Cloud a veces evicta inbox:buf antes de los 30 s.
+      if (items.length === 0 && fallbackText?.trim()) {
+        const claimed = await this.claimFlush(contactId, messageId);
+        if (!claimed) {
+          return { status: 'lost' };
+        }
+        return { status: 'won', text: fallbackText };
+      }
+
+      return { status: 'lost' };
     } catch (error) {
       this.logger.error(
         `No se pudo flush debounce contactId=${contactId}`,
@@ -181,6 +194,27 @@ export class InboxService {
       );
       return { status: 'unavailable' };
     }
+  }
+
+  private async markFlushDone(
+    contactId: string,
+    messageId: string,
+  ): Promise<void> {
+    await this.redis.set(flushDoneKey(contactId, messageId), '1', 'EX', 300);
+  }
+
+  private async claimFlush(
+    contactId: string,
+    messageId: string,
+  ): Promise<boolean> {
+    const created = await this.redis.set(
+      flushDoneKey(contactId, messageId),
+      '1',
+      'EX',
+      300,
+      'NX',
+    );
+    return created === 'OK';
   }
 
   async hasOutboundSent(contactId: string, messageId: string): Promise<boolean> {

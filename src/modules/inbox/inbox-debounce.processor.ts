@@ -63,6 +63,7 @@ export class InboxDebounceProcessor extends WorkerHost {
     const result = await this.inboxService.flushIfLatest(
       data.contactId,
       data.messageId,
+      data.text,
     );
 
     if (result.status !== 'won') {
