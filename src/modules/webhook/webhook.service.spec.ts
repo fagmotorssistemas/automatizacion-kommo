@@ -10,10 +10,12 @@ describe('WebhookService', () => {
   const inbox = { claimMessage: jest.fn(), scheduleDebounce: jest.fn() };
   const crm = { getContactPhone: jest.fn(), isLeadBotStopped: jest.fn() };
   const media = { toCustomerText: jest.fn() };
+  const runLog = { record: jest.fn() };
   const service = new WebhookService(
     inbox as unknown as InboxService,
     crm as unknown as CrmService,
     media as unknown as MediaService,
+    runLog as never,
   );
 
   beforeEach(() => {

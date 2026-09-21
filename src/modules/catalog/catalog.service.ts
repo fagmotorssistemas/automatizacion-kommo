@@ -48,6 +48,7 @@ export class CatalogService {
     }
   }
 
+  /** bot_id de inventoryoracle. img_prefix solo es backup si no vino el id del carro. */
   async resolvePhotoBots(input: {
     inventoryId?: string;
     imgPrefix?: unknown;

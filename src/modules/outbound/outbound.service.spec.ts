@@ -4,7 +4,9 @@ import { OutboundService } from './outbound.service';
 describe('OutboundService', () => {
   const crm = { setRespuestaIa: jest.fn(), runSalesbot: jest.fn() };
   const catalog = { resolvePhotoBots: jest.fn() };
-  const service = new OutboundService(crm as never, catalog as never);
+  const service = new OutboundService(crm as never, catalog as never, {
+    shadowMode: false,
+  });
 
   beforeEach(() => {
     crm.setRespuestaIa.mockReset();
@@ -36,5 +38,25 @@ describe('OutboundService', () => {
       inventoryId: 'inv-1',
       imgPrefix: 'ford_ecosport_2020',
     });
+  });
+
+  it('en sombra no llama a Kommo y deja ver el texto', async () => {
+    const shadow = new OutboundService(crm as never, catalog as never, {
+      shadowMode: true,
+    });
+
+    const result = await shadow.dispatch('41807269', {
+      mensaje: 'Tenemos una EcoSport',
+      meta: { vehiculo: { inventory_id: 'inv-1' } },
+      img_prefix: 'ford_ecosport_2020',
+    });
+
+    expect(result).toEqual({
+      delivered: false,
+      shadow: true,
+      photoBots: [166291],
+    });
+    expect(crm.setRespuestaIa).not.toHaveBeenCalled();
+    expect(crm.runSalesbot).not.toHaveBeenCalled();
   });
 });

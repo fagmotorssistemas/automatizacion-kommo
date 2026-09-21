@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { CrmModule } from '../crm/crm.module';
 import { InboxModule } from '../inbox/inbox.module';
 import { MediaModule } from '../media/media.module';
+import { RunLogModule } from '../runs/run-log.module';
 import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
 
 @Module({
-  imports: [InboxModule, CrmModule, MediaModule],
+  imports: [InboxModule, CrmModule, MediaModule, RunLogModule],
   controllers: [WebhookController],
   providers: [WebhookService],
 })

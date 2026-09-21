@@ -6,6 +6,7 @@ import { ConversationService } from '../conversation/conversation.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { OutboundService } from '../outbound/outbound.service';
 import { PersistenceService } from '../persistence/persistence.service';
+import { RunLogService } from '../runs/run-log.service';
 import { InboxService } from './inbox.service';
 import {
   INBOX_DEBOUNCE_QUEUE,
@@ -23,26 +24,59 @@ export class InboxDebounceProcessor extends WorkerHost {
     private readonly agentService: AgentService,
     private readonly outboundService: OutboundService,
     private readonly intelligenceService: IntelligenceService,
+    private readonly runLog: RunLogService,
   ) {
     super();
   }
 
   async process(job: Job<InboxDebounceJobData>): Promise<void> {
+    const ctx = {
+      contactId: job.data.contactId,
+      leadId: job.data.leadId,
+      messageId: job.data.messageId,
+    };
+
+    try {
+      await this.processUnsafe(job, ctx);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.runLog.record({
+        ...ctx,
+        step: 'processor',
+        status: 'error',
+        reason: 'excepcion',
+        error: message,
+      });
+      throw error;
+    }
+  }
+
+  private async processUnsafe(
+    job: Job<InboxDebounceJobData>,
+    ctx: { contactId: string; leadId: string; messageId: string },
+  ): Promise<void> {
     const result = await this.inboxService.flushIfLatest(
       job.data.contactId,
       job.data.messageId,
     );
 
     if (result.status !== 'won') {
-      this.logger.debug(
-        `Debounce ${result.status} contactId=${job.data.contactId} messageId=${job.data.messageId}`,
-      );
+      await this.runLog.record({
+        ...ctx,
+        step: 'debounce',
+        status: 'skipped',
+        reason: result.status,
+      });
       return;
     }
 
-    this.logger.log(
-      `Debounce ganó contactId=${job.data.contactId} messageId=${job.data.messageId}`,
-    );
+    await this.runLog.record({
+      ...ctx,
+      step: 'debounce',
+      status: 'ok',
+      reason: 'ganador',
+      detail: { texto: result.text.slice(0, 500) },
+    });
 
     const synced = await this.persistenceService.syncInboundLead({
       contactId: job.data.contactId,
@@ -52,17 +86,40 @@ export class InboxDebounceProcessor extends WorkerHost {
       source: job.data.source,
     });
 
+    if (synced.lead.status === 'unavailable' || synced.lead.status === 'skipped') {
+      await this.runLog.record({
+        ...ctx,
+        step: 'lead',
+        status: 'error',
+        reason: synced.lead.status,
+        error:
+          synced.lead.status === 'skipped'
+            ? 'Supabase no configurado o sin contactId'
+            : 'No se pudo leer/crear el lead',
+      });
+    } else {
+      await this.runLog.record({
+        ...ctx,
+        step: 'lead',
+        status: 'ok',
+        reason: synced.lead.status,
+        detail: { ctwa: synced.ctwa.matched },
+      });
+    }
+
     const inbound = this.conversationService.resolveInboundText({
       joinedText: result.text,
       createdAtUnix: job.data.createdAt,
       ctwa: synced.ctwa,
     });
 
-    this.logger.log(
-      `Lead ${synced.lead.status} contactId=${job.data.contactId} ctwa=${synced.ctwa.matched} texto=${inbound.source}`,
-    );
-
     if (!inbound.message) {
+      await this.runLog.record({
+        ...ctx,
+        step: 'texto',
+        status: 'error',
+        reason: 'sin_texto',
+      });
       return;
     }
 
@@ -72,26 +129,81 @@ export class InboxDebounceProcessor extends WorkerHost {
         job.data.messageId,
       )
     ) {
-      this.logger.log(
-        `Outbound ya enviado contactId=${job.data.contactId} messageId=${job.data.messageId}`,
-      );
+      await this.runLog.record({
+        ...ctx,
+        step: 'outbound',
+        status: 'skipped',
+        reason: 'ya_enviado',
+      });
       return;
     }
 
-    const turn = await this.agentService.handleTurn({
-      contactId: job.data.contactId,
-      customerText: inbound.message,
-    });
+    let turn;
+    try {
+      turn = await this.agentService.handleTurn({
+        contactId: job.data.contactId,
+        customerText: inbound.message,
+      });
+    } catch (error) {
+      await this.runLog.record({
+        ...ctx,
+        step: 'agent',
+        status: 'error',
+        reason: 'openai_o_agente',
+        detail: { texto: inbound.message.slice(0, 500) },
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
 
     if (!turn) {
+      await this.runLog.record({
+        ...ctx,
+        step: 'agent',
+        status: 'error',
+        reason: 'sin_respuesta',
+        detail: { texto: inbound.message.slice(0, 500) },
+        error: 'El agente no generó texto (API key vacía o modelo vacío)',
+      });
       return;
     }
 
-    await this.outboundService.dispatch(job.data.leadId, turn.reply);
+    await this.runLog.record({
+      ...ctx,
+      step: 'agent',
+      status: 'ok',
+      reason: 'respuesta_generada',
+      detail: {
+        resumen: turn.resumen.slice(0, 500),
+        mensaje: turn.reply.mensaje.slice(0, 1000),
+        inventoryId: turn.reply.meta.vehiculo?.inventory_id ?? null,
+        imgPrefix: turn.reply.img_prefix,
+      },
+    });
+
+    const outbound = await this.outboundService.dispatch(
+      job.data.leadId,
+      turn.reply,
+    );
     await this.inboxService.markOutboundSent(
       job.data.contactId,
       job.data.messageId,
     );
+
+    await this.runLog.record({
+      ...ctx,
+      step: 'outbound',
+      status: outbound.delivered ? 'ok' : 'skipped',
+      reason: outbound.shadow ? 'shadow_no_envia' : 'enviado',
+      detail: {
+        mensaje: turn.reply.mensaje.slice(0, 1000),
+        photoBots: outbound.photoBots,
+      },
+    });
+
+    if (outbound.shadow) {
+      return;
+    }
 
     const storedLead =
       synced.lead.status === 'created' || synced.lead.status === 'existing'
@@ -107,11 +219,19 @@ export class InboxDebounceProcessor extends WorkerHost {
         resumen: turn.resumen,
         reply: turn.reply,
       });
+      await this.runLog.record({
+        ...ctx,
+        step: 'intelligence',
+        status: 'ok',
+      });
     } catch (error) {
-      this.logger.error(
-        `Señales fallaron lead=${job.data.leadId}`,
-        error instanceof Error ? error.stack : undefined,
-      );
+      await this.runLog.record({
+        ...ctx,
+        step: 'intelligence',
+        status: 'error',
+        reason: 'senales',
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 }

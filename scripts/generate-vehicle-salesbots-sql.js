@@ -11,19 +11,21 @@ const values = rows
   .map((row) => `  ('${row.prefix}', ${row.botId})`)
   .join(',\n');
 
-const sql = `-- 67 salesbots de fotos que hoy viven en n8n.
--- Un HTTP en Nest; el bot_id se lee de aqui.
--- inventory_id se puede llenar despues (camino preferido).
+const sql = `-- bot_id vive en inventoryoracle (el carro), no en una tabla aparte.
+-- img_prefix = como se llama el paquete de fotos en Kommo.
 
-create table if not exists public.vehicle_salesbots (
-  img_prefix text primary key,
-  bot_id integer not null,
-  inventory_id text
-);
+alter table public.inventoryoracle
+  add column if not exists bot_id integer;
 
-insert into public.vehicle_salesbots (img_prefix, bot_id) values
+update public.inventoryoracle as car
+set bot_id = map.bot_id
+from (
+  values
 ${values}
-on conflict (img_prefix) do update set bot_id = excluded.bot_id;
+) as map(img_prefix, bot_id)
+where car.img_prefix = map.img_prefix;
+
+drop table if exists public.vehicle_salesbots;
 `;
 
 fs.mkdirSync('supabase', { recursive: true });

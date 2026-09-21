@@ -8,6 +8,7 @@ import { ConversationModule } from '../conversation/conversation.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { PersistenceModule } from '../persistence/persistence.module';
+import { RunLogModule } from '../runs/run-log.module';
 import { InboxDebounceProcessor } from './inbox-debounce.processor';
 import {
   INBOX_DEBOUNCE_QUEUE,
@@ -21,6 +22,7 @@ import { InboxService } from './inbox.service';
     RedisModule,
     QueueModule,
     PersistenceModule,
+    RunLogModule,
     ConversationModule,
     AgentModule,
     OutboundModule,

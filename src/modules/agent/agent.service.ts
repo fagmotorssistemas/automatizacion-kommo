@@ -37,8 +37,7 @@ export class AgentService {
     }
 
     if (!this.openai.isReady()) {
-      this.logger.warn('Agente omitido: sin OPENAI_API_KEY');
-      return null;
+      throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
 
     const history = await this.conversation.recentMessages(input.contactId);
@@ -70,7 +69,7 @@ export class AgentService {
     });
 
     if (!raw) {
-      return null;
+      throw new Error('El agente de ventas no devolvió texto');
     }
 
     const parsed = parseAgentOutput(raw);

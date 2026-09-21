@@ -146,42 +146,43 @@ export class SupabasePersistenceClient implements SupabaseGateway {
 
     const ids = new Set<number>();
 
-    if (input.inventoryId) {
-      const { data, error } = await client
-        .from('vehicle_salesbots')
-        .select('bot_id')
-        .eq('inventory_id', input.inventoryId);
-
-      if (error) {
-        this.logger.warn(`GET vehicle_salesbots inventory: ${error.message}`);
-        throw error;
-      }
-
-      for (const row of data ?? []) {
+    const addBots = (rows: Array<{ bot_id?: unknown }> | null) => {
+      for (const row of rows ?? []) {
         const botId = Number(row.bot_id);
-        if (Number.isFinite(botId)) {
+        if (Number.isFinite(botId) && botId > 0) {
           ids.add(botId);
         }
       }
+    };
+
+    if (input.inventoryId) {
+      const { data, error } = await client
+        .from('inventoryoracle')
+        .select('bot_id')
+        .eq('id', input.inventoryId)
+        .maybeSingle();
+
+      if (error) {
+        this.logger.warn(`GET inventoryoracle bot_id: ${error.message}`);
+        throw error;
+      }
+
+      addBots(data ? [data] : []);
     }
 
     if (ids.size === 0 && input.prefixes.length > 0) {
       const { data, error } = await client
-        .from('vehicle_salesbots')
+        .from('inventoryoracle')
         .select('bot_id')
-        .in('img_prefix', input.prefixes);
+        .in('img_prefix', input.prefixes)
+        .not('bot_id', 'is', null);
 
       if (error) {
-        this.logger.warn(`GET vehicle_salesbots prefix: ${error.message}`);
+        this.logger.warn(`GET inventoryoracle bot_id por prefix: ${error.message}`);
         throw error;
       }
 
-      for (const row of data ?? []) {
-        const botId = Number(row.bot_id);
-        if (Number.isFinite(botId)) {
-          ids.add(botId);
-        }
-      }
+      addBots(data);
     }
 
     return [...ids].slice(0, 4);
@@ -327,6 +328,28 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     if (error) {
       this.logger.warn(`INSERT asesoria_financiamiento: ${error.message}`);
       throw error;
+    }
+  }
+
+  async insertRunLog(row: {
+    created_at: string;
+    contact_id: string | null;
+    lead_id: string | null;
+    message_id: string | null;
+    step: string;
+    status: string;
+    reason: string | null;
+    detail: Record<string, unknown>;
+    error: string | null;
+  }): Promise<void> {
+    const client = this.requireClient();
+    if (!client) {
+      return;
+    }
+
+    const { error } = await client.from('automation_run_logs').insert(row);
+    if (error) {
+      this.logger.warn(`INSERT automation_run_logs: ${error.message}`);
     }
   }
 

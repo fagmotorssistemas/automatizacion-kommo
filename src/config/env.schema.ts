@@ -15,7 +15,8 @@ export const envSchema = z.object({
   SUPABASE_URL: z.url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(''),
 
-  DATABASE_URL: z.string().min(1),
+  /** true: genera la respuesta y la loguea; no envía WhatsApp. */
+  SHADOW_MODE: z.string().optional().default('true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -17,7 +17,8 @@ export default () => ({
     url: process.env.SUPABASE_URL,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   },
-  database: {
-    url: process.env.DATABASE_URL,
-  },
+  shadowMode:
+    process.env.SHADOW_MODE === undefined
+      ? true
+      : process.env.SHADOW_MODE === 'true' || process.env.SHADOW_MODE === '1',
 });
