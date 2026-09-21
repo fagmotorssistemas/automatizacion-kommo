@@ -52,6 +52,13 @@ export class PersistenceService {
     try {
       const existing = await this.supabase.findLeadByContactId(input.contactId);
       if (existing) {
+        if (input.assignedTo && !existing.assignedTo) {
+          await this.supabase.updateLeadAssignee(existing.id, input.assignedTo);
+          return {
+            status: 'existing',
+            lead: { ...existing, assignedTo: input.assignedTo },
+          };
+        }
         return { status: 'existing', lead: existing };
       }
 
@@ -61,6 +68,7 @@ export class PersistenceService {
         name: input.name.trim() || 'sin nombre',
         phone: phoneForLeadColumn(input.phone),
         source: input.source,
+        assignedTo: input.assignedTo,
       });
 
       if (!created) {
@@ -172,6 +180,21 @@ export class PersistenceService {
     } catch (error) {
       this.logger.error(
         `applyLeadAnalysis falló lead=${input.leadId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async assignLead(leadId: string, assignedTo: string | null | undefined): Promise<void> {
+    if (!this.supabase || !leadId || !assignedTo) {
+      return;
+    }
+
+    try {
+      await this.supabase.updateLeadAssignee(leadId, assignedTo);
+    } catch (error) {
+      this.logger.error(
+        `assigned_to falló lead=${leadId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

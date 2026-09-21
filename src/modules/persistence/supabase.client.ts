@@ -67,6 +67,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         name: row.name,
         phone: row.phone,
         source: row.source,
+        assigned_to: row.assignedTo || null,
       })
       .select(LEAD_COLUMNS)
       .single();
@@ -77,6 +78,23 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
 
     return data ? this.mapLead(data) : null;
+  }
+
+  async updateLeadAssignee(leadId: string, assignedTo: string): Promise<void> {
+    const client = this.requireClient();
+    if (!client || !leadId || !assignedTo) {
+      return;
+    }
+
+    const { error } = await client
+      .from('leads')
+      .update({ assigned_to: assignedTo })
+      .eq('id', leadId);
+
+    if (error) {
+      this.logger.warn(`UPDATE leads assigned_to id=${leadId}: ${error.message}`);
+      throw error;
+    }
   }
 
   async matchCtwaClick(phone: string): Promise<unknown> {
@@ -158,10 +176,12 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       }
     };
 
+    const prefixes = [...input.prefixes];
+
     if (input.inventoryId) {
       const { data, error } = await client
         .from('inventoryoracle')
-        .select('bot_id')
+        .select('bot_id, img_prefix')
         .eq('id', input.inventoryId)
         .maybeSingle();
 
@@ -171,13 +191,17 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       }
 
       addBots(data ? [data] : []);
+      const prefix = data?.img_prefix;
+      if (ids.size === 0 && typeof prefix === 'string' && prefix.trim()) {
+        prefixes.push(prefix.trim());
+      }
     }
 
-    if (ids.size === 0 && input.prefixes.length > 0) {
+    if (ids.size === 0 && prefixes.length > 0) {
       const { data, error } = await client
         .from('inventoryoracle')
         .select('bot_id')
-        .in('img_prefix', input.prefixes)
+        .in('img_prefix', prefixes)
         .not('bot_id', 'is', null);
 
       if (error) {
@@ -371,6 +395,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       name: String(row.name ?? ''),
       phone: String(row.phone ?? ''),
       source: String(row.source ?? ''),
+      assignedTo: row.assigned_to ? String(row.assigned_to) : null,
       mensajesEnviados: Array.isArray(row.mensajes_enviados)
         ? row.mensajes_enviados.map(String)
         : [],

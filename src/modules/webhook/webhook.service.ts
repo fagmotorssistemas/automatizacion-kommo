@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isExcludedLead } from '../crm/is-excluded-lead';
 import { CrmService } from '../crm/crm.service';
+import { HandoffService } from '../handoff/handoff.service';
 import { InboxRoute, routeByOrigin } from '../inbox/inbox.routing';
 import {
   classifyMessageKind,
@@ -34,6 +36,7 @@ export type WebhookHandleResult =
         | 'duplicate'
         | 'inbox_unavailable'
         | 'bot_stopped'
+        | 'excluded_lead'
         | 'internal_error';
     };
 
@@ -44,6 +47,7 @@ export class WebhookService {
   constructor(
     private readonly inboxService: InboxService,
     private readonly crmService: CrmService,
+    private readonly handoff: HandoffService,
     private readonly mediaService: MediaService,
     private readonly runLog: RunLogService,
   ) {}
@@ -95,6 +99,16 @@ export class WebhookService {
       messageId: parsed.data.messageId,
     };
 
+    if (isExcludedLead(parsed.data.leadId)) {
+      await this.runLog.record({
+        ...ctx,
+        step: 'webhook',
+        status: 'skipped',
+        reason: 'excluded_lead',
+      });
+      return { accepted: false, reason: 'excluded_lead' };
+    }
+
     if (!isCustomerInbound(parsed.data)) {
       await this.runLog.record({
         ...ctx,
@@ -134,10 +148,12 @@ export class WebhookService {
     }
 
     const route = routeByOrigin(parsed.data.origin);
+    let phone: string | null = null;
+    let assignedTo: string | undefined;
 
     if (route === 'waba') {
-      const stopped = await this.crmService.isLeadBotStopped(parsed.data.leadId);
-      if (stopped) {
+      const inspected = await this.crmService.inspectLead(parsed.data.leadId);
+      if (inspected.stopped) {
         await this.runLog.record({
           ...ctx,
           step: 'webhook',
@@ -146,12 +162,10 @@ export class WebhookService {
         });
         return { accepted: false, reason: 'bot_stopped' };
       }
-    }
 
-    const phone =
-      route === 'waba'
-        ? await this.crmService.getContactPhone(parsed.data.contactId)
-        : null;
+      assignedTo = this.handoff.assigneeFromKommoLead(inspected.raw);
+      phone = await this.crmService.getContactPhone(parsed.data.contactId);
+    }
 
     const kind = classifyMessageKind({
       attachmentType: parsed.data.attachmentType,
@@ -174,6 +188,7 @@ export class WebhookService {
       phone,
       source: parsed.data.origin,
       createdAt: parsed.data.createdAt,
+      ...(assignedTo ? { assignedTo } : {}),
     });
 
     await this.runLog.record({

@@ -12,6 +12,8 @@ import {
   INBOX_DEBOUNCE_QUEUE,
   InboxDebounceJobData,
 } from './inbox-debounce.queue';
+import { routeByOrigin } from './inbox.routing';
+import { OtherChannelService } from './other-channel.service';
 
 @Processor(INBOX_DEBOUNCE_QUEUE)
 export class InboxDebounceProcessor extends WorkerHost {
@@ -24,6 +26,7 @@ export class InboxDebounceProcessor extends WorkerHost {
     private readonly agentService: AgentService,
     private readonly outboundService: OutboundService,
     private readonly intelligenceService: IntelligenceService,
+    private readonly otherChannel: OtherChannelService,
     private readonly runLog: RunLogService,
   ) {
     super();
@@ -84,12 +87,34 @@ export class InboxDebounceProcessor extends WorkerHost {
       detail: { texto: result.text.slice(0, 500) },
     });
 
+    if (routeByOrigin(data.source) !== 'waba') {
+      const handled = await this.otherChannel.handle({
+        leadId: data.leadId,
+        contactId: data.contactId,
+        name: data.name,
+        text: result.text,
+      });
+      await this.runLog.record({
+        ...ctx,
+        step: 'other_channel',
+        status: handled.action === 'no_lead' ? 'skipped' : 'ok',
+        reason: handled.action,
+        detail: {
+          phone: handled.phone,
+          targetLeadId: handled.targetLeadId,
+          shadow: handled.shadow,
+        },
+      });
+      return;
+    }
+
     const synced = await this.persistenceService.syncInboundLead({
       contactId: data.contactId,
       leadIdKommo: data.leadId,
       name: data.name,
       phone: data.phone,
       source: data.source,
+      assignedTo: data.assignedTo,
     });
 
     if (synced.lead.status === 'unavailable' || synced.lead.status === 'skipped') {
@@ -209,14 +234,14 @@ export class InboxDebounceProcessor extends WorkerHost {
       },
     });
 
-    if (outbound.shadow) {
-      return;
-    }
-
     const storedLead =
       synced.lead.status === 'created' || synced.lead.status === 'existing'
         ? synced.lead.lead
         : null;
+
+    if (data.assignedTo && storedLead?.id) {
+      await this.persistenceService.assignLead(storedLead.id, data.assignedTo);
+    }
 
     try {
       await this.intelligenceService.afterReply({

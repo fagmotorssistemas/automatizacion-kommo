@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
+import { HandoffService } from './handoff.service';
 
-/**
- * Reglas de negocio que hoy están hardcodeadas en n8n.
- * Paso 11: país, horarios y vendedores viven en config, no en el agente.
- */
-@Module({})
+@Module({
+  providers: [HandoffService],
+  exports: [HandoffService],
+})
 export class HandoffModule {}

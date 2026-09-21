@@ -13,6 +13,7 @@ describe('PersistenceService', () => {
     updateLeadRecovery: jest.fn(),
     updateLeadAnalysis: jest.fn(),
     insertTradeIn: jest.fn(),
+    updateLeadAssignee: jest.fn(),
   };
   const service = new PersistenceService(supabase);
 
@@ -46,6 +47,7 @@ describe('PersistenceService', () => {
       name: 'Rosa Gonzalez',
       phone: '+593999000111',
       source: 'waba',
+      assignedTo: null,
       mensajesEnviados: [],
       behaviorSignals: {},
     });
@@ -69,6 +71,7 @@ describe('PersistenceService', () => {
       name: 'Rosa Gonzalez',
       phone: '+593999000111',
       source: 'waba',
+      assignedTo: null,
       mensajesEnviados: [],
       behaviorSignals: {},
     });
@@ -86,6 +89,7 @@ describe('PersistenceService', () => {
       name: 'Rosa Gonzalez',
       phone: '+593999000111',
       source: 'waba',
+      assignedTo: undefined,
     });
     expect(result.ctwa).toEqual({
       matched: true,
@@ -102,6 +106,7 @@ describe('PersistenceService', () => {
       name: 'sin nombre',
       phone: 'Sin número',
       source: 'waba',
+      assignedTo: null,
       mensajesEnviados: [],
       behaviorSignals: {},
     });

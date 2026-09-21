@@ -104,6 +104,7 @@ describe('InboxService', () => {
         source: 'waba',
         createdAt: '1789340833',
         text: 'hola',
+        assignedTo: undefined,
       },
       expect.objectContaining({
         delay: DEBOUNCE_DELAY_MS,

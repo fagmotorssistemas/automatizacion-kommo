@@ -59,4 +59,27 @@ describe('OutboundService', () => {
     expect(crm.setRespuestaIa).not.toHaveBeenCalled();
     expect(crm.runSalesbot).not.toHaveBeenCalled();
   });
+
+  it('en sombra no dispara el salesbot de alta contacto', async () => {
+    const shadow = new OutboundService(crm as never, catalog as never, {
+      shadowMode: true,
+    });
+
+    await expect(shadow.announceNewContact('41807269')).resolves.toEqual({
+      ran: false,
+      shadow: true,
+    });
+    expect(crm.runSalesbot).not.toHaveBeenCalled();
+  });
+
+  it('en vivo dispara el salesbot 187553', async () => {
+    await expect(service.announceNewContact('41807269')).resolves.toEqual({
+      ran: true,
+      shadow: false,
+    });
+    expect(crm.runSalesbot).toHaveBeenCalledWith(
+      KOMMO_SALESBOT.ALTA_CONTACTO,
+      '41807269',
+    );
+  });
 });

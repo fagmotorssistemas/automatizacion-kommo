@@ -19,4 +19,9 @@ export const KOMMO_SALESBOT = {
   ALTA_CONTACTO: 187553,
 } as const;
 
+/** Pipeline de n8n "Create new leads" en el ramal Instagram. */
+export const KOMMO_PIPELINE = {
+  NUEVOS: 11992348,
+} as const;
+
 export const KOMMO_EXCLUDED_LEAD_IDS = ['30296877'] as const;

@@ -1,6 +1,8 @@
 import { CrmService } from '../crm/crm.service';
+import { HandoffService } from '../handoff/handoff.service';
 import { InboxService } from '../inbox/inbox.service';
 import { MediaService } from '../media/media.service';
+import { DEFAULT_ASSIGNEE } from '../handoff/seller-map';
 import { kommoWabaPictureBody } from './fixtures/kommo-waba-picture.body';
 import { kommoWabaTextBody } from './fixtures/kommo-waba-text.body';
 import { kommoWabaVoiceBody } from './fixtures/kommo-waba-voice.body';
@@ -8,12 +10,14 @@ import { WebhookService } from './webhook.service';
 
 describe('WebhookService', () => {
   const inbox = { claimMessage: jest.fn(), scheduleDebounce: jest.fn() };
-  const crm = { getContactPhone: jest.fn(), isLeadBotStopped: jest.fn() };
+  const crm = { getContactPhone: jest.fn(), inspectLead: jest.fn() };
+  const handoff = { assigneeFromKommoLead: jest.fn() };
   const media = { toCustomerText: jest.fn() };
   const runLog = { record: jest.fn() };
   const service = new WebhookService(
     inbox as unknown as InboxService,
     crm as unknown as CrmService,
+    handoff as unknown as HandoffService,
     media as unknown as MediaService,
     runLog as never,
   );
@@ -25,8 +29,10 @@ describe('WebhookService', () => {
     inbox.scheduleDebounce.mockResolvedValue('scheduled');
     crm.getContactPhone.mockReset();
     crm.getContactPhone.mockResolvedValue('+593999000111');
-    crm.isLeadBotStopped.mockReset();
-    crm.isLeadBotStopped.mockResolvedValue(false);
+    crm.inspectLead.mockReset();
+    crm.inspectLead.mockResolvedValue({ stopped: false, raw: {} });
+    handoff.assigneeFromKommoLead.mockReset();
+    handoff.assigneeFromKommoLead.mockReturnValue(DEFAULT_ASSIGNEE);
     media.toCustomerText.mockReset();
     media.toCustomerText.mockImplementation(
       async (input: { kind: string; text: string }) => {
@@ -52,7 +58,7 @@ describe('WebhookService', () => {
       text: 'Hola. Me interesa el Suzuki Grand Vitara 2015',
       debounce: 'scheduled',
     });
-    expect(crm.isLeadBotStopped).toHaveBeenCalledWith('41807269');
+    expect(crm.inspectLead).toHaveBeenCalledWith('41807269');
     expect(crm.getContactPhone).toHaveBeenCalledWith('59458509');
     expect(inbox.claimMessage).toHaveBeenCalledWith(
       '59458509',
@@ -67,11 +73,26 @@ describe('WebhookService', () => {
       phone: '+593999000111',
       source: 'waba',
       createdAt: '1789340833',
+      assignedTo: DEFAULT_ASSIGNEE,
     });
   });
 
+  it('corta el lead excluido de n8n', async () => {
+    await expect(
+      service.handleKommo({
+        ...kommoWabaTextBody,
+        'message[add][0][entity_id]': '30296877',
+      }),
+    ).resolves.toEqual({
+      accepted: false,
+      reason: 'excluded_lead',
+    });
+    expect(inbox.claimMessage).not.toHaveBeenCalled();
+    expect(inbox.scheduleDebounce).not.toHaveBeenCalled();
+  });
+
   it('corta si atiende IA? está marcado', async () => {
-    crm.isLeadBotStopped.mockResolvedValue(true);
+    crm.inspectLead.mockResolvedValue({ stopped: true, raw: {} });
 
     await expect(service.handleKommo(kommoWabaTextBody)).resolves.toEqual({
       accepted: false,
@@ -108,7 +129,23 @@ describe('WebhookService', () => {
     });
   });
 
-  it('no pide contacto si el origin no es waba', async () => {
+  it('Instagram no se corta aunque atiende IA? esté marcado', async () => {
+    crm.inspectLead.mockResolvedValue({ stopped: true, raw: {} });
+
+    await expect(
+      service.handleKommo({
+        ...kommoWabaTextBody,
+        'message[add][0][origin]': 'instagram',
+      }),
+    ).resolves.toMatchObject({
+      accepted: true,
+      route: 'other',
+      debounce: 'scheduled',
+    });
+    expect(crm.inspectLead).not.toHaveBeenCalled();
+  });
+
+  it('Instagram no entra al agente ni mira atiende IA?', async () => {
     await expect(
       service.handleKommo({
         ...kommoWabaTextBody,
@@ -124,8 +161,18 @@ describe('WebhookService', () => {
       text: 'Hola. Me interesa el Suzuki Grand Vitara 2015',
       debounce: 'scheduled',
     });
-    expect(crm.isLeadBotStopped).not.toHaveBeenCalled();
+    expect(crm.inspectLead).not.toHaveBeenCalled();
     expect(crm.getContactPhone).not.toHaveBeenCalled();
+    expect(inbox.scheduleDebounce).toHaveBeenCalledWith({
+      contactId: '59458509',
+      messageId: 'ae7243c7-e973-4aa5-ad43-ae3a95d74233',
+      text: 'Hola. Me interesa el Suzuki Grand Vitara 2015',
+      leadId: '41807269',
+      name: 'Rosa Gonzalez',
+      phone: null,
+      source: 'instagram',
+      createdAt: '1789340833',
+    });
   });
 
   it('rechaza el mismo messageId si inbox lo marca duplicado', async () => {

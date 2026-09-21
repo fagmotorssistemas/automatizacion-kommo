@@ -83,6 +83,7 @@ export class InboxService {
     phone: string | null;
     source: string;
     createdAt: string;
+    assignedTo?: string;
   }): Promise<DebounceScheduleResult> {
     if (!input.contactId || !input.messageId) {
       return 'skipped';
@@ -112,6 +113,7 @@ export class InboxService {
         source: input.source,
         createdAt: input.createdAt,
         text: input.text,
+        assignedTo: input.assignedTo,
       };
 
       await this.debounceQueue.add('flush', jobData, {

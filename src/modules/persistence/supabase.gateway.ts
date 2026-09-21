@@ -16,6 +16,7 @@ export type LeadInsert = {
   name: string;
   phone: string;
   source: string;
+  assignedTo?: string | null;
 };
 
 export type AgentPromptRow = {
@@ -26,6 +27,7 @@ export type AgentPromptRow = {
 export type SupabaseGateway = {
   findLeadByContactId(contactId: string): Promise<LeadRow | null>;
   insertLead(row: LeadInsert): Promise<LeadRow | null>;
+  updateLeadAssignee(leadId: string, assignedTo: string): Promise<void>;
   matchCtwaClick(phone: string): Promise<unknown>;
   fetchAgentPrompts(names: string[]): Promise<AgentPromptRow[]>;
   matchInventory(embedding: number[], topK: number): Promise<unknown>;

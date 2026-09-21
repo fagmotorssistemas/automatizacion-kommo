@@ -66,4 +66,19 @@ export class OutboundService {
     );
     return { delivered: true, shadow: false, photoBots };
   }
+
+  /** n8n ramal no-WABA: salesbot 187553 al crear o encontrar el lead. */
+  async announceNewContact(leadId: string): Promise<{ ran: boolean; shadow: boolean }> {
+    if (!leadId) {
+      return { ran: false, shadow: this.outboundConfig.shadowMode };
+    }
+
+    if (this.outboundConfig.shadowMode) {
+      this.logger.log(`SHADOW: salesbot alta contacto ${KOMMO_SALESBOT.ALTA_CONTACTO} lead=${leadId}`);
+      return { ran: false, shadow: true };
+    }
+
+    const ran = await this.crm.runSalesbot(KOMMO_SALESBOT.ALTA_CONTACTO, leadId);
+    return { ran, shadow: false };
+  }
 }

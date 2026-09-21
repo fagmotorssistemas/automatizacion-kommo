@@ -3,8 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { CrmService } from '../crm/crm.service';
+import { HandoffService } from '../handoff/handoff.service';
 import { InboxService } from '../inbox/inbox.service';
 import { MediaService } from '../media/media.service';
+import { RunLogService } from '../runs/run-log.service';
+import { DEFAULT_ASSIGNEE } from '../handoff/seller-map';
 import { kommoWabaTextBody } from './fixtures/kommo-waba-text.body';
 import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
@@ -28,8 +31,18 @@ describe('WebhookController', () => {
           provide: CrmService,
           useValue: {
             getContactPhone: jest.fn().mockResolvedValue(null),
-            isLeadBotStopped: jest.fn().mockResolvedValue(false),
+            inspectLead: jest.fn().mockResolvedValue({ stopped: false, raw: {} }),
           },
+        },
+        {
+          provide: HandoffService,
+          useValue: {
+            assigneeFromKommoLead: jest.fn().mockReturnValue(DEFAULT_ASSIGNEE),
+          },
+        },
+        {
+          provide: RunLogService,
+          useValue: { record: jest.fn() },
         },
         {
           provide: MediaService,

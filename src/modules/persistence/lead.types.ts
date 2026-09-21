@@ -4,6 +4,7 @@ export type PersistLeadInput = {
   name: string;
   phone: string | null;
   source: string;
+  assignedTo?: string | null;
 };
 
 export type RecoveryStep = '2d' | '7d' | '15d' | '30d';
@@ -28,6 +29,7 @@ export type LeadRow = {
   name: string;
   phone: string;
   source: string;
+  assignedTo: string | null;
   mensajesEnviados: string[];
   behaviorSignals: Partial<BehaviorSignals>;
 };

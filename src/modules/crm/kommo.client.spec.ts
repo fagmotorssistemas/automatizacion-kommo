@@ -21,7 +21,7 @@ describe('KommoClient', () => {
   it('hace GET /contacts/{id} con Bearer del .env', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 1 }),
+      text: async () => JSON.stringify({ id: 1 }),
     });
 
     const client = new KommoClient({
