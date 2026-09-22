@@ -114,6 +114,14 @@ export type InterestedCarInput = {
   vehicleUid: string;
 };
 
+export type InterestedCarSnapshot = {
+  inventoryId: string;
+  brand: string;
+  model: string;
+  year: number | null;
+  price: number | null;
+};
+
 export type CtwaMatch = {
   matched: boolean;
   adHeadline: string | null;

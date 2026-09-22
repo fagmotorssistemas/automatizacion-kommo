@@ -43,6 +43,31 @@ export class OpenAiAgentClient {
     return result.choices[0]?.message?.content?.trim() || null;
   }
 
+  async completeJson(system: string, user: string): Promise<string | null> {
+    if (!this.openai) {
+      this.logger.warn('OPENAI_API_KEY vacío; no se llama al modelo');
+      return null;
+    }
+
+    try {
+      const result = await this.openai.chat.completions.create({
+        model: this.model,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      });
+      return result.choices[0]?.message?.content?.trim() || null;
+    } catch (error) {
+      this.logger.error(
+        'La revisión de inventario no respondió',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
   async embed(text: string): Promise<number[] | null> {
     if (!this.openai || !text.trim()) {
       return null;

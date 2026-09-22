@@ -10,6 +10,12 @@ export const SALES_TOOL_DEFINITIONS = [
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Query limpio de búsqueda' },
+          tipo: {
+            type: 'string',
+            enum: ['camioneta', 'suv', 'sedan', 'hatchback'],
+            description:
+              'Tipo que el cliente ya pidió. Repítelo en cada búsqueda mientras no lo cambie.',
+          },
         },
         required: ['query'],
       },

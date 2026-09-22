@@ -3,6 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import ws from 'ws';
 import {
   InterestedCarInput,
+  InterestedCarSnapshot,
   LeadAnalysisPatch,
   LeadRecoveryPatch,
   LeadRow,
@@ -17,6 +18,45 @@ import {
   SupabaseGateway,
 } from './supabase.gateway';
 import { SUPABASE_CONFIG, type SupabaseConfig } from './supabase.config';
+
+function mapStockRow(row: {
+  id?: unknown;
+  brand?: unknown;
+  model?: unknown;
+  year?: unknown;
+  price?: unknown;
+  type_body?: unknown;
+  color?: unknown;
+  version?: unknown;
+  mileage?: unknown;
+  transmission?: unknown;
+  fuel_type?: unknown;
+  passenger_capacity?: unknown;
+  doors_count?: unknown;
+  drive_type?: unknown;
+  vin?: unknown;
+}) {
+  const text = (value: unknown) =>
+    value == null || value === '' ? null : String(value);
+  const num = (value: unknown) => (value == null ? null : Number(value));
+  return {
+    id: String(row.id ?? ''),
+    brand: String(row.brand ?? ''),
+    model: String(row.model ?? ''),
+    year: num(row.year),
+    price: num(row.price),
+    typeBody: text(row.type_body),
+    color: text(row.color),
+    version: text(row.version),
+    mileage: num(row.mileage),
+    transmission: text(row.transmission),
+    fuelType: text(row.fuel_type),
+    passengerCapacity: text(row.passenger_capacity),
+    doorsCount: num(row.doors_count),
+    driveType: text(row.drive_type),
+    vin: text(row.vin),
+  };
+}
 
 const LEAD_COLUMNS =
   'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals, bot_apagado, bot_apagado_at, ultimo_mensaje_ignorado, handoff_transcript, handoff_resumen';
@@ -184,15 +224,92 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }));
   }
 
-  async matchInventory(embedding: number[], topK: number): Promise<unknown> {
+  async listAvailableExcept(brand: string) {
+    const client = this.requireClient();
+    if (!client || !brand.trim()) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('inventoryoracle')
+      .select(
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin',
+      )
+      .eq('status', 'disponible')
+      .neq('brand', brand.trim().toLowerCase())
+      .order('price', { ascending: true });
+
+    if (error) {
+      this.logger.warn(`GET inventoryoracle otras marcas: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? []).map((row) => mapStockRow(row));
+  }
+
+  async listAvailableByBrand(brand: string): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      price: number | null;
+      typeBody: string | null;
+      color: string | null;
+      version: string | null;
+      mileage: number | null;
+      transmission: string | null;
+      fuelType: string | null;
+      passengerCapacity: string | null;
+      doorsCount: number | null;
+      driveType: string | null;
+      vin: string | null;
+    }[]
+  > {
+    const client = this.requireClient();
+    if (!client || !brand.trim()) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('inventoryoracle')
+      .select(
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin',
+      )
+      .eq('status', 'disponible')
+      .ilike('brand', brand.trim())
+      .order('price', { ascending: true });
+
+    if (error) {
+      this.logger.warn(`GET inventoryoracle marca: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? []).map((row) => mapStockRow(row));
+  }
+
+  async matchInventory(
+    embedding: number[],
+    topK: number,
+    filter?: { tipo?: string; marca?: string },
+  ): Promise<unknown> {
     const client = this.requireClient();
     if (!client) {
       return [];
     }
 
+    const payload: { tipo?: string; marca?: string } = {};
+    if (filter?.tipo) {
+      payload.tipo = filter.tipo;
+    }
+    if (filter?.marca) {
+      payload.marca = filter.marca;
+    }
+
     const { data, error } = await client.rpc('match_inventoryoracle', {
       query_embedding: embedding,
       match_count: topK,
+      filter: payload,
     });
 
     if (error) {
@@ -282,6 +399,56 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
 
     return Boolean(data);
+  }
+
+  async latestInterestedCar(
+    leadId: string,
+  ): Promise<InterestedCarSnapshot | null> {
+    const client = this.requireClient();
+    if (!client || !leadId) {
+      return null;
+    }
+
+    const { data, error } = await client
+      .from('interested_cars')
+      .select('inventory_id')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(`GET interested_cars último: ${error.message}`);
+      throw error;
+    }
+
+    const inventoryId = data?.inventory_id ? String(data.inventory_id) : '';
+    if (!inventoryId) {
+      return null;
+    }
+
+    const { data: car, error: carError } = await client
+      .from('inventoryoracle')
+      .select('brand, model, year, price')
+      .eq('id', inventoryId)
+      .maybeSingle();
+
+    if (carError) {
+      this.logger.warn(`GET inventoryoracle interés: ${carError.message}`);
+      throw carError;
+    }
+
+    if (!car) {
+      return null;
+    }
+
+    return {
+      inventoryId,
+      brand: String(car.brand ?? ''),
+      model: String(car.model ?? ''),
+      year: car.year == null ? null : Number(car.year),
+      price: car.price == null ? null : Number(car.price),
+    };
   }
 
   async insertInterestedCar(row: InterestedCarInput): Promise<void> {

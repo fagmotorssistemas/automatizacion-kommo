@@ -6,6 +6,7 @@ import {
   HandoffBrief,
   HandoffTurn,
   InterestedCarInput,
+  InterestedCarSnapshot,
   LeadAnalysisPatch,
   LeadRecoveryPatch,
   LeadRow,
@@ -386,6 +387,28 @@ export class PersistenceService {
         `n8n_chat_histories falló contactId=${input.contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
+    }
+  }
+
+  async latestInterestedCar(
+    contactId: string,
+  ): Promise<InterestedCarSnapshot | null> {
+    if (!this.supabase || !contactId) {
+      return null;
+    }
+
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (!lead) {
+        return null;
+      }
+      return await this.supabase.latestInterestedCar(lead.id);
+    } catch (error) {
+      this.logger.error(
+        `interested_cars último falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
     }
   }
 

@@ -22,6 +22,47 @@ import { INTENTS_SYSTEM_PROMPT } from './prompts/intents.prompt';
 import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
+import {
+  formatPedidoVigente,
+  parseVehicleKind,
+  resolveVehicleKind,
+  VehicleKind,
+} from '../conversation/vehicle-kind';
+import { detectBrand, resolveBrand } from '../conversation/vehicle-brand';
+import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
+import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
+import {
+  formatInterestedCar,
+  refersToInterestedCar,
+} from '../conversation/interested-car';
+import {
+  formatRevisionMarca,
+  StockCar,
+  textMentionsModel,
+  userNamedModel,
+} from '../catalog/clasificar-filas';
+import {
+  carsForReview,
+  COMPLIANCE_SYSTEM_PROMPT,
+  formatComplianceForAgent,
+  formatOtherBrands,
+  idsToOffer,
+  parseComplianceReview,
+  vehicleToSend,
+} from '../catalog/revisar-cumplimiento';
+
+function namedOfferId(
+  cars: StockCar[],
+  offer: string[],
+  userTexts: string[],
+): string | null {
+  const named = cars.filter(
+    (car) =>
+      offer.includes(car.id) &&
+      userTexts.some((text) => textMentionsModel(text, car.model)),
+  );
+  return named.length === 1 ? named[0].id : null;
+}
 
 @Injectable()
 export class AgentService {
@@ -47,6 +88,27 @@ export class AgentService {
     }
 
     const history = await this.recentDialogue(input.contactId);
+    const vehicleKind = await this.rememberVehicleKind(
+      input.contactId,
+      history,
+      input.customerText,
+    );
+    const brand = await this.rememberBrand(
+      input.contactId,
+      history,
+      input.customerText,
+    );
+    const concreteAsk = await this.rememberConcreteAsk(
+      input.contactId,
+      history,
+      input.customerText,
+    );
+    const revision = await this.reviewBrand(
+      history,
+      input.customerText,
+      brand,
+      concreteAsk,
+    );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
       history,
@@ -69,16 +131,33 @@ export class AgentService {
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
     const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
+    const interested = await this.persistence.latestInterestedCar(
+      input.contactId,
+    );
+    const interestedText =
+      interested && refersToInterestedCar(input.customerText, interested)
+        ? formatInterestedCar(interested)
+        : '';
+    const pedidoVigente = [
+      formatPedidoVigente(vehicleKind),
+      revision.text,
+      interestedText,
+      isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
     const system = salesSystemPrompt(
       getDealershipClock(),
       assembleDynamicContext(sections),
+      pedidoVigente,
     );
 
     const raw = await this.openai.runSalesAgent({
       system,
-      user: resumen,
+      user: pedidoVigente ? `${resumen}\n\n${pedidoVigente}` : resumen,
       history,
-      executeTool: (name, argsJson) => this.executeTool(name, argsJson),
+      executeTool: (name, argsJson) =>
+        this.executeTool(name, argsJson, vehicleKind, brand),
     });
 
     if (!raw) {
@@ -86,6 +165,13 @@ export class AgentService {
     }
 
     const parsed = parseAgentOutput(raw);
+    if (revision.sendId) {
+      parsed.meta.vehiculo = { inventory_id: revision.sendId };
+      parsed.img_prefix = '';
+    } else if (revision.holdVehicle) {
+      parsed.meta.vehiculo = null;
+      parsed.img_prefix = '';
+    }
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
         role: 'assistant',
@@ -114,7 +200,179 @@ export class AgentService {
     return this.persistence.loadRecentChat(contactId);
   }
 
-  private async executeTool(name: string, argsJson: string): Promise<string> {
+  private async rememberVehicleKind(
+    contactId: string,
+    history: { role: string; content: string }[],
+    customerText: string,
+  ): Promise<VehicleKind | null> {
+    const remembered = await this.conversation.loadVehicleKind(contactId);
+    const kind = resolveVehicleKind({ history, customerText, remembered });
+    if (kind) {
+      await this.conversation.saveVehicleKind(contactId, kind);
+    }
+    return kind;
+  }
+
+  private async rememberBrand(
+    contactId: string,
+    history: { role: string; content: string }[],
+    customerText: string,
+  ): Promise<string | null> {
+    const remembered = await this.conversation.loadVehicleBrand(contactId);
+    const brand = resolveBrand({ history, customerText, remembered });
+    if (brand) {
+      await this.conversation.saveVehicleBrand(contactId, brand);
+    }
+    return brand;
+  }
+
+  private async rememberConcreteAsk(
+    contactId: string,
+    history: { role: string; content: string }[],
+    customerText: string,
+  ): Promise<string | null> {
+    const remembered = await this.conversation.loadConcreteAsk(contactId);
+    const ask = resolveConcreteAsk({ history, customerText, remembered });
+    if (ask) {
+      await this.conversation.saveConcreteAsk(contactId, ask);
+    }
+    return ask;
+  }
+
+  private async reviewBrand(
+    history: { role: string; content: string }[],
+    customerText: string,
+    brand: string | null,
+    concreteAsk: string | null,
+  ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
+    const empty = { text: '', holdVehicle: false, sendId: null };
+    if (!brand) {
+      return empty;
+    }
+
+    const asksNow =
+      isConcreteAsk(customerText) ||
+      (Boolean(concreteAsk) && Boolean(detectBrand(customerText)));
+    const namesBrandNow = Boolean(detectBrand(customerText));
+    if (!asksNow && !namesBrandNow) {
+      return empty;
+    }
+
+    const cars = await this.catalog.listByBrand(brand);
+    if (cars.length === 0) {
+      return empty;
+    }
+
+    const userTexts = [
+      ...history
+        .filter((item) => item.role === 'user')
+        .map((item) => item.content),
+      customerText,
+    ];
+
+    if (!asksNow) {
+      if (userNamedModel(userTexts, cars)) {
+        return empty;
+      }
+      return {
+        text: formatRevisionMarca({
+          marca: brand,
+          cars,
+          tresFilas: false,
+          soloMarca: true,
+        }),
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
+
+    const raw = await this.openai.completeJson(
+      COMPLIANCE_SYSTEM_PROMPT,
+      JSON.stringify({
+        pedido: concreteAsk,
+        vehiculos: carsForReview(cars),
+      }),
+    );
+    const review = parseComplianceReview(
+      raw,
+      cars.map((car) => car.id),
+    );
+    if (!review) {
+      return {
+        text: `PEDIDO: ${concreteAsk}\nNo se pudo revisar el inventario. No afirmes que un carro cumple. vehiculo null.`,
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
+
+    if (idsToOffer(review).length === 0) {
+      const other = await this.reviewOtherBrands(concreteAsk, brand, userTexts);
+      return {
+        ...other,
+        text: `${formatComplianceForAgent(concreteAsk, cars, review)}\n${other.text}`,
+      };
+    }
+
+    const namedId = namedOfferId(cars, idsToOffer(review), userTexts);
+    return {
+      text: formatComplianceForAgent(concreteAsk, cars, review),
+      holdVehicle: vehicleToSend(review, null) === null,
+      sendId: vehicleToSend(review, namedId),
+    };
+  }
+
+  private async reviewOtherBrands(
+    concreteAsk: string,
+    brand: string,
+    userTexts: string[],
+  ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
+    const others = await this.catalog.listAvailableExcept(brand);
+    const none = {
+      cumplen: [] as string[],
+      parecidos: [] as string[],
+      noCumplen: [] as string[],
+    };
+    if (others.length === 0) {
+      return {
+        text: formatOtherBrands(concreteAsk, brand, others, none),
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
+
+    const raw = await this.openai.completeJson(
+      COMPLIANCE_SYSTEM_PROMPT,
+      JSON.stringify({
+        pedido: concreteAsk,
+        vehiculos: carsForReview(others),
+      }),
+    );
+    const review = parseComplianceReview(
+      raw,
+      others.map((car) => car.id),
+    );
+    if (!review) {
+      return {
+        text: `PEDIDO: ${concreteAsk}\nDe ${brand} ninguno se acerca y no se pudo revisar el resto. No afirmes que un carro cumple. vehiculo null.`,
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
+
+    const namedId = namedOfferId(others, idsToOffer(review, false), userTexts);
+    return {
+      text: formatOtherBrands(concreteAsk, brand, others, review),
+      holdVehicle: vehicleToSend(review, null, false) === null,
+      sendId: vehicleToSend(review, namedId, false),
+    };
+  }
+
+  private async executeTool(
+    name: string,
+    argsJson: string,
+    vehicleKind: VehicleKind | null,
+    brand: string | null,
+  ): Promise<string> {
     let args: Record<string, unknown> = {};
     try {
       args = JSON.parse(argsJson || '{}') as Record<string, unknown>;
@@ -124,8 +382,13 @@ export class AgentService {
 
     if (name === 'buscarvehiuclo') {
       const query = String(args.query ?? '').trim();
+      const tipo = vehicleKind ?? parseVehicleKind(args.tipo);
+      const fromTool = String(args.marca ?? '').trim();
+      const marca = brand ?? (fromTool || null);
       const embedding = await this.openai.embed(query);
-      return this.catalog.searchInventory(embedding ?? []);
+      return marca
+        ? this.catalog.searchInventory(embedding ?? [], tipo, marca)
+        : this.catalog.searchInventory(embedding ?? [], tipo);
     }
 
     if (name === 'calcular_financiamiento') {

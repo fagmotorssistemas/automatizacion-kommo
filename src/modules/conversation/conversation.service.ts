@@ -2,10 +2,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { CtwaMatch } from '../persistence/lead.types';
+import { parseVehicleKind, VehicleKind } from './vehicle-kind';
 import {
   MEMORY_MAX_MESSAGES,
   MEMORY_TTL_SECONDS,
   memoryKey,
+  concreteAskKey,
+  vehicleBrandKey,
+  vehicleKindKey,
 } from './conversation.constants';
 import {
   isRealCustomerText,
@@ -33,6 +37,116 @@ export class ConversationService {
     ctwa: CtwaMatch;
   }): InboundTextResult {
     return resolveInboundText(input);
+  }
+
+  async loadVehicleKind(contactId: string): Promise<VehicleKind | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      return parseVehicleKind(await this.redis.get(vehicleKindKey(contactId)));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer el tipo de vehículo contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveVehicleKind(contactId: string, kind: VehicleKind): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        vehicleKindKey(contactId),
+        kind,
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar el tipo de vehículo contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadVehicleBrand(contactId: string): Promise<string | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(vehicleBrandKey(contactId));
+      return value?.trim() || null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer la marca contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveVehicleBrand(contactId: string, brand: string): Promise<void> {
+    if (!contactId || !brand) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        vehicleBrandKey(contactId),
+        brand,
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar la marca contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadConcreteAsk(contactId: string): Promise<string | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(concreteAskKey(contactId));
+      return value?.trim() || null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer el pedido concreto contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveConcreteAsk(contactId: string, ask: string): Promise<void> {
+    if (!contactId || !ask.trim()) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        concreteAskKey(contactId),
+        ask.trim().slice(0, 500),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar el pedido concreto contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 
   async recentMessages(contactId: string): Promise<MemoryMessage[]> {

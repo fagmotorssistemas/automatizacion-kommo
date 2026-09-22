@@ -1,6 +1,7 @@
 import {
   HandoffTurn,
   InterestedCarInput,
+  InterestedCarSnapshot,
   LeadAnalysisPatch,
   LeadRecoveryPatch,
   LeadRow,
@@ -41,13 +42,56 @@ export type SupabaseGateway = {
   updateHandoffResumen(leadId: string, resumen: string): Promise<void>;
   matchCtwaClick(phone: string): Promise<unknown>;
   fetchAgentPrompts(names: string[]): Promise<AgentPromptRow[]>;
-  matchInventory(embedding: number[], topK: number): Promise<unknown>;
+  matchInventory(
+    embedding: number[],
+    topK: number,
+    filter?: { tipo?: string; marca?: string },
+  ): Promise<unknown>;
+  listAvailableExcept(brand: string): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      price: number | null;
+      typeBody: string | null;
+      color: string | null;
+      version: string | null;
+      mileage: number | null;
+      transmission: string | null;
+      fuelType: string | null;
+      passengerCapacity: string | null;
+      doorsCount: number | null;
+      driveType: string | null;
+      vin: string | null;
+    }[]
+  >;
+  listAvailableByBrand(brand: string): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      price: number | null;
+      typeBody: string | null;
+      color: string | null;
+      version: string | null;
+      mileage: number | null;
+      transmission: string | null;
+      fuelType: string | null;
+      passengerCapacity: string | null;
+      doorsCount: number | null;
+      driveType: string | null;
+      vin: string | null;
+    }[]
+  >;
   findPhotoBots(input: {
     inventoryId?: string;
     prefixes: string[];
   }): Promise<number[]>;
   hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean>;
   insertInterestedCar(row: InterestedCarInput): Promise<void>;
+  latestInterestedCar(leadId: string): Promise<InterestedCarSnapshot | null>;
   updateLeadSignals(leadId: string, patch: LeadSignalPatch): Promise<void>;
   insertRequestedClientData(row: RequestedClientDataInput): Promise<void>;
   insertFinancingAdvice(row: RequestedClientDataInput): Promise<void>;

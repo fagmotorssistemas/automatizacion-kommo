@@ -3,6 +3,7 @@ import { AppConfigModule } from './config/app-config.module';
 import { QueueModule } from './common/queue/queue.module';
 import { HealthModule } from './health/health.module';
 import { AgentModule } from './modules/agent/agent.module';
+import { AnalysisModule } from './modules/analysis/analysis.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { ConversationModule } from './modules/conversation/conversation.module';
 import { CrmModule } from './modules/crm/crm.module';
@@ -30,6 +31,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     PersistenceModule,
     CrmModule,
     HandoffModule,
+    AnalysisModule,
   ],
 })
 export class AppModule {}

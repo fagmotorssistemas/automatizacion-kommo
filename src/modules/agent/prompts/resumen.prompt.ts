@@ -48,6 +48,8 @@ Cliente quiere ...
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
+- "gracias" o "muchas gracias", si ya se le mostró un vehículo, NO es despedida. SOLICITUD ACTUAL: Cliente quiere seguir con ese vehículo. Hay que preguntarle financiamiento o visita.
+- Solo es despedida si dice que no le interesa, que ya no, que ya compró o que no lo contacten.
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas, la intención es ver otras opciones.
 - Respuestas vagas sin vehículo claro en conversación inicial:

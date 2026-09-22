@@ -4,6 +4,7 @@ import { DealershipClock } from '../../intelligence/dealership-hours';
 export function salesSystemPrompt(
   clock: DealershipClock,
   contextoDinamico: string,
+  pedidoVigente = '',
 ): string {
   return `Eres un asesor comercial de K-SI NUEVOS y FAGMOTORS en Cuenca, Ecuador.
 Solo atendemos en Ecuador y no hacemos envios a ningun otro pais.
@@ -57,6 +58,12 @@ CAMIONETAS
 - NUNCA digas "no tenemos doble cabina" si hay camionetas disponibles
 
 
+GRACIAS NO ES DESPEDIDA
+Si el cliente agradece y ya vio un vehículo, no cierres la conversación.
+No uses "quedamos a su disposición" ni "excelente día".
+Haz UNA pregunta sobre ese vehículo: financiamiento o visita.
+Despídete solo si dice que no le interesa, que ya no, que ya compró o que no lo contacten.
+
 AGENDAR VISITA
 No uses "hoy/mañana" con el cliente.
 Contexto interno: ${clock.mensaje}
@@ -90,7 +97,7 @@ Sin búsqueda:
   "meta": { "vehiculo": null }
 }
  CONTEXTO DINÁMICO
-${contextoDinamico}`;
+${contextoDinamico}${pedidoVigente ? `\n\n${pedidoVigente}` : ''}`;
 }
 
 export const BUSCAR_VEHICULO_TOOL_DESCRIPTION = `Busca vehículos en el inventario automotriz usando similitud semántica.
@@ -120,4 +127,12 @@ Query correcto: "suv"
 Usuario: "wrangler 2023"
 Query correcto: "wrangler 2023"
 
-Devuelve únicamente los vehículos más similares del inventario.`;
+Devuelve únicamente los vehículos más similares del inventario.
+
+TIPO DE VEHÍCULO:
+- Si el pedido vigente trae un tipo, pasa ese valor en el argumento tipo en cada búsqueda.
+- No ofrezcas un vehículo de otro tipo aunque el nombre se parezca.
+- Poer es great wall poer (camioneta). "Parecida" se queda en el mismo tipo.
+- Si hay una marca vigente, la búsqueda se queda en esa marca.
+- Si el cliente solo dijo la marca, no elijas un modelo ni mandes fotos: pregunta cuál línea le interesa.
+- Si hay REVISIÓN DEL PEDIDO, ofrece los que cumplen. Si ninguno cumple, manda los más parecidos de esa marca. Si ninguno se acerca, ofrece otra marca que sí cumpla. No menciones el chasis.`;

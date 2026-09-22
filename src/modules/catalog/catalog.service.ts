@@ -3,6 +3,8 @@ import {
   SUPABASE_GATEWAY,
   SupabaseGateway,
 } from '../persistence/supabase.gateway';
+import type { VehicleKind } from '../conversation/vehicle-kind';
+import { StockCar } from './clasificar-filas';
 import { parseImgPrefixes } from './parse-img-prefixes';
 
 export const INVENTORY_TOP_K = 3;
@@ -31,13 +33,24 @@ export class CatalogService {
     }
   }
 
-  async searchInventory(embedding: number[]): Promise<string> {
+  async searchInventory(
+    embedding: number[],
+    tipo?: VehicleKind | null,
+    marca?: string | null,
+  ): Promise<string> {
     if (!this.supabase || embedding.length === 0) {
       return '[]';
     }
 
     try {
-      const rows = await this.supabase.matchInventory(embedding, INVENTORY_TOP_K);
+      const rows = await this.supabase.matchInventory(
+        embedding,
+        INVENTORY_TOP_K,
+        {
+          ...(tipo ? { tipo } : {}),
+          ...(marca ? { marca } : {}),
+        },
+      );
       return JSON.stringify(rows ?? []);
     } catch (error) {
       this.logger.error(
@@ -45,6 +58,38 @@ export class CatalogService {
         error instanceof Error ? error.stack : undefined,
       );
       return '[]';
+    }
+  }
+
+  async listAvailableExcept(brand: string): Promise<StockCar[]> {
+    if (!this.supabase || !brand.trim()) {
+      return [];
+    }
+
+    try {
+      return await this.supabase.listAvailableExcept(brand);
+    } catch (error) {
+      this.logger.error(
+        `No se pudo listar el resto del inventario sin ${brand}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
+    }
+  }
+
+  async listByBrand(brand: string): Promise<StockCar[]> {
+    if (!this.supabase || !brand.trim()) {
+      return [];
+    }
+
+    try {
+      return await this.supabase.listAvailableByBrand(brand);
+    } catch (error) {
+      this.logger.error(
+        `No se pudo listar la marca ${brand}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
     }
   }
 
