@@ -133,9 +133,8 @@ export class CatalogService {
         prefixes: parseImgPrefixes(input.imgPrefix),
       });
     } catch (error) {
-      this.logger.error(
-        'No se pudieron resolver salesbots de fotos',
-        error instanceof Error ? error.stack : undefined,
+      this.logger.warn(
+        `No se pudieron resolver salesbots de fotos: ${error instanceof Error ? error.message : error}`,
       );
       return [];
     }

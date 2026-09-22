@@ -178,18 +178,24 @@ export class PersistenceService {
       return;
     }
 
-    try {
-      if (input.tradeIn) {
+    if (input.tradeIn) {
+      try {
         await this.supabase.insertTradeIn(input.tradeIn);
+      } catch (error) {
+        this.logger.error(
+          `trade_in_cars falló lead=${input.leadId}: ${error instanceof Error ? error.message : error}`,
+        );
       }
-      if (Object.keys(input.patch).length > 0) {
+    }
+
+    if (Object.keys(input.patch).length > 0) {
+      try {
         await this.supabase.updateLeadAnalysis(input.leadId, input.patch);
+      } catch (error) {
+        this.logger.error(
+          `applyLeadAnalysis falló lead=${input.leadId}: ${error instanceof Error ? error.message : error}`,
+        );
       }
-    } catch (error) {
-      this.logger.error(
-        `applyLeadAnalysis falló lead=${input.leadId}`,
-        error instanceof Error ? error.stack : undefined,
-      );
     }
   }
 
@@ -424,8 +430,7 @@ export class PersistenceService {
       await this.supabase.insertInterestedCar(row);
     } catch (error) {
       this.logger.error(
-        `interested_cars falló lead=${row.leadId}`,
-        error instanceof Error ? error.stack : undefined,
+        `interested_cars falló lead=${row.leadId}: ${error instanceof Error ? error.message : error}`,
       );
     }
   }

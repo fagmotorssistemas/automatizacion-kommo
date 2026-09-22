@@ -11,7 +11,12 @@ import {
   RequestedClientDataInput,
   TradeInInput,
 } from './lead.types';
+import { isUuid } from './is-uuid';
 import { parseHandoffTurns } from './parse-handoff-turns';
+import {
+  coerceTradeInYear,
+  sanitizeLeadAnalysisPatch,
+} from './sanitize-lead-analysis';
 import {
   LeadHandoffPatch,
   LeadInsert,
@@ -341,24 +346,27 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     };
 
     const prefixes = [...input.prefixes];
+    const rawId = input.inventoryId?.trim() ?? '';
 
-    if (input.inventoryId) {
+    if (rawId && isUuid(rawId)) {
       const { data, error } = await client
         .from('inventoryoracle')
         .select('bot_id, img_prefix')
-        .eq('id', input.inventoryId)
+        .eq('id', rawId)
         .maybeSingle();
 
       if (error) {
         this.logger.warn(`GET inventoryoracle bot_id: ${error.message}`);
-        throw error;
+      } else {
+        addBots(data ? [data] : []);
+        const prefix = data?.img_prefix;
+        if (ids.size === 0 && typeof prefix === 'string' && prefix.trim()) {
+          prefixes.push(prefix.trim());
+        }
       }
-
-      addBots(data ? [data] : []);
-      const prefix = data?.img_prefix;
-      if (ids.size === 0 && typeof prefix === 'string' && prefix.trim()) {
-        prefixes.push(prefix.trim());
-      }
+    } else if (rawId) {
+      // El LLM a veces manda slug/img_prefix en vez de uuid.
+      prefixes.push(rawId);
     }
 
     if (ids.size === 0 && prefixes.length > 0) {
@@ -369,14 +377,39 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         .not('bot_id', 'is', null);
 
       if (error) {
-        this.logger.warn(`GET inventoryoracle bot_id por prefix: ${error.message}`);
-        throw error;
+        this.logger.warn(
+          `GET inventoryoracle bot_id por prefix: ${error.message}`,
+        );
+      } else {
+        addBots(data);
       }
-
-      addBots(data);
     }
 
     return [...ids].slice(0, 4);
+  }
+
+  /** Resuelve uuid de inventario; si viene slug, intenta img_prefix. */
+  async resolveInventoryId(raw: string): Promise<string | null> {
+    const client = this.requireClient();
+    const value = raw.trim();
+    if (!client || !value) {
+      return null;
+    }
+    if (isUuid(value)) {
+      return value;
+    }
+
+    const { data, error } = await client
+      .from('inventoryoracle')
+      .select('id')
+      .eq('img_prefix', value)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.warn(`resolveInventoryId: ${error.message}`);
+      return null;
+    }
+    return data?.id ? String(data.id) : null;
   }
 
   async hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean> {
@@ -385,11 +418,16 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       return false;
     }
 
+    const resolved = await this.resolveInventoryId(inventoryId);
+    if (!resolved) {
+      return false;
+    }
+
     const { data, error } = await client
       .from('interested_cars')
       .select('id')
       .eq('lead_id', leadId)
-      .eq('inventory_id', inventoryId)
+      .eq('inventory_id', resolved)
       .limit(1)
       .maybeSingle();
 
@@ -423,7 +461,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
 
     const inventoryId = data?.inventory_id ? String(data.inventory_id) : '';
-    if (!inventoryId) {
+    if (!inventoryId || !isUuid(inventoryId)) {
       return null;
     }
 
@@ -457,11 +495,22 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       return;
     }
 
-    const { error } = await client.from('interested_cars').insert({
-      lead_id: row.leadId,
-      inventory_id: row.inventoryId,
-      vehicle_uid: row.vehicleUid,
-    });
+    const inventoryId = await this.resolveInventoryId(row.inventoryId);
+    if (!inventoryId) {
+      this.logger.warn(
+        `interested_cars omitido: inventory_id inválido (${row.inventoryId})`,
+      );
+      return;
+    }
+
+    const { error } = await client.from('interested_cars').upsert(
+      {
+        lead_id: row.leadId,
+        inventory_id: inventoryId,
+        vehicle_uid: row.vehicleUid,
+      },
+      { onConflict: 'vehicle_uid', ignoreDuplicates: true },
+    );
 
     if (error) {
       this.logger.warn(`INSERT interested_cars: ${error.message}`);
@@ -523,11 +572,12 @@ export class SupabasePersistenceClient implements SupabaseGateway {
 
   async updateLeadAnalysis(leadId: string, patch: LeadAnalysisPatch): Promise<void> {
     const client = this.requireClient();
-    if (!client || Object.keys(patch).length === 0) {
+    const safe = sanitizeLeadAnalysisPatch(patch);
+    if (!client || Object.keys(safe).length === 0) {
       return;
     }
 
-    const { error } = await client.from('leads').update(patch).eq('id', leadId);
+    const { error } = await client.from('leads').update(safe).eq('id', leadId);
 
     if (error) {
       this.logger.warn(`UPDATE leads analysis id=${leadId}: ${error.message}`);
@@ -543,9 +593,9 @@ export class SupabasePersistenceClient implements SupabaseGateway {
 
     const { error } = await client.from('trade_in_cars').insert({
       lead_id: row.leadId,
-      brand: row.brand,
-      model: row.model,
-      year: row.year,
+      brand: (row.brand || 'sin marca').trim() || 'sin marca',
+      model: (row.model || 'sin modelo').trim() || 'sin modelo',
+      year: coerceTradeInYear(row.year),
       condition: 'bueno',
     });
 
