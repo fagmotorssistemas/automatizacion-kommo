@@ -20,6 +20,7 @@ import {
 } from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
 import { PersistenceService } from '../persistence/persistence.service';
+import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
 import { INTENTS_SYSTEM_PROMPT } from './prompts/intents.prompt';
@@ -180,6 +181,15 @@ export class AgentService {
       parsed.img_prefix = '';
     } else if (revision.holdVehicle) {
       parsed.meta.vehiculo = null;
+      parsed.img_prefix = '';
+    } else {
+      // Sin carro confirmado por inventario: no dejar ids inventados ni img_prefix para fotos.
+      const claimed = parsed.meta.vehiculo?.inventory_id;
+      if (claimed && !isUuid(claimed)) {
+        const precio = parsed.meta.vehiculo?.precio;
+        parsed.meta.vehiculo =
+          precio && precio > 0 ? { precio } : null;
+      }
       parsed.img_prefix = '';
     }
     if (

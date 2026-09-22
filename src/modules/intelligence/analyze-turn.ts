@@ -1,4 +1,3 @@
-import { parseImgPrefixes } from '../catalog/parse-img-prefixes';
 import { DEALERSHIP_TIMEZONE } from './dealership-hours';
 import { extractCedula } from './extract-cedula';
 import { parseResumen } from './parse-resumen';
@@ -97,7 +96,8 @@ export function analyzeTurn(input: {
   resumen: string;
   customerText?: string;
   inventoryId?: string | null;
-  imgPrefix?: unknown;
+  /** Cuántos salesbots de foto se dispararon (bot_id). Antes era img_prefix. */
+  photoBotsSent?: number;
 }): TurnSignals {
   const mensaje = input.mensaje || '';
   const lower = mensaje.toLowerCase();
@@ -119,6 +119,8 @@ export function analyzeTurn(input: {
       )
     : false;
 
+  const photosSent = (input.photoBotsSent ?? 0) > 0;
+
   return {
     vehicleUid: buildVehicleUid(input.leadId, input.inventoryId),
     inventoryId: input.inventoryId || null,
@@ -128,7 +130,7 @@ export function analyzeTurn(input: {
     cedula,
     clienteTieneLimitePresupuesto,
     montoCliente,
-    respondioPostFotos: parseImgPrefixes(input.imgPrefix).length === 0,
+    respondioPostFotos: !photosSent,
     fotosEnviadasAt: nowInEcuadorIso(),
     quiereLlamada,
     solicitudCliente: resumen.solicitudActual,

@@ -41,6 +41,7 @@ export class IntelligenceService {
     customerText: string;
     resumen: string;
     reply: ParsedAgentOutput;
+    photoBotsSent?: number;
   }): Promise<AfterReplySignals> {
     const customerText = isRealCustomerText(input.customerText)
       ? input.customerText
@@ -51,7 +52,7 @@ export class IntelligenceService {
       resumen: input.resumen,
       customerText,
       inventoryId: input.reply.meta.vehiculo?.inventory_id,
-      imgPrefix: input.reply.img_prefix,
+      photoBotsSent: input.photoBotsSent ?? 0,
     });
 
     const recent = await this.conversation.recentMessages(input.contactId);

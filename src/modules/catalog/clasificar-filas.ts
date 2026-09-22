@@ -16,6 +16,8 @@ export type StockCar = {
   doorsCount?: number | null;
   driveType?: string | null;
   vin?: string | null;
+  /** Salesbot de fotos en Kommo. Null/0 = no hay fotos. */
+  botId?: number | null;
 };
 
 const SIN_TERCERA_FILA = new Set([

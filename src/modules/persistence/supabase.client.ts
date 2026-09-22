@@ -40,10 +40,12 @@ function mapStockRow(row: {
   doors_count?: unknown;
   drive_type?: unknown;
   vin?: unknown;
+  bot_id?: unknown;
 }) {
   const text = (value: unknown) =>
     value == null || value === '' ? null : String(value);
   const num = (value: unknown) => (value == null ? null : Number(value));
+  const botId = num(row.bot_id);
   return {
     id: String(row.id ?? ''),
     brand: String(row.brand ?? ''),
@@ -60,6 +62,7 @@ function mapStockRow(row: {
     doorsCount: num(row.doors_count),
     driveType: text(row.drive_type),
     vin: text(row.vin),
+    botId: botId && botId > 0 ? botId : null,
   };
 }
 
@@ -238,7 +241,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     const { data, error } = await client
       .from('inventoryoracle')
       .select(
-        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin',
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, bot_id',
       )
       .eq('status', 'disponible')
       .neq('brand', brand.trim().toLowerCase())
@@ -269,6 +272,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       doorsCount: number | null;
       driveType: string | null;
       vin: string | null;
+      botId: number | null;
     }[]
   > {
     const client = this.requireClient();
@@ -279,7 +283,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     const { data, error } = await client
       .from('inventoryoracle')
       .select(
-        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin',
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, bot_id',
       )
       .eq('status', 'disponible')
       .ilike('brand', brand.trim())
@@ -327,89 +331,38 @@ export class SupabasePersistenceClient implements SupabaseGateway {
 
   async findPhotoBots(input: {
     inventoryId?: string;
-    prefixes: string[];
+    prefixes?: string[];
   }): Promise<number[]> {
     const client = this.requireClient();
     if (!client) {
       return [];
     }
 
-    const ids = new Set<number>();
-
-    const addBots = (rows: Array<{ bot_id?: unknown }> | null) => {
-      for (const row of rows ?? []) {
-        const botId = Number(row.bot_id);
-        if (Number.isFinite(botId) && botId > 0) {
-          ids.add(botId);
-        }
-      }
-    };
-
-    const prefixes = [...input.prefixes];
+    // Fotos = inventoryoracle.bot_id por UUID. img_prefix es apodo del paquete, no dispara el bot.
     const rawId = input.inventoryId?.trim() ?? '';
-
-    if (rawId && isUuid(rawId)) {
-      const { data, error } = await client
-        .from('inventoryoracle')
-        .select('bot_id, img_prefix')
-        .eq('id', rawId)
-        .maybeSingle();
-
-      if (error) {
-        this.logger.warn(`GET inventoryoracle bot_id: ${error.message}`);
-      } else {
-        addBots(data ? [data] : []);
-        const prefix = data?.img_prefix;
-        if (ids.size === 0 && typeof prefix === 'string' && prefix.trim()) {
-          prefixes.push(prefix.trim());
-        }
-      }
-    } else if (rawId) {
-      // El LLM a veces manda slug/img_prefix en vez de uuid.
-      prefixes.push(rawId);
-    }
-
-    if (ids.size === 0 && prefixes.length > 0) {
-      const { data, error } = await client
-        .from('inventoryoracle')
-        .select('bot_id')
-        .in('img_prefix', prefixes)
-        .not('bot_id', 'is', null);
-
-      if (error) {
-        this.logger.warn(
-          `GET inventoryoracle bot_id por prefix: ${error.message}`,
-        );
-      } else {
-        addBots(data);
-      }
-    }
-
-    return [...ids].slice(0, 4);
-  }
-
-  /** Resuelve uuid de inventario; si viene slug, intenta img_prefix. */
-  async resolveInventoryId(raw: string): Promise<string | null> {
-    const client = this.requireClient();
-    const value = raw.trim();
-    if (!client || !value) {
-      return null;
-    }
-    if (isUuid(value)) {
-      return value;
+    if (!rawId || !isUuid(rawId)) {
+      return [];
     }
 
     const { data, error } = await client
       .from('inventoryoracle')
-      .select('id')
-      .eq('img_prefix', value)
+      .select('bot_id')
+      .eq('id', rawId)
       .maybeSingle();
 
     if (error) {
-      this.logger.warn(`resolveInventoryId: ${error.message}`);
-      return null;
+      this.logger.warn(`GET inventoryoracle bot_id: ${error.message}`);
+      return [];
     }
-    return data?.id ? String(data.id) : null;
+
+    const botId = Number(data?.bot_id);
+    return Number.isFinite(botId) && botId > 0 ? [botId] : [];
+  }
+
+  /** Solo acepta UUID de inventoryoracle. Sin lookup por img_prefix. */
+  async resolveInventoryId(raw: string): Promise<string | null> {
+    const value = raw.trim();
+    return value && isUuid(value) ? value : null;
   }
 
   async hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean> {

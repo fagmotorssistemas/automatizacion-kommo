@@ -44,15 +44,26 @@ Cliente quiere financiamiento de la hilux.`;
     expect(conCedula.requiereAtencionVendedor).toBe(true);
   });
 
-  it('sin img_prefix es respondio_post_fotos', () => {
+  it('sin salesbots de foto es respondio_post_fotos', () => {
     expect(
       analyzeTurn({
         leadId: '1',
         mensaje: 'ok',
         resumen,
-        imgPrefix: '',
+        photoBotsSent: 0,
       }).respondioPostFotos,
     ).toBe(true);
+  });
+
+  it('con salesbots de foto sella que se enviaron fotos', () => {
+    expect(
+      analyzeTurn({
+        leadId: '1',
+        mensaje: 'ok',
+        resumen,
+        photoBotsSent: 1,
+      }).respondioPostFotos,
+    ).toBe(false);
   });
 
   it('detecta que quiere llamada', () => {

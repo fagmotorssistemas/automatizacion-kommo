@@ -77,9 +77,10 @@ REGLA DE EXTRACCIÓN EXACTA (OBLIGATORIA)
 Cuando la herramienta buscarvehiuclo devuelva un campo "text" que contiene un JSON como string:
 1) Parsear el "text" como JSON real.
 2) Tomar SOLO este campo desde metadata y copiarlo EXACTAMENTE, sin modificar nada:
-- inventory_id
+- inventory_id (UUID de inventoryoracle; no inventes apodos ni nombres de modelo)
 
 La salida debe ser exclusivamente un objeto JSON válido. No agregues ningún texto adicional fuera del JSON.
+No uses img_prefix: las fotos salen del bot_id del carro en inventario, no de un apodo.
 
 HAY 3 FROMATOS DE SALID
 FORMATO DE SALIDA

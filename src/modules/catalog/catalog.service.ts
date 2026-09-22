@@ -5,7 +5,6 @@ import {
 } from '../persistence/supabase.gateway';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 import { StockCar } from './clasificar-filas';
-import { parseImgPrefixes } from './parse-img-prefixes';
 
 export const INVENTORY_TOP_K = 3;
 
@@ -118,7 +117,7 @@ export class CatalogService {
     }
   }
 
-  /** bot_id de inventoryoracle. img_prefix solo es backup si no vino el id del carro. */
+  /** bot_id de inventoryoracle por UUID del carro. img_prefix no dispara fotos. */
   async resolvePhotoBots(input: {
     inventoryId?: string;
     imgPrefix?: unknown;
@@ -130,7 +129,6 @@ export class CatalogService {
     try {
       return await this.supabase.findPhotoBots({
         inventoryId: input.inventoryId,
-        prefixes: parseImgPrefixes(input.imgPrefix),
       });
     } catch (error) {
       this.logger.warn(

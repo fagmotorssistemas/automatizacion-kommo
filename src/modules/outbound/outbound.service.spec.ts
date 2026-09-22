@@ -1,6 +1,8 @@
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { OutboundService } from './outbound.service';
 
+const UUID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
 describe('OutboundService', () => {
   const crm = { setRespuestaIa: jest.fn(), runSalesbot: jest.fn() };
   const catalog = { resolvePhotoBots: jest.fn() };
@@ -18,14 +20,14 @@ describe('OutboundService', () => {
   });
 
   it('manda un salesbot de texto y uno de fotos', async () => {
-    await service.dispatch('41807269', {
+    const result = await service.dispatch('41807269', {
       mensaje: 'Tenemos una EcoSport',
       meta: {
         precioMostrado: false,
         cuotaMostrada: false,
-        vehiculo: { inventory_id: 'inv-1' },
+        vehiculo: { inventory_id: UUID },
       },
-      img_prefix: 'ford_ecosport_2020',
+      img_prefix: '',
     });
 
     expect(crm.setRespuestaIa).toHaveBeenCalledWith(
@@ -39,9 +41,35 @@ describe('OutboundService', () => {
     );
     expect(crm.runSalesbot).toHaveBeenNthCalledWith(2, 166291, '41807269');
     expect(catalog.resolvePhotoBots).toHaveBeenCalledWith({
-      inventoryId: 'inv-1',
-      imgPrefix: 'ford_ecosport_2020',
+      inventoryId: UUID,
     });
+    expect(result.missingPhotos).toBe(false);
+  });
+
+  it('si hay UUID pero no bot_id, avisa al cliente y no dispara fotos', async () => {
+    catalog.resolvePhotoBots.mockResolvedValue([]);
+
+    const result = await service.dispatch('41807269', {
+      mensaje: 'Tenemos la unidad.',
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: { inventory_id: UUID },
+      },
+      img_prefix: '',
+    });
+
+    expect(result.missingPhotos).toBe(true);
+    expect(result.photoBots).toEqual([]);
+    expect(crm.setRespuestaIa).toHaveBeenCalledWith(
+      '41807269',
+      expect.stringContaining('no tengo fotos'),
+    );
+    expect(crm.runSalesbot).toHaveBeenCalledTimes(1);
+    expect(crm.runSalesbot).toHaveBeenCalledWith(
+      KOMMO_SALESBOT.TEXTO,
+      '41807269',
+    );
   });
 
   it('en sombra no llama a Kommo y deja ver el texto', async () => {
@@ -54,15 +82,16 @@ describe('OutboundService', () => {
       meta: {
         precioMostrado: false,
         cuotaMostrada: false,
-        vehiculo: { inventory_id: 'inv-1' },
+        vehiculo: { inventory_id: UUID },
       },
-      img_prefix: 'ford_ecosport_2020',
+      img_prefix: '',
     });
 
     expect(result).toEqual({
       delivered: false,
       shadow: true,
       photoBots: [166291],
+      missingPhotos: false,
     });
     expect(crm.setRespuestaIa).not.toHaveBeenCalled();
     expect(crm.runSalesbot).not.toHaveBeenCalled();

@@ -227,10 +227,16 @@ export class InboxDebounceProcessor extends WorkerHost {
       ...ctx,
       step: 'outbound',
       status: outbound.delivered ? 'ok' : 'skipped',
-      reason: outbound.shadow ? 'shadow_no_envia' : 'enviado',
+      reason: outbound.shadow
+        ? 'shadow_no_envia'
+        : outbound.missingPhotos
+          ? 'enviado_sin_fotos'
+          : 'enviado',
       detail: {
         mensaje: turn.reply.mensaje.slice(0, 1000),
         photoBots: outbound.photoBots,
+        missingPhotos: outbound.missingPhotos,
+        inventoryId: turn.reply.meta.vehiculo?.inventory_id ?? null,
       },
     });
 
@@ -251,6 +257,7 @@ export class InboxDebounceProcessor extends WorkerHost {
         customerText: inbound.message,
         resumen: turn.resumen,
         reply: turn.reply,
+        photoBotsSent: outbound.photoBots.length,
       });
       await this.runLog.record({
         ...ctx,

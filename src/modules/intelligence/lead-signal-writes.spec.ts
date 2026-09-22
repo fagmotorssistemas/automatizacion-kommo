@@ -25,7 +25,7 @@ describe('planLeadSignalWrites', () => {
     });
   });
 
-  it('sella fotos_enviadas_at solo si hubo prefijos', () => {
+  it('sella fotos_enviadas_at solo si hubo salesbots de foto', () => {
     const writes = planLeadSignalWrites({
       ...base,
       respondioPostFotos: false,

@@ -166,6 +166,12 @@ export function formatComplianceForAgent(
       parts.push(
         `Di que es lo más cercano, no que cumple exacto. En meta.vehiculo.inventory_id pon exactamente "${id}".`,
       );
+      const near = byId.get(id);
+      if (!near?.botId) {
+        parts.push(
+          'Este carro no tiene bot_id de fotos: no hay fotos para enviar. Díselo al cliente.',
+        );
+      }
     } else {
       parts.push(
         'Ninguno cumple exacto. Estos son los más parecidos de esta marca. Nómbralos para que elija uno. vehiculo null.',
@@ -186,8 +192,14 @@ export function formatComplianceForAgent(
 
   if (review.cumplen.length === 1) {
     const id = review.cumplen[0];
+    const car = byId.get(id);
     parts.push(`Cumple uno solo y hay que enviarlo: ${line(id)}.`);
     parts.push(`En meta.vehiculo.inventory_id pon exactamente "${id}".`);
+    if (!car?.botId) {
+      parts.push(
+        'Este carro no tiene bot_id de fotos en inventario: no hay fotos para enviar. Díselo claro al cliente (sin inventar que ya se las mandaste).',
+      );
+    }
     if (no) {
       parts.push(`No cumplen, no los ofrezcas: ${no}.`);
     }

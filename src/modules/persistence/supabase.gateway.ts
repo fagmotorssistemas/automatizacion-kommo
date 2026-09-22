@@ -64,6 +64,7 @@ export type SupabaseGateway = {
       doorsCount: number | null;
       driveType: string | null;
       vin: string | null;
+      botId: number | null;
     }[]
   >;
   listAvailableByBrand(brand: string): Promise<
@@ -83,11 +84,12 @@ export type SupabaseGateway = {
       doorsCount: number | null;
       driveType: string | null;
       vin: string | null;
+      botId: number | null;
     }[]
   >;
   findPhotoBots(input: {
     inventoryId?: string;
-    prefixes: string[];
+    prefixes?: string[];
   }): Promise<number[]>;
   hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean>;
   insertInterestedCar(row: InterestedCarInput): Promise<void>;

@@ -117,7 +117,7 @@ describe('AgentService', () => {
         meta: {
           precioMostrado: false,
           cuotaMostrada: false,
-          vehiculo: { inventory_id: 'inv-1' },
+          vehiculo: null,
         },
         img_prefix: '',
       },
