@@ -1,13 +1,26 @@
 import {
   flattenPostFotosMessage,
+  postFotosSystemPrompt,
   postFotosUserPrompt,
 } from './post-fotos.prompt';
 
 describe('post-fotos prompt', () => {
-  it('arma el user como n8n', () => {
+  it('paso 1 habla de validar / qué le pasó', () => {
+    expect(postFotosSystemPrompt(1)).toMatch(/VALIDAR/i);
+  });
+
+  it('paso 2 pregunta qué le pareció', () => {
+    expect(postFotosSystemPrompt(2)).toMatch(/PARECIÓ|pareció/i);
+  });
+
+  it('paso 3 habla de documentos/placas, no garantía del carro', () => {
+    const p = postFotosSystemPrompt(3);
+    expect(p).toMatch(/documentos|placas al día|35 años/i);
+    expect(p).toMatch(/PROHIBIDO[\s\S]*garantía/i);
+  });
+
+  it('arma el user con datos del carro', () => {
     const text = postFotosUserPrompt({
-      leadIdKommo: 123,
-      contactId: 456,
       name: 'Juan',
       brand: 'kia',
       model: 'picanto',
@@ -17,15 +30,13 @@ describe('post-fotos prompt', () => {
       fuelType: 'gasolina',
       color: 'blanco',
     });
-    expect(text).toContain('lead_id:123');
     expect(text).toContain('nombre: Juan');
-    expect(text).toContain('modelo:picanto');
-    expect(text).toContain('kilometraje:40000');
+    expect(text).toContain('modelo: picanto');
   });
 
-  it('aplana saltos de línea como el Code node', () => {
-    expect(flattenPostFotosMessage('Hola Juan\n¿Viene al patio?')).toBe(
-      'Hola Juan ¿Viene al patio?',
+  it('aplana saltos de línea', () => {
+    expect(flattenPostFotosMessage('Hola Juan\n¿Le gustó?')).toBe(
+      'Hola Juan ¿Le gustó?',
     );
   });
 });

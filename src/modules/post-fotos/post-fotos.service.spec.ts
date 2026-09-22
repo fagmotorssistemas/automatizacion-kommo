@@ -3,8 +3,13 @@ import { PostFotosService } from './post-fotos.service';
 describe('PostFotosService', () => {
   const repository = {
     isReady: jest.fn(),
+    hasPending: jest.fn(),
+    schedulePaso: jest.fn(),
+    cancelPending: jest.fn(),
     listDue: jest.fn(),
-    markMensajeEnviado: jest.fn(),
+    markSent: jest.fn(),
+    markCancelled: jest.fn(),
+    markMensajePostFotosFlag: jest.fn(),
   };
   const llm = {
     isReady: jest.fn(),
@@ -26,7 +31,12 @@ describe('PostFotosService', () => {
   );
 
   const row = {
-    leadIdKommo: 41960445,
+    id: 10,
+    leadId: 1,
+    sessionId: '59619959',
+    paso: 1 as const,
+    programada: new Date(),
+    leadIdKommo: '41960445',
     contactId: 59619959,
     name: 'Juan',
     brand: 'kia',
@@ -36,45 +46,63 @@ describe('PostFotosService', () => {
     mileage: 40000,
     fuelType: 'gasolina',
     color: 'blanco',
+    botApagado: false,
+    respondioPostFotos: false,
   };
 
   beforeEach(() => {
     repository.isReady.mockReturnValue(true);
     llm.isReady.mockReturnValue(true);
-    repository.listDue.mockReset();
-    repository.markMensajeEnviado.mockReset();
+    for (const fn of Object.values(repository)) {
+      fn.mockReset();
+    }
+    repository.isReady.mockReturnValue(true);
     llm.draft.mockReset();
     crm.isLeadBotStopped.mockReset();
     outbound.isShadowMode.mockReset();
     outbound.sendText.mockReset();
     outbound.isShadowMode.mockReturnValue(true);
+    repository.hasPending.mockResolvedValue(false);
+    repository.listDue.mockResolvedValue([]);
+    repository.cancelPending.mockResolvedValue(0);
   });
 
-  it('en SHADOW marca enviado y no llama sendText', async () => {
+  it('scheduleAfterPhotos programa paso 1 si no hay pendientes', async () => {
+    await service.scheduleAfterPhotos({
+      sessionId: '59619959',
+      leadId: 1,
+      fotosEnviadasAt: new Date('2026-09-22T15:00:00-05:00'),
+    });
+    expect(repository.schedulePaso).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: '59619959',
+        paso: 1,
+        leadId: 1,
+      }),
+    );
+  });
+
+  it('onCustomerMessage cancela pendientes', async () => {
+    repository.cancelPending.mockResolvedValue(2);
+    await service.onCustomerMessage('59619959');
+    expect(repository.cancelPending).toHaveBeenCalledWith(
+      '59619959',
+      'cliente_escribio',
+    );
+  });
+
+  it('en SHADOW marca enviado y programa paso 2', async () => {
     repository.listDue.mockResolvedValue([row]);
     crm.isLeadBotStopped.mockResolvedValue(false);
-    llm.draft.mockResolvedValue('Juan, el Picanto está listo. ¿Viene al patio?');
+    llm.draft.mockResolvedValue('Juan, ¿qué le pareció el Picanto?');
 
     const result = await service.runOnce();
 
-    expect(result).toEqual({
-      examined: 1,
-      sent: 0,
-      failed: 0,
-      shadowed: 1,
-    });
-    expect(repository.markMensajeEnviado).toHaveBeenCalledWith(41960445);
+    expect(result.shadowed).toBe(1);
+    expect(repository.markSent).toHaveBeenCalled();
+    expect(repository.schedulePaso).toHaveBeenCalledWith(
+      expect.objectContaining({ paso: 2, sessionId: '59619959' }),
+    );
     expect(outbound.sendText).not.toHaveBeenCalled();
-  });
-
-  it('si bot_stopped marca y no genera texto', async () => {
-    repository.listDue.mockResolvedValue([row]);
-    crm.isLeadBotStopped.mockResolvedValue(true);
-
-    const result = await service.runOnce();
-
-    expect(result.sent).toBe(1);
-    expect(llm.draft).not.toHaveBeenCalled();
-    expect(repository.markMensajeEnviado).toHaveBeenCalledWith(41960445);
   });
 });

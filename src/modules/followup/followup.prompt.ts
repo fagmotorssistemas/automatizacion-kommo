@@ -37,5 +37,5 @@ export function followupUserPrompt(input: {
 - sin objeción → confirma disponibilidad
 1-2 frases.`;
   }
-  return `${base}\n\nSolo el punto 3: KsiNuevos / garantía / respaldo de la casa. 1-2 frases.`;
+  return `${base}\n\nSolo el punto 3: valor de KsiNuevos (documentos en regla, placas al día, entrega inmediata, +35 años). PROHIBIDO garantía del vehículo. 1-2 frases.`;
 }

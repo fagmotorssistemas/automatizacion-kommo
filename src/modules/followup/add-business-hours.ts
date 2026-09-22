@@ -135,3 +135,32 @@ export function addBusinessHours(from: Date, hours: number): Date {
 export function addCalendarDaysFrom(from: Date, days: number): Date {
   return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
 }
+
+/** Si cae fuera de horario (ej. 1:00 am), mueve al próximo inicio laboral. */
+export function snapToBusinessOpen(date: Date): Date {
+  const parts = localParts(date);
+  const window = OPEN_MINUTES[parts.weekday];
+  if (window && parts.minutes >= window.open && parts.minutes < window.close) {
+    return new Date(date);
+  }
+
+  let day = { year: parts.year, month: parts.month, day: parts.day, weekday: parts.weekday };
+  if (window && parts.minutes < window.open) {
+    return atLocal(day.year, day.month, day.day, window.open);
+  }
+
+  day = addCalendarDays(day.year, day.month, day.day, 1);
+  for (let i = 0; i < 8; i += 1) {
+    const w = OPEN_MINUTES[day.weekday];
+    if (w) {
+      return atLocal(day.year, day.month, day.day, w.open);
+    }
+    day = addCalendarDays(day.year, day.month, day.day, 1);
+  }
+  return new Date(date);
+}
+
+/** Suma delay de reloj y, si queda fuera de patio, espera al próximo horario laboral. */
+export function afterDelayInBusinessHours(from: Date, delayMs: number): Date {
+  return snapToBusinessOpen(new Date(from.getTime() + Math.max(0, delayMs)));
+}

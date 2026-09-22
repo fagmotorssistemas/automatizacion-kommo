@@ -8,6 +8,7 @@ import {
   keepCustomerFacingMessages,
 } from '../conversation/is-real-customer-text';
 import { FollowupService } from '../followup/followup.service';
+import { PostFotosService } from '../post-fotos/post-fotos.service';
 import { LeadRow } from '../persistence/lead.types';
 import { PersistenceService } from '../persistence/persistence.service';
 import { analyzeTurn, TurnSignals } from './analyze-turn';
@@ -32,6 +33,7 @@ export class IntelligenceService {
     private readonly persistence: PersistenceService,
     private readonly openai: OpenAiAgentClient,
     private readonly followup: FollowupService,
+    private readonly postFotos: PostFotosService,
   ) {}
 
   async afterReply(input: {
@@ -87,6 +89,7 @@ export class IntelligenceService {
 
     if (customerText && input.contactId) {
       await this.followup.onCustomerMessage(input.contactId);
+      await this.postFotos.onCustomerMessage(input.contactId);
     }
 
     await this.persistence.applyLeadWrites({
@@ -94,6 +97,14 @@ export class IntelligenceService {
       lead: input.lead,
       writes: planLeadSignalWrites(signals),
     });
+
+    if (signals.photosJustSent && input.contactId) {
+      const leadPk = input.lead?.id ? Number(input.lead.id) : null;
+      await this.postFotos.scheduleAfterPhotos({
+        sessionId: input.contactId,
+        leadId: Number.isFinite(leadPk) ? leadPk : null,
+      });
+    }
 
     if (input.lead?.id && customerText) {
       await this.enrichFromAnalyzer({
