@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock } from '../intelligence/dealership-hours';
+import { formatVisitHourHint } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
   calcularFinanciamientoBancario,
@@ -154,6 +155,7 @@ export class AgentService {
       revision.text,
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+      formatVisitHourHint(input.customerText),
       showPrice
         ? ''
         : 'EN ESTE TURNO el cliente NO pidió el precio: prohibido decir el valor del carro ($…, precio de…). Sí puedes decir plate_short (ej. "La placa es P7"). Prohibido placa completa y chasis.',

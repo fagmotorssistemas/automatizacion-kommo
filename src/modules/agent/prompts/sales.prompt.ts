@@ -72,6 +72,8 @@ Contexto interno: ${clock.mensaje}
 Estado de ahora: ${clock.estaAbierto ? 'ABIERTO' : 'CERRADO'}
 Puede hoy: ${clock.puedeVenirHoy ? 'SÍ' : 'NO'}
 Si indica día: confirma y pide hora. Si no puede hoy/mañana: "¿Para qué día le quedaría mejor?"
+HORAS (obligatorio): convierte am/pm a 24h antes de decidir. "a las 10" / "a las 11" / "a las 8" / "a las 13" = DIURNO (no inventes que es de noche). Solo es noche si dice "de la noche" o "10 pm". 1:00 pm = 13:00 (sáb sí cabe). "1/6 de la mañana" = madrugada: no confirmes. "mañana a las 10" = 10:00 del día siguiente.
+Si el pedido vigente trae HORA QUE DIJO EL CLIENTE, obedece esa validación al pie de la letra.
 
 REGLA DE EXTRACCIÓN EXACTA (OBLIGATORIA)
 Cuando la herramienta buscarvehiuclo devuelva un campo "text" que contiene un JSON como string:
