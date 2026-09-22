@@ -20,7 +20,11 @@ describe('OutboundService', () => {
   it('manda un salesbot de texto y uno de fotos', async () => {
     await service.dispatch('41807269', {
       mensaje: 'Tenemos una EcoSport',
-      meta: { vehiculo: { inventory_id: 'inv-1' } },
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: { inventory_id: 'inv-1' },
+      },
       img_prefix: 'ford_ecosport_2020',
     });
 
@@ -47,7 +51,11 @@ describe('OutboundService', () => {
 
     const result = await shadow.dispatch('41807269', {
       mensaje: 'Tenemos una EcoSport',
-      meta: { vehiculo: { inventory_id: 'inv-1' } },
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: { inventory_id: 'inv-1' },
+      },
       img_prefix: 'ford_ecosport_2020',
     });
 

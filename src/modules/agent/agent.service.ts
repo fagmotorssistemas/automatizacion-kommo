@@ -307,6 +307,10 @@ export class AgentService {
       };
     }
 
+    if (!concreteAsk) {
+      return empty;
+    }
+
     const raw = await this.openai.completeJson(
       COMPLIANCE_SYSTEM_PROMPT,
       JSON.stringify({
