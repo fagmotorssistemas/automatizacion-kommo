@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OPENAI_AGENT_CONFIG } from '../agent/openai-agent.config';
-import { FollowupModule } from '../followup/followup.module';
+import { CrmModule } from '../crm/crm.module';
+import { OUTBOUND_CONFIG, parseShadowMode } from '../outbound/outbound.config';
 import { SUPABASE_CONFIG } from '../persistence/supabase.config';
-import { AnalysisCron } from './analysis.cron';
-import { AnalysisLlmClient } from './analysis-llm.client';
-import { AnalysisRepository } from './analysis.repository';
-import { AnalysisService } from './analysis.service';
+import { FollowupCron } from './followup.cron';
+import { FollowupLlmClient } from './followup-llm.client';
+import { FollowupRepository } from './followup.repository';
+import { FollowupService } from './followup.service';
 
 @Module({
-  imports: [FollowupModule],
+  imports: [CrmModule],
   providers: [
     {
       provide: SUPABASE_CONFIG,
@@ -29,10 +30,20 @@ import { AnalysisService } from './analysis.service';
           config.get<string>('openai.embeddingModel') ?? 'text-embedding-3-small',
       }),
     },
-    AnalysisRepository,
-    AnalysisLlmClient,
-    AnalysisService,
-    AnalysisCron,
+    {
+      provide: OUTBOUND_CONFIG,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        shadowMode:
+          config.get<boolean>('shadowMode') ??
+          parseShadowMode(process.env.SHADOW_MODE),
+      }),
+    },
+    FollowupRepository,
+    FollowupLlmClient,
+    FollowupService,
+    FollowupCron,
   ],
+  exports: [FollowupService],
 })
-export class AnalysisModule {}
+export class FollowupModule {}

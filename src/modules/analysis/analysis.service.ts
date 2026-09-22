@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { FollowupService } from '../followup/followup.service';
 import {
   ANALYSIS_BATCH_LIMIT,
   DEDUP_WINDOW_MINUTES,
@@ -28,6 +29,7 @@ export class AnalysisService {
   constructor(
     private readonly repository: AnalysisRepository,
     private readonly llm: AnalysisLlmClient,
+    private readonly followup: FollowupService,
   ) {}
 
   async runOnce(
@@ -217,7 +219,23 @@ export class AnalysisService {
       formaPago: reading.formaPago,
       analizadoHasta: packet.cubiertoHasta,
       cerrada: packet.cerrar,
+      seguimiento: reading.seguimiento,
     });
+
+    try {
+      await this.followup.scheduleAfterAnalysis({
+        sessionId: packet.sessionId,
+        leadId: Number.isFinite(packet.leadId) ? packet.leadId : null,
+        lastMessageAt: new Date(packet.cubiertoHasta),
+        seguimiento: reading.seguimiento,
+        cerrada: packet.cerrar,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se programó followup ${packet.sessionId}: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+
     return true;
   }
 

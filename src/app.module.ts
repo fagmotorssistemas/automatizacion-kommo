@@ -13,6 +13,7 @@ import { IntelligenceModule } from './modules/intelligence/intelligence.module';
 import { MediaModule } from './modules/media/media.module';
 import { OutboundModule } from './modules/outbound/outbound.module';
 import { PersistenceModule } from './modules/persistence/persistence.module';
+import { FollowupModule } from './modules/followup/followup.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 
 @Module({
@@ -32,6 +33,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     CrmModule,
     HandoffModule,
     AnalysisModule,
+    FollowupModule,
   ],
 })
 export class AppModule {}

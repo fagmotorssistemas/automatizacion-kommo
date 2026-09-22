@@ -7,6 +7,7 @@ import {
   isRealCustomerText,
   keepCustomerFacingMessages,
 } from '../conversation/is-real-customer-text';
+import { FollowupService } from '../followup/followup.service';
 import { LeadRow } from '../persistence/lead.types';
 import { PersistenceService } from '../persistence/persistence.service';
 import { analyzeTurn, TurnSignals } from './analyze-turn';
@@ -30,6 +31,7 @@ export class IntelligenceService {
     private readonly conversation: ConversationService,
     private readonly persistence: PersistenceService,
     private readonly openai: OpenAiAgentClient,
+    private readonly followup: FollowupService,
   ) {}
 
   async afterReply(input: {
@@ -79,6 +81,10 @@ export class IntelligenceService {
         responseText: recovery.textRaw,
         stop: recovery.classification.stop,
       });
+    }
+
+    if (customerText && input.contactId) {
+      await this.followup.onCustomerMessage(input.contactId);
     }
 
     await this.persistence.applyLeadWrites({

@@ -25,4 +25,11 @@ presupuesto_declarado es lo que el cliente dijo, en sus palabras ("máximo de 7.
 presupuesto_monto es el número de lo que puede pagar por el carro. "Tengo 12 mil para un carro" → 12000. Null si no lo dijo.
 entrada_disponible es el número de la entrada. "Doy 4 mil de entrada" → 4000. No copies el presupuesto aquí. Null si no lo dijo.
 forma_pago: contado o credito, solo si el cliente lo dijo. La retoma no es forma de pago.
-agendo_visita es la etapa 5: true solo si el cliente aceptó un día/hora concreto ("mañana en la tarde"). "Algún día paso" es false.`;
+agendo_visita es la etapa 5: true solo si el cliente aceptó un día/hora concreto ("mañana en la tarde"). "Algún día paso" es false.
+
+seguimiento, uno de: activo, aplazado, cerrado.
+- activo: nada que corte el seguimiento; se programan las 3 retomas.
+- aplazado: va a comprar pero no hoy ("otro día vemos", "más adelante", "después te escribo"). Solo retoma 3.
+- cerrado: "ya no gracias", "ya compré", "no me interesa", número equivocado, fuera de territorio.
+Ojo: aplazado ≠ solo_cotiza. aplazado sí va a comprar (otro día). solo_cotiza no va a comprar.
+"Gracias", "ok", "listo", "dale" NO son cerrado: son despedida educada → activo.`;

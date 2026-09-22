@@ -41,6 +41,18 @@ export class CrmService {
     }
   }
 
+  async setSeguimientoRespuesta(leadId: string, text: string): Promise<boolean> {
+    if (!leadId || !text) {
+      return false;
+    }
+
+    try {
+      return await this.kommo.setSeguimientoRespuesta(leadId, text);
+    } catch {
+      return false;
+    }
+  }
+
   async runSalesbot(botId: number, leadId: string): Promise<boolean> {
     if (!leadId || !botId) {
       return false;

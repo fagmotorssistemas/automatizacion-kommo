@@ -10,11 +10,13 @@ describe('parseConversationReading', () => {
         agendo_visita: false,
         resumen: 'Pidió transmisión manual.\nNo siguió.',
         presupuesto_declarado: '',
+        seguimiento: 'activo',
       }),
     ).toMatchObject({
       objecionPrincipal: 'equipamiento',
       agendoVisita: false,
       presupuestoDeclarado: null,
+      seguimiento: 'activo',
     });
   });
 
@@ -27,6 +29,7 @@ describe('parseConversationReading', () => {
         agendo_visita: true,
         resumen: 'Agendó visita mañana.\nSigue vivo.',
         presupuesto_declarado: '',
+        seguimiento: 'activo',
       }),
     ).toMatchObject({
       objecionPrincipal: null,
@@ -46,6 +49,7 @@ describe('parseConversationReading', () => {
         presupuesto_monto: 12000,
         entrada_disponible: 4000,
         forma_pago: 'contado',
+        seguimiento: 'activo',
       }),
     ).toMatchObject({
       presupuestoDeclarado: 'tiene 12 mil, da 4 mil de entrada',
@@ -64,11 +68,13 @@ describe('parseConversationReading', () => {
         presupuesto_monto: null,
         entrada_disponible: null,
         forma_pago: 'retoma',
+        seguimiento: 'aplazado',
       }),
     ).toMatchObject({
       presupuestoMonto: null,
       entradaDisponible: null,
       formaPago: null,
+      seguimiento: 'aplazado',
     });
   });
 
@@ -80,6 +86,7 @@ describe('parseConversationReading', () => {
         objecion_evidencia: 'x',
         agendo_visita: false,
         resumen: 'x',
+        seguimiento: 'activo',
       }),
     ).toBeNull();
   });

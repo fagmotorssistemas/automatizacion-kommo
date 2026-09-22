@@ -8,6 +8,8 @@ export const KOMMO_CUSTOM_FIELD = {
   ATIENDE_IA: 2991942,
   /** Textarea "Respuesta IA": texto que dispara el salesbot. */
   RESPUESTA_IA: 2991944,
+  /** Textarea de retomas / seguimiento (campo 3039029). */
+  RESPUESTA_SEGUIMIENTO: 3039029,
 } as const;
 
 export const KOMMO_CONTACT_FIELD = {
@@ -17,6 +19,8 @@ export const KOMMO_CONTACT_FIELD = {
 export const KOMMO_SALESBOT = {
   TEXTO: 157134,
   ALTA_CONTACTO: 187553,
+  /** Un solo bot de retoma: lee campo 3039029 (plantilla con variable). */
+  RETOMA: 180011,
 } as const;
 
 /** Pipeline de n8n "Create new leads" en el ramal Instagram. */

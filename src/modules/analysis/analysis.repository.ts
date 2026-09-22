@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import ws from 'ws';
 import { SUPABASE_CONFIG, type SupabaseConfig } from '../persistence/supabase.config';
+import type { SeguimientoEstado } from '../followup/followup.constants';
 import { ObjecionTipo } from './objecion';
 import { FormaPago } from './parse-analysis';
 
@@ -34,6 +35,7 @@ export type SaveAnalysisInput = {
   formaPago: FormaPago | null;
   analizadoHasta: string;
   cerrada: boolean;
+  seguimiento: SeguimientoEstado;
 };
 
 @Injectable()
@@ -138,6 +140,24 @@ export class AnalysisRepository {
       p_analizado_hasta: input.analizadoHasta,
       p_cerrada: input.cerrada,
     });
+    await this.updateSeguimiento(input.sessionId, input.seguimiento);
+  }
+
+  async updateSeguimiento(
+    sessionId: string,
+    seguimiento: SeguimientoEstado,
+  ): Promise<void> {
+    if (!this.client) {
+      throw new Error('Supabase sin URL o service role');
+    }
+    const { error } = await this.client
+      .from('lead_conversation_analysis')
+      .update({ seguimiento })
+      .eq('session_id', sessionId);
+    if (error) {
+      this.logger.error(`updateSeguimiento: ${error.message}`);
+      throw error;
+    }
   }
 
   async purgeAnalyzedChats(): Promise<number> {

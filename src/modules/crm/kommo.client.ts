@@ -33,6 +33,21 @@ export class KommoClient {
     );
   }
 
+  async setSeguimientoRespuesta(leadId: string, text: string): Promise<boolean> {
+    return this.patch(
+      `/api/v4/leads/${leadId}`,
+      {
+        custom_fields_values: [
+          {
+            field_id: KOMMO_CUSTOM_FIELD.RESPUESTA_SEGUIMIENTO,
+            values: [{ value: text }],
+          },
+        ],
+      },
+      `respuesta seguimiento lead ${leadId}`,
+    );
+  }
+
   /** Un solo POST. El bot_id (texto o fotos) lo decide el caller. */
   async runSalesbot(botId: number, leadId: string): Promise<boolean> {
     return this.post(

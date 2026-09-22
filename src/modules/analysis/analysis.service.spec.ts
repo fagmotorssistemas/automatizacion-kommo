@@ -27,6 +27,7 @@ describe('AnalysisService', () => {
       listBatch: jest.fn().mockResolvedValue(['100']),
       packet: jest.fn().mockResolvedValue(packet),
       save: jest.fn().mockResolvedValue(undefined),
+      updateSeguimiento: jest.fn().mockResolvedValue(undefined),
       purgeAnalyzedChats: jest.fn().mockResolvedValue(0),
     };
     const llm = {
@@ -41,16 +42,22 @@ describe('AnalysisService', () => {
               agendoVisita: true,
               resumen: 'Pidió manual.\nSe apagó.',
               presupuestoDeclarado: null,
+              seguimiento: 'activo',
             },
       ),
+    };
+    const followup = {
+      scheduleAfterAnalysis: jest.fn().mockResolvedValue(undefined),
     };
 
     return {
       repository,
       llm,
+      followup,
       run: new AnalysisService(
         repository as unknown as AnalysisRepository,
         llm as unknown as AnalysisLlmClient,
+        followup as never,
       ),
     };
   }
@@ -90,6 +97,7 @@ describe('AnalysisService', () => {
         agendoVisita: false,
         resumen: 'Pidió precio.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       })
       .mockResolvedValueOnce({
         objecionPrincipal: 'no_responde',
@@ -98,6 +106,7 @@ describe('AnalysisService', () => {
         agendoVisita: false,
         resumen: 'Preguntó transmisión.\nNo siguió.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       });
 
     const result = await run.runOnce(1, { purge: false });
@@ -116,6 +125,7 @@ describe('AnalysisService', () => {
         agendoVisita: true,
         resumen: 'Agendó para mañana.\nSigue vivo.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       },
     });
     await run.runOnce(1, { purge: false });
@@ -133,6 +143,7 @@ describe('AnalysisService', () => {
         agendoVisita: false,
         resumen: 'Preguntó y se fue.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       },
     });
     repository.packet.mockResolvedValue({ ...packet, etapaSql: 2 });
@@ -161,6 +172,7 @@ describe('AnalysisService', () => {
         agendoVisita: false,
         resumen: 'Plantilla.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       })
       .mockResolvedValueOnce({
         objecionPrincipal: 'sin_conversacion',
@@ -169,6 +181,7 @@ describe('AnalysisService', () => {
         agendoVisita: false,
         resumen: 'Plantilla del anuncio.\nNo habló.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       });
 
     await run.runOnce(1, { purge: false });
@@ -186,6 +199,7 @@ describe('AnalysisService', () => {
         agendoVisita: true,
         resumen: 'Agendó y preguntó por el apartado.',
         presupuestoDeclarado: null,
+        seguimiento: 'activo',
       },
     });
     await run.runOnce(1, { purge: false });

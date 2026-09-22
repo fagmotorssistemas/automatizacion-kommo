@@ -1,3 +1,7 @@
+import {
+  isSeguimientoEstado,
+  type SeguimientoEstado,
+} from '../followup/followup.constants';
 import { isObjecionTipo, ObjecionTipo } from './objecion';
 
 export type FormaPago = 'contado' | 'credito';
@@ -12,6 +16,7 @@ export type ConversationReading = {
   presupuestoMonto: number | null;
   entradaDisponible: number | null;
   formaPago: FormaPago | null;
+  seguimiento: SeguimientoEstado;
 };
 
 function asMoney(value: unknown): number | null {
@@ -56,6 +61,11 @@ export function parseConversationReading(raw: unknown): ConversationReading | nu
   }
 
   const presupuesto = String(row.presupuesto_declarado ?? '').trim();
+  const rawSeguimiento = String(row.seguimiento ?? 'activo').trim();
+  const seguimiento = isSeguimientoEstado(rawSeguimiento)
+    ? rawSeguimiento
+    : 'activo';
+
   return {
     objecionPrincipal: objecion,
     objecionTexto: String(row.objecion_texto ?? '').trim(),
@@ -66,5 +76,6 @@ export function parseConversationReading(raw: unknown): ConversationReading | nu
     presupuestoMonto: asMoney(row.presupuesto_monto),
     entradaDisponible: asMoney(row.entrada_disponible),
     formaPago: asFormaPago(row.forma_pago),
+    seguimiento,
   };
 }

@@ -78,6 +78,9 @@ create table if not exists public.lead_conversation_analysis (
   analizado_hasta timestamptz,
   cerrada boolean not null default false,
   cerrada_at timestamptz,
+  seguimiento text not null default 'activo',
+  constraint lead_conversation_analysis_seguimiento_chk
+    check (seguimiento in ('activo', 'aplazado', 'cerrado')),
   constraint lead_conversation_analysis_session_id_key unique (session_id)
 );
 

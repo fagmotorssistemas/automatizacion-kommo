@@ -24,6 +24,7 @@ const ANALYSIS_SCHEMA = {
     'presupuesto_monto',
     'entrada_disponible',
     'forma_pago',
+    'seguimiento',
   ],
   properties: {
     objecion_principal: {
@@ -38,6 +39,10 @@ const ANALYSIS_SCHEMA = {
     presupuesto_monto: { type: ['number', 'null'] },
     entrada_disponible: { type: ['number', 'null'] },
     forma_pago: { type: ['string', 'null'], enum: ['contado', 'credito', null] },
+    seguimiento: {
+      type: 'string',
+      enum: ['activo', 'aplazado', 'cerrado'],
+    },
   },
 } as const;
 
