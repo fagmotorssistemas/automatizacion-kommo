@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CONFIG, type SupabaseConfig } from '../persistence/supabase.config';
 import { ObjecionTipo } from './objecion';
+import { FormaPago } from './parse-analysis';
 
 export type ConversationPacket = {
   sessionId: string;
@@ -22,11 +23,14 @@ export type SaveAnalysisInput = {
   etapaMax: number;
   vehiculos: string[];
   precioMax: number | null;
-  objecion: ObjecionTipo;
+  objecion: ObjecionTipo | null;
   objecionTexto: string;
   objecionEvidencia: string;
   resumen: string;
   presupuesto: string | null;
+  presupuestoMonto: number | null;
+  entradaDisponible: number | null;
+  formaPago: FormaPago | null;
   analizadoHasta: string;
   cerrada: boolean;
 };
@@ -99,6 +103,20 @@ export class AnalysisRepository {
     };
   }
 
+  async clearAnalizadoHasta(sessionId: string): Promise<void> {
+    if (!this.client) {
+      throw new Error('Supabase sin URL o service role');
+    }
+    const { error } = await this.client
+      .from('lead_conversation_analysis')
+      .update({ analizado_hasta: null })
+      .eq('session_id', sessionId);
+    if (error) {
+      this.logger.error(`clearAnalizadoHasta: ${error.message}`);
+      throw error;
+    }
+  }
+
   async save(input: SaveAnalysisInput): Promise<void> {
     await this.rpc('fn_save_conversation_analysis', {
       p_session_id: input.sessionId,
@@ -111,6 +129,9 @@ export class AnalysisRepository {
       p_objecion_evidencia: input.objecionEvidencia,
       p_resumen: input.resumen,
       p_presupuesto: input.presupuesto,
+      p_presupuesto_monto: input.presupuestoMonto,
+      p_entrada_disponible: input.entradaDisponible,
+      p_forma_pago: input.formaPago,
       p_analizado_hasta: input.analizadoHasta,
       p_cerrada: input.cerrada,
     });

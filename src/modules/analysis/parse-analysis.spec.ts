@@ -18,6 +18,60 @@ describe('parseConversationReading', () => {
     });
   });
 
+  it('acepta objeción nula si no objetó', () => {
+    expect(
+      parseConversationReading({
+        objecion_principal: null,
+        objecion_texto: '',
+        objecion_evidencia: '',
+        agendo_visita: true,
+        resumen: 'Agendó visita mañana.\nSigue vivo.',
+        presupuesto_declarado: '',
+      }),
+    ).toMatchObject({
+      objecionPrincipal: null,
+      agendoVisita: true,
+    });
+  });
+
+  it('separa presupuesto de entrada y no toma la retoma como pago', () => {
+    expect(
+      parseConversationReading({
+        objecion_principal: null,
+        objecion_texto: '',
+        objecion_evidencia: '',
+        agendo_visita: false,
+        resumen: 'Tiene 12 mil para el carro.\nDa 4 mil de entrada.',
+        presupuesto_declarado: 'tiene 12 mil, da 4 mil de entrada',
+        presupuesto_monto: 12000,
+        entrada_disponible: 4000,
+        forma_pago: 'contado',
+      }),
+    ).toMatchObject({
+      presupuestoDeclarado: 'tiene 12 mil, da 4 mil de entrada',
+      presupuestoMonto: 12000,
+      entradaDisponible: 4000,
+      formaPago: 'contado',
+    });
+    expect(
+      parseConversationReading({
+        objecion_principal: null,
+        objecion_texto: '',
+        objecion_evidencia: '',
+        agendo_visita: false,
+        resumen: 'Entrega su Spark.',
+        presupuesto_declarado: '',
+        presupuesto_monto: null,
+        entrada_disponible: null,
+        forma_pago: 'retoma',
+      }),
+    ).toMatchObject({
+      presupuestoMonto: null,
+      entradaDisponible: null,
+      formaPago: null,
+    });
+  });
+
   it('rechaza un enum desconocido', () => {
     expect(
       parseConversationReading({

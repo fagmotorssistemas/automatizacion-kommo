@@ -106,4 +106,91 @@ describe('AnalysisService', () => {
       expect.objectContaining({ objecion: 'no_responde' }),
     );
   });
+
+  it('guarda null si agendó y no objetó', async () => {
+    const { repository, run } = service({
+      reading: {
+        objecionPrincipal: null,
+        objecionTexto: '',
+        objecionEvidencia: '',
+        agendoVisita: true,
+        resumen: 'Agendó para mañana.\nSigue vivo.',
+        presupuestoDeclarado: null,
+      },
+    });
+    await run.runOnce(1, { purge: false });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ etapaMax: 5, objecion: null }),
+    );
+  });
+
+  it('precio sin haber llegado a 3 se guarda como otro', async () => {
+    const { repository, run } = service({
+      reading: {
+        objecionPrincipal: 'precio',
+        objecionTexto: 'Está caro',
+        objecionEvidencia: 'Solo tienen auitomatico ?',
+        agendoVisita: false,
+        resumen: 'Preguntó y se fue.',
+        presupuestoDeclarado: null,
+      },
+    });
+    repository.packet.mockResolvedValue({ ...packet, etapaSql: 2 });
+    await run.runOnce(1, { purge: false });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        etapaMax: 2,
+        objecion: 'otro',
+        objecionTexto: '[revisar:precio] Está caro',
+      }),
+    );
+  });
+
+  it('no acepta evidencia con llaves del anuncio y usa el reintento', async () => {
+    const { repository, llm, run } = service();
+    repository.packet.mockResolvedValue({
+      ...packet,
+      etapaSql: 0,
+      transcript: '[cliente] Precio por favor {K-SI Nuevos.}',
+    });
+    llm.read
+      .mockResolvedValueOnce({
+        objecionPrincipal: 'precio',
+        objecionTexto: 'Pidió precio',
+        objecionEvidencia: 'Precio por favor {K-SI Nuevos.}',
+        agendoVisita: false,
+        resumen: 'Plantilla.',
+        presupuestoDeclarado: null,
+      })
+      .mockResolvedValueOnce({
+        objecionPrincipal: 'sin_conversacion',
+        objecionTexto: 'Solo mandó la plantilla',
+        objecionEvidencia: 'Precio por favor',
+        agendoVisita: false,
+        resumen: 'Plantilla del anuncio.\nNo habló.',
+        presupuestoDeclarado: null,
+      });
+
+    await run.runOnce(1, { purge: false });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ objecion: 'sin_conversacion' }),
+    );
+  });
+
+  it('si agendó, no guarda sin_cierre', async () => {
+    const { repository, run } = service({
+      reading: {
+        objecionPrincipal: 'sin_cierre',
+        objecionTexto: 'Nadie lo siguió',
+        objecionEvidencia: 'Solo tienen auitomatico ?',
+        agendoVisita: true,
+        resumen: 'Agendó y preguntó por el apartado.',
+        presupuestoDeclarado: null,
+      },
+    });
+    await run.runOnce(1, { purge: false });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ etapaMax: 5, objecion: null }),
+    );
+  });
 });

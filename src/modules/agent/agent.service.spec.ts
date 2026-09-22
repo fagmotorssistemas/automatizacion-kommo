@@ -114,7 +114,11 @@ describe('AgentService', () => {
       resumen: 'RESUMEN\nCliente quiere una hilux.',
       reply: {
         mensaje: 'Tenemos una Hilux disponible.',
-        meta: { vehiculo: { inventory_id: 'inv-1' } },
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: 'inv-1' },
+        },
         img_prefix: '',
       },
     });
@@ -122,7 +126,12 @@ describe('AgentService', () => {
     expect(persistence.appendChatHistory).toHaveBeenCalledWith({
       contactId: '59458509',
       human: 'me interesa una hilux',
-      ai: 'Tenemos una Hilux disponible.',
+      ai: expect.stringContaining('"precio_mostrado":false'),
+    });
+    expect(persistence.appendChatHistory).toHaveBeenCalledWith({
+      contactId: '59458509',
+      human: 'me interesa una hilux',
+      ai: expect.stringContaining('Tenemos una Hilux disponible.'),
     });
     expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(['rol', 'compra']);
     expect(openai.complete).toHaveBeenNthCalledWith(
@@ -252,6 +261,8 @@ describe('AgentService', () => {
     expect(catalog.searchInventory).toHaveBeenCalledWith(
       [0.1, 0.2],
       'camioneta',
+      null,
+      false,
     );
   });
 
@@ -285,7 +296,12 @@ describe('AgentService', () => {
       customerText: 'a cuántos meses queda',
     });
 
-    expect(catalog.searchInventory).toHaveBeenCalledWith([0.3], 'camioneta');
+    expect(catalog.searchInventory).toHaveBeenCalledWith(
+      [0.3],
+      'camioneta',
+      null,
+      false,
+    );
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         user: expect.stringContaining('Tipo: camioneta'),
@@ -632,8 +648,48 @@ describe('AgentService', () => {
 
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('$33990'),
+        system: expect.stringContaining('precio_interno=33990'),
         user: expect.stringContaining('No vuelvas a pedir'),
+      }),
+    );
+    expect(openai.runSalesAgent.mock.calls[0][0].system).not.toContain('$33990');
+  });
+
+  it('si pide el precio sí se lo muestra', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'exp-1',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4',
+      year: 2018,
+      price: 33990,
+    });
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente quiere el precio.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Explorer está en $33990.',
+        meta: {
+          precio_mostrado: true,
+          cuota_mostrada: false,
+          vehiculo: { inventory_id: 'exp-1', precio: 33990 },
+        },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'el precio x favor',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('$33990'),
+      }),
+    );
+    expect(persistence.appendChatHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ai: expect.stringContaining('"precio_mostrado":true'),
       }),
     );
   });

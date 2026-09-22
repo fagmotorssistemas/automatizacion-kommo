@@ -8,6 +8,7 @@ import { AnalysisLlmClient } from './analysis-llm.client';
 import { AnalysisRepository } from './analysis.repository';
 import { etapaParaGuardar } from './conversation-lifecycle';
 import { evidenciaEsDelCliente } from './evidencia-del-cliente';
+import { objecionParaGuardar } from './objecion';
 import { ConversationReading } from './parse-analysis';
 
 export type AnalysisRunResult = {
@@ -61,7 +62,10 @@ export class AnalysisService {
       }
 
       const sessions = await this.repository.listBatch(limit);
-      const result = await this.analyzeSessions(sessions, options.purge !== false);
+      const result = await this.analyzeSessions(
+        sessions,
+        options.purge !== false,
+      );
       return { ...result, claimed: true };
     } finally {
       if (claimed) {
@@ -111,6 +115,7 @@ export class AnalysisService {
       const result = await this.analyzeSessions(
         sessionIds,
         options.purge === true,
+        true,
       );
       return { ...result, claimed: true };
     } finally {
@@ -130,6 +135,7 @@ export class AnalysisService {
   private async analyzeSessions(
     sessions: string[],
     purge: boolean,
+    replay = false,
   ): Promise<AnalysisRunResult> {
     const result: AnalysisRunResult = {
       claimed: true,
@@ -143,7 +149,7 @@ export class AnalysisService {
     for (const sessionId of sessions) {
       result.examined += 1;
       try {
-        const saved = await this.analyzeSession(sessionId);
+        const saved = await this.analyzeSession(sessionId, replay);
         if (saved) {
           result.saved += 1;
         } else {
@@ -167,7 +173,13 @@ export class AnalysisService {
     return result;
   }
 
-  private async analyzeSession(sessionId: string): Promise<boolean> {
+  private async analyzeSession(
+    sessionId: string,
+    replay = false,
+  ): Promise<boolean> {
+    if (replay) {
+      await this.repository.clearAnalizadoHasta(sessionId);
+    }
     const packet = await this.repository.packet(
       sessionId,
       DEDUP_WINDOW_MINUTES,
@@ -181,17 +193,28 @@ export class AnalysisService {
       return false;
     }
 
+    const etapaMax = etapaParaGuardar(packet.etapaSql, reading.agendoVisita);
+    const objecion = objecionParaGuardar(
+      reading.objecionPrincipal,
+      etapaMax,
+      reading.objecionTexto,
+      reading.agendoVisita,
+    );
+
     await this.repository.save({
       sessionId: packet.sessionId,
       leadId: Number.isFinite(packet.leadId) ? packet.leadId : null,
-      etapaMax: etapaParaGuardar(packet.etapaSql, reading.agendoVisita),
+      etapaMax,
       vehiculos: packet.vehiculos,
       precioMax: Number.isFinite(packet.precioMax) ? packet.precioMax : null,
-      objecion: reading.objecionPrincipal,
-      objecionTexto: reading.objecionTexto,
+      objecion: objecion.objecion,
+      objecionTexto: objecion.texto,
       objecionEvidencia: reading.objecionEvidencia,
       resumen: reading.resumen,
       presupuesto: reading.presupuestoDeclarado,
+      presupuestoMonto: reading.presupuestoMonto,
+      entradaDisponible: reading.entradaDisponible,
+      formaPago: reading.formaPago,
       analizadoHasta: packet.cubiertoHasta,
       cerrada: packet.cerrar,
     });
@@ -200,16 +223,26 @@ export class AnalysisService {
 
   private async leerConCita(transcript: string): Promise<ConversationReading | null> {
     const first = await this.llm.read(transcript);
-    if (first && evidenciaEsDelCliente(transcript, first.objecionEvidencia)) {
+    if (first && lecturaSostenida(transcript, first)) {
       return first;
     }
 
     const retry = await this.llm.read(
-      `${transcript}\n\nCorrige: objecion_evidencia tiene que ser una frase copiada de una línea [cliente]. Preguntar precio, entrada o km no es objeción.`,
+      `${transcript}\n\nCorrige: objecion_evidencia tiene que ser una frase copiada de una línea [cliente], sin {llaves} del anuncio. Preguntar precio, entrada o km no es objeción. Si no objetó, objecion_principal es null.`,
     );
-    if (retry && evidenciaEsDelCliente(transcript, retry.objecionEvidencia)) {
+    if (retry && lecturaSostenida(transcript, retry)) {
       return retry;
     }
     return null;
   }
+}
+
+function lecturaSostenida(
+  transcript: string,
+  reading: ConversationReading,
+): boolean {
+  if (!reading.objecionPrincipal) {
+    return true;
+  }
+  return evidenciaEsDelCliente(transcript, reading.objecionEvidencia);
 }

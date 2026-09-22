@@ -6,11 +6,15 @@
 -- juntar repeticiones legítimas cercanas. Se ajusta en el argumento
 -- p_dedup_minutes cuando el backfill lo muestre; no es una columna.
 --
--- Embudo de esta tabla: etapas 0 a 5. Visita real, negociación y venta no viven aquí.
+-- Embudo 0-7.
+-- 0 sesión, 1 respondió (humano sin plantilla), 2 conversó,
+-- 3 precio_mostrado, 4 cuota_mostrada, 5 visita agendada (LLM),
+-- 6 visitó (showroom_visits), 7 vendió (contabilidad, aún no).
+-- Plantilla {…} no cuenta. 3 y 4 exigen 2+ propios. vehiculo.precio no sube etapa.
 --
 -- Reversible:
 --   drop function if exists public.fn_purge_analyzed_chats();
---   drop function if exists public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean);
+--   drop function if exists public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean, numeric, numeric, text);
 --   drop function if exists public.fn_conversation_packet(text, integer);
 --   drop function if exists public.fn_list_conversation_batch(integer);
 --   drop function if exists public.fn_release_analysis_lock(uuid);
@@ -51,7 +55,7 @@ create table if not exists public.lead_conversation_analysis (
   lead_id bigint references public.leads (id) on delete set null,
   etapa_max smallint not null default 0,
   constraint lead_conversation_analysis_etapa_max_chk
-    check (etapa_max between 0 and 5),
+    check (etapa_max between 0 and 7),
   vehiculos_consultados text[] not null default '{}',
   precio_max_mostrado numeric,
   objecion_principal public.objecion_tipo,
@@ -59,6 +63,18 @@ create table if not exists public.lead_conversation_analysis (
   objecion_evidencia text,
   resumen text,
   presupuesto_declarado text,
+  presupuesto_monto numeric(12, 2),
+  entrada_disponible numeric(12, 2),
+  forma_pago text,
+  constraint lead_conversation_analysis_forma_pago_chk
+    check (forma_pago is null or forma_pago in ('contado', 'credito')),
+  segmento_ticket text generated always as (
+    case
+      when precio_max_mostrado >= 33000 then 'high'
+      when precio_max_mostrado >= 17000 then 'medio'
+      when precio_max_mostrado is not null then 'low'
+    end
+  ) stored,
   analizado_hasta timestamptz,
   cerrada boolean not null default false,
   cerrada_at timestamptz,
@@ -68,13 +84,23 @@ create table if not exists public.lead_conversation_analysis (
 comment on table public.lead_conversation_analysis is
   'Hecho permanente de una conversación. n8n_chat_histories es la evidencia temporal.';
 comment on column public.lead_conversation_analysis.etapa_max is
-  'Máxima etapa 0-5. Nunca disminuye. 6-8 no se guardan aquí.';
+  'Máxima etapa 0-7. 3=precio_mostrado, 4=cuota_mostrada, 5=agendó, 6=visitó, 7=vendió. Nunca disminuye.';
 comment on column public.lead_conversation_analysis.analizado_hasta is
   'Último mensaje de la fuente ya incluido. La actualización manda el resumen y lo posterior.';
 comment on column public.lead_conversation_analysis.cerrada is
   'Análisis final (7+ días). El cron no la vuelve a tocar.';
 comment on column public.lead_conversation_analysis.lead_id is
   'Nullable. Sesiones sin match en leads siguen en los reportes agregados.';
+comment on column public.lead_conversation_analysis.presupuesto_declarado is
+  'Texto libre de lo que dijo el cliente. No se reemplaza por el número.';
+comment on column public.lead_conversation_analysis.presupuesto_monto is
+  'Cuánto puede pagar por el carro. "Tengo 12 mil para un carro".';
+comment on column public.lead_conversation_analysis.entrada_disponible is
+  'Cuánto da de entrada. "Doy 4 mil de entrada". No es el presupuesto.';
+comment on column public.lead_conversation_analysis.forma_pago is
+  'contado o credito. La retoma no va aquí: es fuente de entrada.';
+comment on column public.lead_conversation_analysis.segmento_ticket is
+  'Rango del precio que mostró el bot. Cortes p25/p75 de ventas reales (17000/33000).';
 
 create index if not exists lead_conversation_analysis_objecion_idx
   on public.lead_conversation_analysis (objecion_principal);
@@ -301,6 +327,7 @@ begin
     ) with ordinality as seg(segment, ordinality)
     where s.message->>'type' = 'human'
       and btrim(seg.segment) <> ''
+      and coalesce(s.message->>'content', '') !~ '\{.*\}'
   ),
   kept_humans as (
     select h.*
@@ -318,15 +345,24 @@ begin
       s.id,
       s.created_at,
       coalesce(
-        nullif(btrim(public.chat_try_jsonb(s.message->>'content')->>'respuesta_cliente'), ''),
+        nullif(btrim(payload->>'respuesta_cliente'), ''),
         nullif(btrim(s.message->>'content'), '')
       ) as spoken,
-      nullif(
-        btrim(public.chat_try_jsonb(s.message->>'content') #>> '{meta,vehiculo,inventory_id}'),
-        ''
-      ) as inventory_id,
-      public.chat_max_price(s.message->>'content') as price
+      nullif(btrim(payload #>> '{meta,vehiculo,inventory_id}'), '') as inventory_id,
+      coalesce(payload #>> '{meta,precio_mostrado}', '') = 'true' as precio_mostrado,
+      coalesce(payload #>> '{meta,cuota_mostrada}', '') = 'true' as cuota_mostrada,
+      case
+        when coalesce(payload #>> '{meta,precio_mostrado}', '') = 'true'
+          and payload #>> '{meta,vehiculo,precio}' ~ '^[0-9]+(\.[0-9]+)?$'
+          then (payload #>> '{meta,vehiculo,precio}')::numeric
+        when coalesce(payload #>> '{meta,precio_mostrado}', '') = 'true'
+          then public.chat_max_price(s.message->>'content')
+        else null
+      end as price
     from source s
+    cross join lateral (
+      select public.chat_try_jsonb(s.message->>'content') as payload
+    ) parsed
     where s.message->>'type' = 'ai'
   ),
   facts as (
@@ -342,7 +378,18 @@ begin
         '{}'::text[]
       ) as vehiculos,
       (select max(a.price) from ai a) as precio_max,
-      exists (select 1 from ai a where a.spoken is not null) as hubo_ai
+      exists (select 1 from ai a where a.precio_mostrado) as vio_precio,
+      exists (select 1 from ai a where a.cuota_mostrada) as vio_cuota,
+      exists (
+        select 1
+        from public.leads l
+        join public.showroom_visits v
+          on right(regexp_replace(coalesce(v.phone, ''), '\D', '', 'g'), 9)
+           = right(regexp_replace(coalesce(l.phone, ''), '\D', '', 'g'), 9)
+        where p_session_id ~ '^\d+$'
+          and l.contact_id = p_session_id::bigint
+          and length(right(regexp_replace(coalesce(l.phone, ''), '\D', '', 'g'), 9)) = 9
+      ) as visito
     from (select 1) one
   ),
   delta_humans as (
@@ -397,12 +444,15 @@ begin
         and l.contact_id = p_session_id::bigint
       limit 1
     ),
-    greatest(
-      0,
-      case when f.hubo_ai then 1 else 0 end,
-      case when f.segmentos >= 2 then 2 else 0 end,
-      case when cardinality(f.vehiculos) > 0 then 3 else 0 end,
-      case when f.precio_max is not null then 4 else 0 end
+    (
+      case
+        when f.visito and f.segmentos >= 2 then 6
+        when f.vio_cuota and f.segmentos >= 2 then 4
+        when f.vio_precio and f.segmentos >= 2 then 3
+        when f.segmentos >= 2 then 2
+        when f.segmentos >= 1 then 1
+        else 0
+      end
     )::smallint,
     f.vehiculos,
     f.precio_max,
@@ -436,7 +486,10 @@ create or replace function public.fn_save_conversation_analysis(
   p_resumen text,
   p_presupuesto text,
   p_analizado_hasta timestamptz,
-  p_cerrada boolean
+  p_cerrada boolean,
+  p_presupuesto_monto numeric default null,
+  p_entrada_disponible numeric default null,
+  p_forma_pago text default null
 )
 returns void
 language plpgsql
@@ -454,6 +507,9 @@ begin
     objecion_evidencia,
     resumen,
     presupuesto_declarado,
+    presupuesto_monto,
+    entrada_disponible,
+    forma_pago,
     analizado_hasta,
     cerrada,
     cerrada_at
@@ -461,7 +517,7 @@ begin
   values (
     p_session_id,
     p_lead_id,
-    least(greatest(p_etapa_max, 0), 5),
+    least(greatest(p_etapa_max, 0), 7),
     coalesce(p_vehiculos, '{}'),
     p_precio,
     p_objecion,
@@ -469,6 +525,12 @@ begin
     p_objecion_evidencia,
     p_resumen,
     nullif(btrim(coalesce(p_presupuesto, '')), ''),
+    p_presupuesto_monto,
+    p_entrada_disponible,
+    case
+      when p_forma_pago in ('contado', 'credito') then p_forma_pago
+      else null
+    end,
     p_analizado_hasta,
     p_cerrada,
     case when p_cerrada then now() else null end
@@ -493,6 +555,18 @@ begin
     objecion_evidencia = excluded.objecion_evidencia,
     resumen = excluded.resumen,
     presupuesto_declarado = excluded.presupuesto_declarado,
+    presupuesto_monto = coalesce(
+      excluded.presupuesto_monto,
+      lead_conversation_analysis.presupuesto_monto
+    ),
+    entrada_disponible = coalesce(
+      excluded.entrada_disponible,
+      lead_conversation_analysis.entrada_disponible
+    ),
+    forma_pago = coalesce(
+      excluded.forma_pago,
+      lead_conversation_analysis.forma_pago
+    ),
     analizado_hasta = greatest(
       coalesce(lead_conversation_analysis.analizado_hasta, excluded.analizado_hasta),
       coalesce(excluded.analizado_hasta, lead_conversation_analysis.analizado_hasta)
@@ -578,7 +652,7 @@ revoke all on function public.fn_claim_analysis_lock(uuid) from public, anon, au
 revoke all on function public.fn_release_analysis_lock(uuid) from public, anon, authenticated;
 revoke all on function public.fn_list_conversation_batch(integer) from public, anon, authenticated;
 revoke all on function public.fn_conversation_packet(text, integer) from public, anon, authenticated;
-revoke all on function public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean) from public, anon, authenticated;
+revoke all on function public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean, numeric, numeric, text) from public, anon, authenticated;
 revoke all on function public.fn_purge_analyzed_chats() from public, anon, authenticated;
 revoke all on function public.fn_conversation_sql_self_check() from public, anon, authenticated;
 revoke all on function public.lead_conversation_analysis_keep_max_etapa() from public, anon, authenticated;
@@ -590,6 +664,6 @@ grant execute on function public.fn_claim_analysis_lock(uuid) to service_role;
 grant execute on function public.fn_release_analysis_lock(uuid) to service_role;
 grant execute on function public.fn_list_conversation_batch(integer) to service_role;
 grant execute on function public.fn_conversation_packet(text, integer) to service_role;
-grant execute on function public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean) to service_role;
+grant execute on function public.fn_save_conversation_analysis(text, bigint, smallint, text[], numeric, public.objecion_tipo, text, text, text, text, timestamptz, boolean, numeric, numeric, text) to service_role;
 grant execute on function public.fn_purge_analyzed_chats() to service_role;
 grant execute on function public.fn_conversation_sql_self_check() to service_role;

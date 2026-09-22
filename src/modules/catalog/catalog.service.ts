@@ -9,6 +9,28 @@ import { parseImgPrefixes } from './parse-img-prefixes';
 
 export const INVENTORY_TOP_K = 3;
 
+function hidePrices(rows: unknown): unknown {
+  if (!Array.isArray(rows)) {
+    return rows;
+  }
+
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') {
+      return row;
+    }
+    const copy = { ...(row as Record<string, unknown>) };
+    delete copy.price;
+    delete copy.precio;
+    if (copy.metadata && typeof copy.metadata === 'object') {
+      const metadata = { ...(copy.metadata as Record<string, unknown>) };
+      delete metadata.price;
+      delete metadata.precio;
+      copy.metadata = metadata;
+    }
+    return copy;
+  });
+}
+
 @Injectable()
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
@@ -37,6 +59,7 @@ export class CatalogService {
     embedding: number[],
     tipo?: VehicleKind | null,
     marca?: string | null,
+    includePrice = false,
   ): Promise<string> {
     if (!this.supabase || embedding.length === 0) {
       return '[]';
@@ -51,7 +74,9 @@ export class CatalogService {
           ...(marca ? { marca } : {}),
         },
       );
-      return JSON.stringify(rows ?? []);
+      return JSON.stringify(
+        includePrice ? (rows ?? []) : hidePrices(rows ?? []),
+      );
     } catch (error) {
       this.logger.error(
         'match_inventoryoracle falló',

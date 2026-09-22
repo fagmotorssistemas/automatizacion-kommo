@@ -95,9 +95,11 @@ function prettyFamily(model: string): string {
   return family.charAt(0).toUpperCase() + family.slice(1);
 }
 
-function etiqueta(car: StockCar): string {
+function etiqueta(car: StockCar, includePrice = false): string {
   const price =
-    car.price && car.price > 0 ? `, $${Math.round(car.price)}` : '';
+    includePrice && car.price && car.price > 0
+      ? `, $${Math.round(car.price)}`
+      : '';
   const year = car.year ? ` ${car.year}` : '';
   return `${prettyFamily(car.model)}${year}${price}`;
 }
@@ -107,6 +109,7 @@ export function formatRevisionMarca(input: {
   cars: StockCar[];
   tresFilas: boolean;
   soloMarca: boolean;
+  includePrice?: boolean;
 }): string {
   const lineas = [...new Set(input.cars.map((car) => prettyFamily(car.model)))];
   const parts = [`MARCA VIGENTE: ${input.marca}`];
@@ -128,7 +131,7 @@ export function formatRevisionMarca(input: {
   const list = (clase: FilaClase) =>
     marked
       .filter((item) => item.clase === clase)
-      .map((item) => etiqueta(item.car))
+      .map((item) => etiqueta(item.car, input.includePrice === true))
       .join('; ');
 
   const confirmados = list('tres_filas');

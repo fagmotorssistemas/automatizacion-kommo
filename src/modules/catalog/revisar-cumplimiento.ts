@@ -128,7 +128,7 @@ export function idsToOffer(
   return review.parecidos;
 }
 
-function label(car: StockCar): string {
+function label(car: StockCar, includePrice = false): string {
   const family = modelFamily(car.model);
   const name =
     family === 'xtrail'
@@ -137,7 +137,10 @@ function label(car: StockCar): string {
         ? family.charAt(0).toUpperCase() + family.slice(1)
         : car.model;
   const year = car.year ? ` ${car.year}` : '';
-  const price = car.price && car.price > 0 ? `, $${Math.round(car.price)}` : '';
+  const price =
+    includePrice && car.price && car.price > 0
+      ? `, $${Math.round(car.price)}`
+      : '';
   return `${name}${year}${price} (inventory_id=${car.id})`;
 }
 
@@ -145,11 +148,12 @@ export function formatComplianceForAgent(
   ask: string,
   cars: StockCar[],
   review: ComplianceReview,
+  includePrice = false,
 ): string {
   const byId = new Map(cars.map((car) => [car.id, car]));
   const line = (id: string) => {
     const car = byId.get(id);
-    return car ? label(car) : id;
+    return car ? label(car, includePrice) : id;
   };
   const no = review.noCumplen.map(line).join('; ');
   const parts = [`REVISIÓN DEL PEDIDO: ${ask}`];
@@ -176,7 +180,7 @@ export function formatComplianceForAgent(
     parts.push(
       'Ningún carro de esta marca cumple ni se acerca al pedido.',
     );
-    parts.push(`Revisados: ${cars.map(label).join('; ')}.`);
+    parts.push(`Revisados: ${cars.map((car) => label(car, includePrice)).join('; ')}.`);
     return parts.join('\n');
   }
 
@@ -206,11 +210,12 @@ export function formatOtherBrands(
   brand: string,
   cars: StockCar[],
   review: ComplianceReview,
+  includePrice = false,
 ): string {
   const byId = new Map(cars.map((car) => [car.id, car]));
   const line = (id: string) => {
     const car = byId.get(id);
-    return car ? `${car.brand} ${label(car)}` : id;
+    return car ? `${car.brand} ${label(car, includePrice)}` : id;
   };
   const parts = [
     `De ${brand} ninguno cumple ni se acerca.`,

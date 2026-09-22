@@ -20,6 +20,7 @@ describe('vehículo de interés', () => {
       ),
     ).toBe(true);
     expect(refersToInterestedCar('Este vehiculo', explorer)).toBe(true);
+    expect(refersToInterestedCar('el precio x favor', explorer)).toBe(true);
   });
 
   it('un modelo nuevo no usa el Explorer', () => {
@@ -28,8 +29,10 @@ describe('vehículo de interés', () => {
     );
   });
 
-  it('el texto trae el precio para no volver a pedirlo', () => {
-    expect(formatInterestedCar(explorer)).toContain('$33990');
+  it('el precio queda interno hasta que el cliente lo pida', () => {
+    expect(formatInterestedCar(explorer)).not.toContain('$33990');
+    expect(formatInterestedCar(explorer)).toContain('precio_interno=33990');
+    expect(formatInterestedCar(explorer, true)).toContain('$33990');
     expect(formatInterestedCar(explorer)).toContain('No vuelvas a pedir');
   });
 });

@@ -24,4 +24,14 @@ describe('evidenciaEsDelCliente', () => {
       false,
     );
   });
+
+  it('rechaza la plantilla del anuncio aunque esté en una línea del cliente', () => {
+    const conPlantilla = [
+      '[cliente] Precio por favor {K-SI Nuevos.}',
+      '[bot] La Hilux 2023 está en $32000.',
+    ].join('\n');
+    expect(
+      evidenciaEsDelCliente(conPlantilla, 'Precio por favor {K-SI Nuevos.}'),
+    ).toBe(false);
+  });
 });

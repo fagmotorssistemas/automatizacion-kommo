@@ -72,6 +72,7 @@ describe('clasificar filas', () => {
     });
     expect(text).toContain('Sentra, Kicks, Frontier, X-Trail');
     expect(text).toContain('X-Trail 2016');
+    expect(text).not.toContain('$');
     expect(text).toContain('No ofrezcas otra marca');
     expect(text).toContain('vehiculo null');
   });

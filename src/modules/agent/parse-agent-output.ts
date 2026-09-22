@@ -1,16 +1,29 @@
 export type AgentVehicleMeta = {
   inventory_id?: string;
+  precio?: number;
 } | null;
+
+export type AgentMeta = {
+  precioMostrado: boolean;
+  cuotaMostrada: boolean;
+  vehiculo: AgentVehicleMeta;
+};
 
 export type ParsedAgentOutput = {
   mensaje: string;
-  meta: { vehiculo: AgentVehicleMeta };
+  meta: AgentMeta;
   img_prefix: string | string[];
 };
 
 export type AgentTurnResult = {
   reply: ParsedAgentOutput;
   resumen: string;
+};
+
+const EMPTY_META: AgentMeta = {
+  precioMostrado: false,
+  cuotaMostrada: false,
+  vehiculo: null,
 };
 
 function cleanText(value: unknown): string {
@@ -22,17 +35,56 @@ function cleanText(value: unknown): string {
     .trim();
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asVehicle(value: unknown): AgentVehicleMeta {
+  const row = asRecord(value);
+  if (!row) {
+    return null;
+  }
+
+  const inventoryId = row.inventory_id ? String(row.inventory_id) : '';
+  const precio = Number(row.precio);
+  const vehicle: { inventory_id?: string; precio?: number } = {};
+  if (inventoryId) {
+    vehicle.inventory_id = inventoryId;
+  }
+  if (Number.isFinite(precio) && precio > 0) {
+    vehicle.precio = precio;
+  }
+  return vehicle.inventory_id || vehicle.precio ? vehicle : null;
+}
+
 function fromParsed(parsed: Record<string, unknown>, fallback = ''): ParsedAgentOutput {
-  const meta = parsed.meta as { vehiculo?: AgentVehicleMeta } | undefined;
+  const meta = asRecord(parsed.meta);
   return {
     mensaje: cleanText(parsed.respuesta_cliente ?? fallback),
-    meta: { vehiculo: meta?.vehiculo ?? null },
+    meta: {
+      precioMostrado: meta?.precio_mostrado === true,
+      cuotaMostrada: meta?.cuota_mostrada === true,
+      vehiculo: asVehicle(meta?.vehiculo),
+    },
     img_prefix: Array.isArray(parsed.img_prefix)
       ? parsed.img_prefix.map(String)
       : typeof parsed.img_prefix === 'string'
         ? parsed.img_prefix
         : '',
   };
+}
+
+export function serializeAgentTurn(parsed: ParsedAgentOutput): string {
+  return JSON.stringify({
+    respuesta_cliente: parsed.mensaje,
+    meta: {
+      precio_mostrado: parsed.meta.precioMostrado,
+      cuota_mostrada: parsed.meta.cuotaMostrada,
+      vehiculo: parsed.meta.vehiculo,
+    },
+  });
 }
 
 /** Parser Datos de n8n. Un solo parser. */
@@ -44,7 +96,7 @@ export function parseAgentOutput(raw: string): ParsedAgentOutput {
   } catch {
     const index = raw.indexOf('{');
     if (index === -1) {
-      return { mensaje: cleanText(raw), meta: { vehiculo: null }, img_prefix: '' };
+      return { mensaje: cleanText(raw), meta: { ...EMPTY_META }, img_prefix: '' };
     }
 
     const textPart = raw.slice(0, index).trim();
@@ -54,7 +106,7 @@ export function parseAgentOutput(raw: string): ParsedAgentOutput {
         textPart,
       );
     } catch {
-      return { mensaje: cleanText(raw), meta: { vehiculo: null }, img_prefix: '' };
+      return { mensaje: cleanText(raw), meta: { ...EMPTY_META }, img_prefix: '' };
     }
   }
 }

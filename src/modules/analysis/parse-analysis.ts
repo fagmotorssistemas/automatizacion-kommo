@@ -1,13 +1,33 @@
 import { isObjecionTipo, ObjecionTipo } from './objecion';
 
+export type FormaPago = 'contado' | 'credito';
+
 export type ConversationReading = {
-  objecionPrincipal: ObjecionTipo;
+  objecionPrincipal: ObjecionTipo | null;
   objecionTexto: string;
   objecionEvidencia: string;
   agendoVisita: boolean;
   resumen: string;
   presupuestoDeclarado: string | null;
+  presupuestoMonto: number | null;
+  entradaDisponible: number | null;
+  formaPago: FormaPago | null;
 };
+
+function asMoney(value: unknown): number | null {
+  if (value == null || value === '') {
+    return null;
+  }
+  const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+  if (!Number.isFinite(n) || n <= 0) {
+    return null;
+  }
+  return Math.round(n * 100) / 100;
+}
+
+function asFormaPago(value: unknown): FormaPago | null {
+  return value === 'contado' || value === 'credito' ? value : null;
+}
 
 export function parseConversationReading(raw: unknown): ConversationReading | null {
   const row =
@@ -18,10 +38,20 @@ export function parseConversationReading(raw: unknown): ConversationReading | nu
     return null;
   }
 
-  const objecion = String(row.objecion_principal ?? '');
+  const rawObjecion = row.objecion_principal;
+  const objecion =
+    rawObjecion == null || rawObjecion === ''
+      ? null
+      : String(rawObjecion);
   const resumen = String(row.resumen ?? '').trim();
   const evidencia = String(row.objecion_evidencia ?? '').trim();
-  if (!isObjecionTipo(objecion) || !resumen || !evidencia) {
+  if (!resumen) {
+    return null;
+  }
+  if (objecion !== null && !isObjecionTipo(objecion)) {
+    return null;
+  }
+  if (objecion && !evidencia) {
     return null;
   }
 
@@ -33,5 +63,8 @@ export function parseConversationReading(raw: unknown): ConversationReading | nu
     agendoVisita: row.agendo_visita === true,
     resumen,
     presupuestoDeclarado: presupuesto || null,
+    presupuestoMonto: asMoney(row.presupuesto_monto),
+    entradaDisponible: asMoney(row.entrada_disponible),
+    formaPago: asFormaPago(row.forma_pago),
   };
 }

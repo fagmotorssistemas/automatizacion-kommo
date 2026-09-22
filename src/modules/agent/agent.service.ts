@@ -13,7 +13,11 @@ import {
   promptNamesFromIntents,
 } from './assemble-dynamic-context';
 import { OpenAiAgentClient } from './openai-agent.client';
-import { AgentTurnResult, parseAgentOutput } from './parse-agent-output';
+import {
+  AgentTurnResult,
+  parseAgentOutput,
+  serializeAgentTurn,
+} from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
 import { PersistenceService } from '../persistence/persistence.service';
 import { buildResumenInput } from '../conversation/build-resumen-input';
@@ -30,6 +34,7 @@ import {
 } from '../conversation/vehicle-kind';
 import { detectBrand, resolveBrand } from '../conversation/vehicle-brand';
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
+import { asksForPrice } from '../conversation/asks-for-price';
 import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
 import {
   formatInterestedCar,
@@ -103,11 +108,13 @@ export class AgentService {
       history,
       input.customerText,
     );
+    const showPrice = asksForPrice(input.customerText);
     const revision = await this.reviewBrand(
       history,
       input.customerText,
       brand,
       concreteAsk,
+      showPrice,
     );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
@@ -136,7 +143,7 @@ export class AgentService {
     );
     const interestedText =
       interested && refersToInterestedCar(input.customerText, interested)
-        ? formatInterestedCar(interested)
+        ? formatInterestedCar(interested, showPrice)
         : '';
     const pedidoVigente = [
       formatPedidoVigente(vehicleKind),
@@ -157,7 +164,7 @@ export class AgentService {
       user: pedidoVigente ? `${resumen}\n\n${pedidoVigente}` : resumen,
       history,
       executeTool: (name, argsJson) =>
-        this.executeTool(name, argsJson, vehicleKind, brand),
+        this.executeTool(name, argsJson, vehicleKind, brand, showPrice),
     });
 
     if (!raw) {
@@ -166,11 +173,23 @@ export class AgentService {
 
     const parsed = parseAgentOutput(raw);
     if (revision.sendId) {
-      parsed.meta.vehiculo = { inventory_id: revision.sendId };
+      parsed.meta.vehiculo = {
+        ...(parsed.meta.vehiculo ?? {}),
+        inventory_id: revision.sendId,
+      };
       parsed.img_prefix = '';
     } else if (revision.holdVehicle) {
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
+    }
+    if (
+      interested &&
+      parsed.meta.vehiculo?.inventory_id === interested.inventoryId &&
+      interested.price &&
+      interested.price > 0 &&
+      !parsed.meta.vehiculo.precio
+    ) {
+      parsed.meta.vehiculo.precio = Math.round(interested.price);
     }
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
@@ -182,7 +201,7 @@ export class AgentService {
     await this.persistence.appendChatHistory({
       contactId: input.contactId,
       human: input.customerText,
-      ai: parsed.mensaje,
+      ai: serializeAgentTurn(parsed),
     });
 
     this.logger.log(
@@ -244,6 +263,7 @@ export class AgentService {
     customerText: string,
     brand: string | null,
     concreteAsk: string | null,
+    includePrice: boolean,
   ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
     const empty = { text: '', holdVehicle: false, sendId: null };
     if (!brand) {
@@ -280,6 +300,7 @@ export class AgentService {
           cars,
           tresFilas: false,
           soloMarca: true,
+          includePrice,
         }),
         holdVehicle: true,
         sendId: null,
@@ -306,16 +327,21 @@ export class AgentService {
     }
 
     if (idsToOffer(review).length === 0) {
-      const other = await this.reviewOtherBrands(concreteAsk, brand, userTexts);
+      const other = await this.reviewOtherBrands(
+        concreteAsk,
+        brand,
+        userTexts,
+        includePrice,
+      );
       return {
         ...other,
-        text: `${formatComplianceForAgent(concreteAsk, cars, review)}\n${other.text}`,
+        text: `${formatComplianceForAgent(concreteAsk, cars, review, includePrice)}\n${other.text}`,
       };
     }
 
     const namedId = namedOfferId(cars, idsToOffer(review), userTexts);
     return {
-      text: formatComplianceForAgent(concreteAsk, cars, review),
+      text: formatComplianceForAgent(concreteAsk, cars, review, includePrice),
       holdVehicle: vehicleToSend(review, null) === null,
       sendId: vehicleToSend(review, namedId),
     };
@@ -325,6 +351,7 @@ export class AgentService {
     concreteAsk: string,
     brand: string,
     userTexts: string[],
+    includePrice: boolean,
   ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
     const others = await this.catalog.listAvailableExcept(brand);
     const none = {
@@ -334,7 +361,7 @@ export class AgentService {
     };
     if (others.length === 0) {
       return {
-        text: formatOtherBrands(concreteAsk, brand, others, none),
+        text: formatOtherBrands(concreteAsk, brand, others, none, includePrice),
         holdVehicle: true,
         sendId: null,
       };
@@ -361,7 +388,7 @@ export class AgentService {
 
     const namedId = namedOfferId(others, idsToOffer(review, false), userTexts);
     return {
-      text: formatOtherBrands(concreteAsk, brand, others, review),
+      text: formatOtherBrands(concreteAsk, brand, others, review, includePrice),
       holdVehicle: vehicleToSend(review, null, false) === null,
       sendId: vehicleToSend(review, namedId, false),
     };
@@ -372,6 +399,7 @@ export class AgentService {
     argsJson: string,
     vehicleKind: VehicleKind | null,
     brand: string | null,
+    includePrice: boolean,
   ): Promise<string> {
     let args: Record<string, unknown> = {};
     try {
@@ -387,8 +415,8 @@ export class AgentService {
       const marca = brand ?? (fromTool || null);
       const embedding = await this.openai.embed(query);
       return marca
-        ? this.catalog.searchInventory(embedding ?? [], tipo, marca)
-        : this.catalog.searchInventory(embedding ?? [], tipo);
+        ? this.catalog.searchInventory(embedding ?? [], tipo, marca, includePrice)
+        : this.catalog.searchInventory(embedding ?? [], tipo, null, includePrice);
     }
 
     if (name === 'calcular_financiamiento') {

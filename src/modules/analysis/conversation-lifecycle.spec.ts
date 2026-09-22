@@ -31,7 +31,11 @@ describe('etapaParaGuardar', () => {
     expect(etapaParaGuardar(3, false)).toBe(3);
   });
 
-  it('no pasa de 5', () => {
-    expect(etapaParaGuardar(5, true)).toBe(5);
+  it('no baja un 6 de patio', () => {
+    expect(etapaParaGuardar(6, true)).toBe(6);
+  });
+
+  it('sin conversar no agenda', () => {
+    expect(etapaParaGuardar(1, true)).toBe(1);
   });
 });

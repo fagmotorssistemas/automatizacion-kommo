@@ -21,14 +21,23 @@ const ANALYSIS_SCHEMA = {
     'agendo_visita',
     'resumen',
     'presupuesto_declarado',
+    'presupuesto_monto',
+    'entrada_disponible',
+    'forma_pago',
   ],
   properties: {
-    objecion_principal: { type: 'string', enum: [...OBJECION_TIPOS] },
+    objecion_principal: {
+      type: ['string', 'null'],
+      enum: [...OBJECION_TIPOS, null],
+    },
     objecion_texto: { type: 'string' },
     objecion_evidencia: { type: 'string' },
     agendo_visita: { type: 'boolean' },
     resumen: { type: 'string' },
     presupuesto_declarado: { type: 'string' },
+    presupuesto_monto: { type: ['number', 'null'] },
+    entrada_disponible: { type: ['number', 'null'] },
+    forma_pago: { type: ['string', 'null'], enum: ['contado', 'credito', null] },
   },
 } as const;
 

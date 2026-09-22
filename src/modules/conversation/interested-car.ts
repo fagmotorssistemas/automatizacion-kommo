@@ -3,7 +3,7 @@ import { detectBrand } from './vehicle-brand';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 
 const SIGUE_ESE =
-  /\b(?:este|esta|eso|ese|mismo|simulaci\w*|cuotas?|cr[eé]ditos?|entradas?|financi\w*|meses)\b/i;
+  /\b(?:este|esta|eso|ese|mismo|simulaci\w*|cuotas?|cr[eé]ditos?|entradas?|financi\w*|meses|precios?|cuesta|vale)\b/i;
 
 /** El mensaje habla del último carro pedido, no de uno nuevo. */
 export function refersToInterestedCar(
@@ -20,11 +20,21 @@ export function refersToInterestedCar(
   return SIGUE_ESE.test(text);
 }
 
-export function formatInterestedCar(car: InterestedCarSnapshot): string {
-  const price = car.price && car.price > 0 ? `, $${Math.round(car.price)}` : '';
+export function formatInterestedCar(
+  car: InterestedCarSnapshot,
+  includePrice = false,
+): string {
   const year = car.year ? ` ${car.year}` : '';
+  const shown =
+    includePrice && car.price && car.price > 0
+      ? `, $${Math.round(car.price)}`
+      : '';
+  const interno =
+    !includePrice && car.price && car.price > 0
+      ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
+      : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
-${car.brand} ${car.model}${year}${price}
-inventory_id=${car.inventoryId}
-Si habla de este vehículo, de la simulación, la cuota o el crédito, usa este precio. No vuelvas a pedir marca ni modelo.`;
+${car.brand} ${car.model}${year}${shown}
+inventory_id=${car.inventoryId}${interno}
+Si habla de este vehículo, de la simulación, la cuota o el crédito, usa este inventario. No vuelvas a pedir marca ni modelo.`;
 }

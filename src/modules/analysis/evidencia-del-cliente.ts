@@ -16,7 +16,7 @@ export function evidenciaEsDelCliente(
   evidencia: string,
 ): boolean {
   const cita = normalizar(evidencia).replace(/^\[cliente\]\s*/, '');
-  if (cita.length < 2) {
+  if (cita.length < 2 || /\{.*\}/.test(evidencia)) {
     return false;
   }
   return normalizar(textoDelCliente(transcript)).includes(cita);

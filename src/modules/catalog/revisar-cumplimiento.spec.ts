@@ -112,6 +112,7 @@ describe('revisión de cumplimiento', () => {
     expect(text).toContain('vehiculo null');
     expect(text).toContain('X-Trail 2016');
     expect(text).toContain('X-Trail 2024');
+    expect(text).not.toContain('$');
     expect(vehicleToSend(review, null)).toBeNull();
     expect(vehicleToSend(review, 'epower')).toBe('epower');
     expect(vehicleToSend(review, 'sentra')).toBeNull();
