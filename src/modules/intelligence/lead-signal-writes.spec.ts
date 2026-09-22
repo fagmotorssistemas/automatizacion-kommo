@@ -10,8 +10,9 @@ const base: TurnSignals = {
   cedula: null,
   clienteTieneLimitePresupuesto: false,
   montoCliente: null,
-  respondioPostFotos: true,
-  fotosEnviadasAt: '2026-09-14T02:00:00.000Z',
+  photosJustSent: false,
+  respondioPostFotos: null,
+  fotosEnviadasAt: null,
   quiereLlamada: false,
   solicitudCliente: 'quiere precio',
   vehiculoResumen: 'Hilux',
@@ -19,18 +20,30 @@ const base: TurnSignals = {
 };
 
 describe('planLeadSignalWrites', () => {
-  it('no copia respondio_post_fotos hardcodeado a true', () => {
-    expect(planLeadSignalWrites(base).patch).toEqual({
-      respondio_post_fotos: true,
-    });
+  it('no escribe respondio_post_fotos si no aplica', () => {
+    expect(planLeadSignalWrites(base).patch).toEqual({});
+  });
+
+  it('cliente respondió tras fotos → solo respondio true', () => {
+    expect(
+      planLeadSignalWrites({
+        ...base,
+        respondioPostFotos: true,
+      }).patch,
+    ).toEqual({ respondio_post_fotos: true });
   });
 
   it('sella fotos_enviadas_at solo si hubo salesbots de foto', () => {
     const writes = planLeadSignalWrites({
       ...base,
+      photosJustSent: true,
       respondioPostFotos: false,
+      fotosEnviadasAt: '2026-09-14T02:00:00.000Z',
     });
-    expect(writes.patch.fotos_enviadas_at).toBe(base.fotosEnviadasAt);
+    expect(writes.patch).toEqual({
+      respondio_post_fotos: false,
+      fotos_enviadas_at: '2026-09-14T02:00:00.000Z',
+    });
   });
 
   it('falta de datos no dispara asesoria_financiamiento', () => {

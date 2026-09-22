@@ -17,39 +17,16 @@ function hasPeriod(
   return new RegExp(`\\b(?:de|en|por)\\s+la\\s+${period}\\b`).test(text);
 }
 
-/** Solo frases que parecen proponer hora de visita (no "7 pasajeros" ni "2023"). */
-export function looksLikeClock(text: string): boolean {
-  const n = normalize(text);
-  if (!n) {
-    return false;
-  }
-  if (/\b\d{1,2}:\d{2}\b/.test(n)) {
-    return true;
-  }
-  if (/\b\d{1,2}\s*(?:a\.?\s*m\.?|p\.?\s*m\.?|am|pm)\b/i.test(n)) {
-    return true;
-  }
-  if (hasPeriod(n, 'manana') || hasPeriod(n, 'tarde') || hasPeriod(n, 'noche')) {
-    return true;
-  }
-  // "a la 1", "a las 10", "para las 3"
-  if (/\b(?:a|para)\s+las?\s+\d{1,2}\b/.test(n)) {
-    return true;
-  }
-  // Mensaje casi solo hora: "1", "13", "1.00"
-  if (/^\d{1,2}([:.]?\d{2})?\s*(?:h|hs)?$/.test(n)) {
-    return true;
-  }
-  return false;
-}
-
-/** "1:00 pm", "1 de la tarde", "8 de la noche", "6 de la mañana". */
-export function parseCustomerClock(text: string): ParsedClock | null {
-  if (!looksLikeClock(text)) {
+/**
+ * Núcleo de conversión 12h→24h (sin filtro de "parece hora").
+ * Usado por el agente y por el análisis de visita.
+ */
+export function parseClockFromText(text: string): ParsedClock | null {
+  const normalized = normalize(text);
+  if (!normalized) {
     return null;
   }
 
-  const normalized = normalize(text);
   const match = normalized.match(
     /(\d{1,2})(?::(\d{2}))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm)?\b/i,
   );
@@ -92,6 +69,40 @@ export function parseCustomerClock(text: string): ParsedClock | null {
 
   const label = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
   return { hour, minute, label };
+}
+
+/** Solo frases que parecen proponer hora de visita (no "7 pasajeros" ni "2023"). */
+export function looksLikeClock(text: string): boolean {
+  const n = normalize(text);
+  if (!n) {
+    return false;
+  }
+  if (/\b\d{1,2}:\d{2}\b/.test(n)) {
+    return true;
+  }
+  if (/\b\d{1,2}\s*(?:a\.?\s*m\.?|p\.?\s*m\.?|am|pm)\b/i.test(n)) {
+    return true;
+  }
+  if (hasPeriod(n, 'manana') || hasPeriod(n, 'tarde') || hasPeriod(n, 'noche')) {
+    return true;
+  }
+  // "a la 1", "a las 10", "para las 3"
+  if (/\b(?:a|para)\s+las?\s+\d{1,2}\b/.test(n)) {
+    return true;
+  }
+  // Mensaje casi solo hora: "1", "13", "1.00"
+  if (/^\d{1,2}([:.]?\d{2})?\s*(?:h|hs)?$/.test(n)) {
+    return true;
+  }
+  return false;
+}
+
+/** "1:00 pm", "1 de la tarde", "8 de la noche", "6 de la mañana". */
+export function parseCustomerClock(text: string): ParsedClock | null {
+  if (!looksLikeClock(text)) {
+    return null;
+  }
+  return parseClockFromText(text);
 }
 
 function minutesOf(hour: number, minute: number): number {

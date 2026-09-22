@@ -41,6 +41,8 @@ export type LeadRow = {
   ultimoMensajeIgnorado?: string | null;
   handoffTurns?: HandoffTurn[];
   handoffResumen?: string | null;
+  /** ISO de cuándo se mandaron fotos; null = aún no. */
+  fotosEnviadasAt?: string | null;
 };
 
 export type HandoffBrief = {
@@ -85,7 +87,7 @@ export type LeadStatus =
   | 'asesoria_financiamiento';
 
 export type LeadSignalPatch = {
-  respondio_post_fotos: boolean;
+  respondio_post_fotos?: boolean;
   fotos_enviadas_at?: string;
   quiere_llamada?: boolean;
   status?: LeadStatus;

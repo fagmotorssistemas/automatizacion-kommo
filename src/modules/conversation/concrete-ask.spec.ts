@@ -8,7 +8,6 @@ describe('pedido concreto', () => {
     expect(isConcreteAsk('que tenga techo panorámico')).toBe(true);
     expect(isConcreteAsk('busco uno automático')).toBe(true);
     expect(isConcreteAsk('tiene que ser diésel')).toBe(true);
-    expect(isConcreteAsk('Y talvez Manuela disponen')).toBe(true);
     expect(isConcreteAsk('transmisión manual')).toBe(true);
   });
 

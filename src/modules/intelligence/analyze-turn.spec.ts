@@ -44,26 +44,43 @@ Cliente quiere financiamiento de la hilux.`;
     expect(conCedula.requiereAtencionVendedor).toBe(true);
   });
 
-  it('sin salesbots de foto es respondio_post_fotos', () => {
-    expect(
-      analyzeTurn({
-        leadId: '1',
-        mensaje: 'ok',
-        resumen,
-        photoBotsSent: 0,
-      }).respondioPostFotos,
-    ).toBe(true);
+  it('sin fotos no pisa respondio_post_fotos', () => {
+    const signals = analyzeTurn({
+      leadId: '1',
+      mensaje: 'ok',
+      resumen,
+      photoBotsSent: 0,
+      customerText: 'hola',
+    });
+    expect(signals.photosJustSent).toBe(false);
+    expect(signals.respondioPostFotos).toBeNull();
+    expect(signals.fotosEnviadasAt).toBeNull();
   });
 
-  it('con salesbots de foto sella que se enviaron fotos', () => {
-    expect(
-      analyzeTurn({
-        leadId: '1',
-        mensaje: 'ok',
-        resumen,
-        photoBotsSent: 1,
-      }).respondioPostFotos,
-    ).toBe(false);
+  it('con salesbots de foto sella fotos y deja respondio en false', () => {
+    const signals = analyzeTurn({
+      leadId: '1',
+      mensaje: 'Aquí las fotos',
+      resumen,
+      photoBotsSent: 1,
+      customerText: 'me interesa la hilux',
+    });
+    expect(signals.photosJustSent).toBe(true);
+    expect(signals.respondioPostFotos).toBe(false);
+    expect(signals.fotosEnviadasAt).toEqual(expect.any(String));
+  });
+
+  it('cliente escribe después de fotos → respondio_post_fotos true', () => {
+    const signals = analyzeTurn({
+      leadId: '1',
+      mensaje: 'Claro',
+      resumen,
+      photoBotsSent: 0,
+      hadFotosEnviadas: true,
+      customerText: 'me gusta, ¿cuánto cuesta?',
+    });
+    expect(signals.respondioPostFotos).toBe(true);
+    expect(signals.photosJustSent).toBe(false);
   });
 
   it('detecta que quiere llamada', () => {

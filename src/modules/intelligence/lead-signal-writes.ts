@@ -5,12 +5,15 @@ export type { LeadSignalWrites };
 
 /** If11 / If7 / If12 / If19. If7 usa solo financiamiento, no el OR de atención. */
 export function planLeadSignalWrites(signals: TurnSignals): LeadSignalWrites {
-  const patch: LeadSignalPatch = {
-    respondio_post_fotos: signals.respondioPostFotos,
-  };
+  const patch: LeadSignalPatch = {};
 
-  if (!signals.respondioPostFotos) {
-    patch.fotos_enviadas_at = signals.fotosEnviadasAt;
+  if (signals.photosJustSent) {
+    patch.respondio_post_fotos = false;
+    if (signals.fotosEnviadasAt) {
+      patch.fotos_enviadas_at = signals.fotosEnviadasAt;
+    }
+  } else if (signals.respondioPostFotos === true) {
+    patch.respondio_post_fotos = true;
   }
 
   if (signals.quiereLlamada) {

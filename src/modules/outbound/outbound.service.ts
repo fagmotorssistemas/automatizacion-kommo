@@ -15,6 +15,11 @@ export type OutboundDispatchResult = {
   missingPhotos: boolean;
 };
 
+export type SendTextResult = {
+  wrote: boolean;
+  botRan: boolean;
+};
+
 @Injectable()
 export class OutboundService {
   private readonly logger = new Logger(OutboundService.name);
@@ -27,6 +32,33 @@ export class OutboundService {
 
   isShadowMode(): boolean {
     return this.outboundConfig.shadowMode;
+  }
+
+  /**
+   * PATCH campo Respuesta IA (2991944) + salesbot de texto 157134.
+   * No mira SHADOW: el caller decide. Opcional wait antes del bot (post-fotos).
+   */
+  async sendText(
+    leadId: string,
+    text: string,
+    options?: { waitBeforeBotMs?: number },
+  ): Promise<SendTextResult> {
+    if (!leadId || !text.trim()) {
+      return { wrote: false, botRan: false };
+    }
+
+    const wrote = await this.crm.setRespuestaIa(leadId, text);
+    if (!wrote) {
+      return { wrote: false, botRan: false };
+    }
+
+    const waitMs = options?.waitBeforeBotMs ?? 0;
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+
+    const botRan = await this.crm.runSalesbot(KOMMO_SALESBOT.TEXTO, leadId);
+    return { wrote: true, botRan };
   }
 
   async dispatch(
@@ -48,8 +80,6 @@ export class OutboundService {
       );
       mensaje = appendNoPhotosNotice(mensaje);
     }
-
-    const outboundReply: ParsedAgentOutput = { ...reply, mensaje };
 
     if (this.outboundConfig.shadowMode) {
       this.logger.log(
@@ -73,10 +103,7 @@ export class OutboundService {
     }
 
     if (mensaje) {
-      const wrote = await this.crm.setRespuestaIa(leadId, mensaje);
-      if (wrote) {
-        await this.crm.runSalesbot(KOMMO_SALESBOT.TEXTO, leadId);
-      }
+      await this.sendText(leadId, mensaje);
     }
 
     for (const botId of photoBots) {
@@ -86,7 +113,6 @@ export class OutboundService {
     this.logger.log(
       `Outbound lead=${leadId} texto=${Boolean(mensaje)} fotos=${photoBots.length} sin_fotos=${missingPhotos}`,
     );
-    // Deja el texto final en el reply por si intelligence/logs lo releen.
     reply.mensaje = mensaje;
     return {
       delivered: true,
@@ -110,4 +136,8 @@ export class OutboundService {
     const ran = await this.crm.runSalesbot(KOMMO_SALESBOT.ALTA_CONTACTO, leadId);
     return { ran, shadow: false };
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

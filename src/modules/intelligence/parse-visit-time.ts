@@ -1,5 +1,6 @@
 import { DEALERSHIP_TIMEZONE } from './dealership-hours';
 import { VisitTimeHint } from './parse-lead-analysis';
+import { parseClockFromText } from './visit-hours';
 
 export type ResolvedVisitTime = {
   day_detected: string | null;
@@ -55,35 +56,6 @@ function formatDateYYYYMMDD(date: Date): string {
 
 function formatTimeHHMM(hour: number, minute: number): string {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
-function parseHourMinute(text: string): { hour: number; minute: number } | null {
-  const normalized = normalizeText(text);
-  const compact = normalized.replace(/[\s.]/g, '');
-  const match = normalized.match(/(?:^|\b)(\d{1,2})(?::(\d{2}))?/);
-  if (!match) {
-    return null;
-  }
-
-  let hour = Number.parseInt(match[1], 10);
-  const minute = match[2] ? Number.parseInt(match[2], 10) : 0;
-  if (Number.isNaN(hour) || Number.isNaN(minute) || hour > 23 || minute > 59) {
-    return null;
-  }
-  if (hour >= 13) {
-    return { hour, minute };
-  }
-
-  const isPM = compact.includes('pm') || normalized.includes('tarde') || normalized.includes('noche');
-  const isAM = compact.includes('am');
-  if (isPM && hour < 12) {
-    hour += 12;
-  } else if (isAM && hour === 12) {
-    hour = 0;
-  } else if (!isPM && !isAM && hour >= 1 && hour <= 6) {
-    hour += 12;
-  }
-  return { hour, minute };
 }
 
 function isValidDate(date: Date): boolean {
@@ -273,7 +245,7 @@ export function resolveVisitTime(
     dayDetected = dayHint;
   }
 
-  const parsedHour = hourHint ? parseHourMinute(hourHint) : null;
+  const parsedHour = hourHint ? parseClockFromText(hourHint) : null;
   let hourDetected = parsedHour
     ? formatTimeHHMM(parsedHour.hour, parsedHour.minute)
     : hourHint;

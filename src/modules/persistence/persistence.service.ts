@@ -145,7 +145,9 @@ export class PersistenceService {
         });
       }
 
-      await this.supabase.updateLeadSignals(lead.id, input.writes.patch);
+      if (Object.keys(input.writes.patch).length > 0) {
+        await this.supabase.updateLeadSignals(lead.id, input.writes.patch);
+      }
     } catch (error) {
       this.logger.error(
         `applyLeadWrites falló contactId=${input.contactId}`,

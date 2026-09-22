@@ -12,8 +12,15 @@ export type TurnSignals = {
   cedula: string | null;
   clienteTieneLimitePresupuesto: boolean;
   montoCliente: number | null;
-  respondioPostFotos: boolean;
-  fotosEnviadasAt: string;
+  /** Este turno disparó salesbots de foto. */
+  photosJustSent: boolean;
+  /**
+   * true = el cliente escribió después de que ya había fotos.
+   * false = acabamos de enviar fotos (queda pendiente de respuesta).
+   * null = no tocar el flag en DB.
+   */
+  respondioPostFotos: boolean | null;
+  fotosEnviadasAt: string | null;
   quiereLlamada: boolean;
   solicitudCliente: string | null;
   vehiculoResumen: string | null;
@@ -98,6 +105,8 @@ export function analyzeTurn(input: {
   inventoryId?: string | null;
   /** Cuántos salesbots de foto se dispararon (bot_id). Antes era img_prefix. */
   photoBotsSent?: number;
+  /** Ya había fotos_enviadas_at en el lead (turno anterior). */
+  hadFotosEnviadas?: boolean;
 }): TurnSignals {
   const mensaje = input.mensaje || '';
   const lower = mensaje.toLowerCase();
@@ -119,7 +128,16 @@ export function analyzeTurn(input: {
       )
     : false;
 
-  const photosSent = (input.photoBotsSent ?? 0) > 0;
+  const photosJustSent = (input.photoBotsSent ?? 0) > 0;
+  const customerReplied = Boolean(input.customerText?.trim());
+  const hadFotos = input.hadFotosEnviadas === true;
+
+  let respondioPostFotos: boolean | null = null;
+  if (photosJustSent) {
+    respondioPostFotos = false;
+  } else if (customerReplied && hadFotos) {
+    respondioPostFotos = true;
+  }
 
   return {
     vehicleUid: buildVehicleUid(input.leadId, input.inventoryId),
@@ -130,8 +148,9 @@ export function analyzeTurn(input: {
     cedula,
     clienteTieneLimitePresupuesto,
     montoCliente,
-    respondioPostFotos: !photosSent,
-    fotosEnviadasAt: nowInEcuadorIso(),
+    photosJustSent,
+    respondioPostFotos,
+    fotosEnviadasAt: photosJustSent ? nowInEcuadorIso() : null,
     quiereLlamada,
     solicitudCliente: resumen.solicitudActual,
     vehiculoResumen: resumen.vehiculo,

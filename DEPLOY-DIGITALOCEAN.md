@@ -113,6 +113,11 @@ npm ci
 npm run build
 pm2 start /opt/automatizacion-kommo/dist/main.js --name nest-kommo
 pm2 save
+
+cd /opt/automatizacion-kommo
+git pull
+npm run build
+pm2 restart nest-kommo --update-env
 ```
 
 PM2 queda persistido en `/root/.pm2/dump.pm2`. Tras reboot del droplet, `nest-kommo` debe volver solo si el startup de PM2 ya estaba habilitado (`pm2 startup`).

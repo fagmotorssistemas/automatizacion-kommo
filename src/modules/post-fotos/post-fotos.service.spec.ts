@@ -12,16 +12,17 @@ describe('PostFotosService', () => {
   };
   const crm = {
     isLeadBotStopped: jest.fn(),
-    setRespuestaIa: jest.fn(),
-    runSalesbot: jest.fn(),
   };
-  const outboundConfig = { shadowMode: true };
+  const outbound = {
+    isShadowMode: jest.fn(),
+    sendText: jest.fn(),
+  };
 
   const service = new PostFotosService(
     repository as never,
     llm as never,
     crm as never,
-    outboundConfig,
+    outbound as never,
   );
 
   const row = {
@@ -44,12 +45,12 @@ describe('PostFotosService', () => {
     repository.markMensajeEnviado.mockReset();
     llm.draft.mockReset();
     crm.isLeadBotStopped.mockReset();
-    crm.setRespuestaIa.mockReset();
-    crm.runSalesbot.mockReset();
-    outboundConfig.shadowMode = true;
+    outbound.isShadowMode.mockReset();
+    outbound.sendText.mockReset();
+    outbound.isShadowMode.mockReturnValue(true);
   });
 
-  it('en SHADOW marca enviado y no llama Kommo', async () => {
+  it('en SHADOW marca enviado y no llama sendText', async () => {
     repository.listDue.mockResolvedValue([row]);
     crm.isLeadBotStopped.mockResolvedValue(false);
     llm.draft.mockResolvedValue('Juan, el Picanto está listo. ¿Viene al patio?');
@@ -63,8 +64,7 @@ describe('PostFotosService', () => {
       shadowed: 1,
     });
     expect(repository.markMensajeEnviado).toHaveBeenCalledWith(41960445);
-    expect(crm.setRespuestaIa).not.toHaveBeenCalled();
-    expect(crm.runSalesbot).not.toHaveBeenCalled();
+    expect(outbound.sendText).not.toHaveBeenCalled();
   });
 
   it('si bot_stopped marca y no genera texto', async () => {

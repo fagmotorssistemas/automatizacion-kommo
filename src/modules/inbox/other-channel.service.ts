@@ -56,13 +56,7 @@ export class OtherChannelService {
       };
     }
 
-    const wrote = await this.crm.setRespuestaIa(
-      leadId,
-      OTHER_CHANNEL_ASK_WHATSAPP,
-    );
-    if (wrote) {
-      await this.crm.runSalesbot(KOMMO_SALESBOT.TEXTO, leadId);
-    }
+    await this.outbound.sendText(leadId, OTHER_CHANNEL_ASK_WHATSAPP);
 
     return {
       action: 'ask_whatsapp',

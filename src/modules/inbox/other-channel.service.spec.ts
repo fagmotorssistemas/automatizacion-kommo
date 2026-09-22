@@ -5,7 +5,6 @@ import { OtherChannelService } from './other-channel.service';
 describe('OtherChannelService', () => {
   const crm = {
     inspectLead: jest.fn(),
-    setRespuestaIa: jest.fn(),
     runSalesbot: jest.fn(),
     searchContactsByPhone: jest.fn(),
     searchLeadsByQuery: jest.fn(),
@@ -13,7 +12,10 @@ describe('OtherChannelService', () => {
     createLeadInPipeline: jest.fn(),
     updateLeadResponsible: jest.fn(),
   };
-  const outbound = { isShadowMode: jest.fn() };
+  const outbound = {
+    isShadowMode: jest.fn(),
+    sendText: jest.fn(),
+  };
   const service = new OtherChannelService(crm as never, outbound as never);
 
   const input = {
@@ -28,8 +30,9 @@ describe('OtherChannelService', () => {
       fn.mockReset();
     }
     outbound.isShadowMode.mockReset();
+    outbound.sendText.mockReset();
     outbound.isShadowMode.mockReturnValue(false);
-    crm.setRespuestaIa.mockResolvedValue(true);
+    outbound.sendText.mockResolvedValue({ wrote: true, botRan: true });
     crm.runSalesbot.mockResolvedValue(true);
     crm.inspectLead.mockResolvedValue({
       stopped: false,
@@ -49,13 +52,9 @@ describe('OtherChannelService', () => {
       targetLeadId: '41423821',
       shadow: false,
     });
-    expect(crm.setRespuestaIa).toHaveBeenCalledWith(
+    expect(outbound.sendText).toHaveBeenCalledWith(
       '41423821',
       OTHER_CHANNEL_ASK_WHATSAPP,
-    );
-    expect(crm.runSalesbot).toHaveBeenCalledWith(
-      KOMMO_SALESBOT.TEXTO,
-      '41423821',
     );
     expect(crm.searchContactsByPhone).not.toHaveBeenCalled();
   });
@@ -69,7 +68,7 @@ describe('OtherChannelService', () => {
       targetLeadId: '41423821',
       shadow: true,
     });
-    expect(crm.setRespuestaIa).not.toHaveBeenCalled();
+    expect(outbound.sendText).not.toHaveBeenCalled();
     expect(crm.runSalesbot).not.toHaveBeenCalled();
   });
 

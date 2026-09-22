@@ -53,6 +53,7 @@ export class IntelligenceService {
       customerText,
       inventoryId: input.reply.meta.vehiculo?.inventory_id,
       photoBotsSent: input.photoBotsSent ?? 0,
+      hadFotosEnviadas: Boolean(input.lead?.fotosEnviadasAt),
     });
 
     const recent = await this.conversation.recentMessages(input.contactId);

@@ -1,9 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CrmService } from '../crm/crm.service';
-import { OUTBOUND_CONFIG, type OutboundConfig } from '../outbound/outbound.config';
+import { OutboundService } from '../outbound/outbound.service';
 import {
   POST_FOTOS_BATCH_LIMIT,
-  POST_FOTOS_SALESBOT_ID,
   POST_FOTOS_WAIT_MS,
 } from './post-fotos.constants';
 import { PostFotosLlmClient } from './post-fotos-llm.client';
@@ -26,7 +25,7 @@ export class PostFotosService {
     private readonly repository: PostFotosRepository,
     private readonly llm: PostFotosLlmClient,
     private readonly crm: CrmService,
-    @Inject(OUTBOUND_CONFIG) private readonly outboundConfig: OutboundConfig,
+    private readonly outbound: OutboundService,
   ) {}
 
   async runOnce(limit = POST_FOTOS_BATCH_LIMIT): Promise<PostFotosRunResult> {
@@ -91,7 +90,7 @@ export class PostFotosService {
       throw new Error('LLM sin mensaje');
     }
 
-    if (this.outboundConfig.shadowMode) {
+    if (this.outbound.isShadowMode()) {
       this.logger.log(
         [
           'SHADOW: post-fotos no se envía a WhatsApp',
@@ -106,23 +105,17 @@ export class PostFotosService {
       return 'shadow';
     }
 
-    const wrote = await this.crm.setRespuestaIa(leadId, mensaje);
-    if (!wrote) {
+    const sent = await this.outbound.sendText(leadId, mensaje, {
+      waitBeforeBotMs: POST_FOTOS_WAIT_MS,
+    });
+    if (!sent.wrote) {
       throw new Error('No se escribió campo 2991944');
     }
-
-    await sleep(POST_FOTOS_WAIT_MS);
-
-    const ran = await this.crm.runSalesbot(POST_FOTOS_SALESBOT_ID, leadId);
-    if (!ran) {
-      throw new Error(`Salesbot ${POST_FOTOS_SALESBOT_ID} falló`);
+    if (!sent.botRan) {
+      throw new Error('Salesbot de texto falló');
     }
 
     await this.repository.markMensajeEnviado(row.leadIdKommo);
     return 'sent';
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
