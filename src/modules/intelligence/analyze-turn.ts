@@ -1,5 +1,6 @@
 import { parseImgPrefixes } from '../catalog/parse-img-prefixes';
 import { DEALERSHIP_TIMEZONE } from './dealership-hours';
+import { extractCedula } from './extract-cedula';
 import { parseResumen } from './parse-resumen';
 import { buildVehicleUid } from './vehicle-uid';
 
@@ -9,6 +10,7 @@ export type TurnSignals = {
   alertaFaltaDatos: boolean;
   requiereAtencionVendedor: boolean;
   detectadoAsesorFinanciamiento: boolean;
+  cedula: string | null;
   clienteTieneLimitePresupuesto: boolean;
   montoCliente: number | null;
   respondioPostFotos: boolean;
@@ -21,28 +23,6 @@ export type TurnSignals = {
 
 const FALTA_DATOS =
   'en este momento no tengo ese dato exacto en el sistema';
-
-const ASESOR = ['asesor'];
-const ACCION = [
-  'comunicará',
-  'contactará',
-  'llamará',
-  'escribirá',
-  'ayudará',
-  'ayudarle',
-  'continuar',
-  'seguimiento',
-];
-const CONTEXTO_FINAN = [
-  'financiamiento',
-  'financiar',
-  'crédito',
-  'cuota',
-  'banco',
-  'cooperativa',
-  'plazo',
-  'entrada',
-];
 
 const FRASES_BUDGET = [
   'fuera de su presupuesto',
@@ -81,10 +61,6 @@ const MAPA_NUMEROS: Record<string, number> = {
   'treinta mil': 30000,
 };
 
-function containsAny(texto: string, palabras: string[]): boolean {
-  return palabras.some((word) => texto.includes(word));
-}
-
 function extractMonto(texto: string): number | null {
   const matchDigitos = texto.match(
     /dispone\s+de\s+[\$]?\s*([\d.,]+)\s*(mil)?/i,
@@ -119,6 +95,7 @@ export function analyzeTurn(input: {
   leadId: string;
   mensaje: string;
   resumen: string;
+  customerText?: string;
   inventoryId?: string | null;
   imgPrefix?: unknown;
 }): TurnSignals {
@@ -128,15 +105,8 @@ export function analyzeTurn(input: {
   const textoBusqueda = `${resumen.contexto ?? ''} ${input.resumen}`.toLowerCase();
 
   const alertaFaltaDatos = lower.includes(FALTA_DATOS);
-  const tieneAsesor = containsAny(lower, ASESOR);
-  const tieneAccion =
-    containsAny(lower, ACCION) ||
-    /asesor.*(comunic|contact|llam|escrib|ayud|seguim)/i.test(mensaje);
-  const detectadoAsesor = tieneAsesor && tieneAccion;
-  const detectadoAsesorFinanciamiento =
-    detectadoAsesor &&
-    (containsAny(lower, CONTEXTO_FINAN) ||
-      /(financ|cr[eé]dito|cuota|banco|cooperativa|plazo|entrada)/i.test(mensaje));
+  const cedula = extractCedula(input.customerText ?? '');
+  const detectadoAsesorFinanciamiento = cedula !== null;
 
   const montoCliente = extractMonto(textoBusqueda);
   const clienteTieneLimitePresupuesto =
@@ -155,6 +125,7 @@ export function analyzeTurn(input: {
     alertaFaltaDatos,
     requiereAtencionVendedor: alertaFaltaDatos || detectadoAsesorFinanciamiento,
     detectadoAsesorFinanciamiento,
+    cedula,
     clienteTieneLimitePresupuesto,
     montoCliente,
     respondioPostFotos: parseImgPrefixes(input.imgPrefix).length === 0,

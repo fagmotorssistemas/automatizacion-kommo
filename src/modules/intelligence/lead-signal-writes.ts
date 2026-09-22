@@ -21,8 +21,9 @@ export function planLeadSignalWrites(signals: TurnSignals): LeadSignalWrites {
     patch.status = 'datos_pedidos';
   }
 
-  if (signals.detectadoAsesorFinanciamiento) {
+  if (signals.detectadoAsesorFinanciamiento && signals.cedula) {
     patch.status = 'asesoria_financiamiento';
+    patch.cedula = signals.cedula;
   }
 
   if (signals.clienteTieneLimitePresupuesto) {
@@ -34,8 +35,8 @@ export function planLeadSignalWrites(signals: TurnSignals): LeadSignalWrites {
     missingData: signals.alertaFaltaDatos
       ? { message: signals.solicitudCliente ?? '' }
       : null,
-    financingAdvice: signals.detectadoAsesorFinanciamiento
-      ? { message: signals.solicitudCliente ?? '' }
+    financingAdvice: signals.detectadoAsesorFinanciamiento && signals.cedula
+      ? { message: signals.cedula }
       : null,
   };
 }

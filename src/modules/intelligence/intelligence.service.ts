@@ -40,10 +40,14 @@ export class IntelligenceService {
     resumen: string;
     reply: ParsedAgentOutput;
   }): Promise<AfterReplySignals> {
+    const customerText = isRealCustomerText(input.customerText)
+      ? input.customerText
+      : '';
     const signals = analyzeTurn({
       leadId: input.leadId,
       mensaje: input.reply.mensaje,
       resumen: input.resumen,
+      customerText,
       inventoryId: input.reply.meta.vehiculo?.inventory_id,
       imgPrefix: input.reply.img_prefix,
     });
@@ -63,10 +67,6 @@ export class IntelligenceService {
         vehicleUid: signals.vehicleUid,
       });
     }
-
-    const customerText = isRealCustomerText(input.customerText)
-      ? input.customerText
-      : '';
     const recovery = planRecoveryWrite({
       mensajesEnviados: input.lead?.mensajesEnviados,
       message: customerText,

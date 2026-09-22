@@ -31,16 +31,18 @@ describe('parseLeadAnalysis', () => {
       day_detected: null,
       hour_detected: '5',
     });
+    expect(parsed?.identity).toEqual({ ci: '0102030405' });
   });
 
-  it('ignora financing vacío e identity', () => {
+  it('ignora financing vacío y un celular 09 como cédula', () => {
     const parsed = parseLeadAnalysis({
       actions: [
         { action: 'financing', budget: null, financing: null },
-        { action: 'identity', ci: '0102030405' },
+        { action: 'identity', ci: '0983335555' },
       ],
     });
     expect(parsed?.financing).toBeNull();
     expect(parsed?.signals).toBeNull();
+    expect(parsed?.identity).toBeNull();
   });
 });

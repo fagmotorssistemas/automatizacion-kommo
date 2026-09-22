@@ -62,6 +62,7 @@ export type LeadAnalysisPatch = {
   day_detected?: string | null;
   hour_detected?: string | null;
   time_reference?: string | null;
+  cedula?: string;
 };
 
 export type TradeInInput = {
@@ -89,6 +90,7 @@ export type LeadSignalPatch = {
   quiere_llamada?: boolean;
   status?: LeadStatus;
   presupuesto_cliente?: string;
+  cedula?: string;
 };
 
 export type RequestedClientDataInput = {

@@ -30,6 +30,10 @@ export function planLeadAnalysisWrites(input: {
     patch.temperature = merged.temperature;
   }
 
+  if (input.analysis.identity?.ci) {
+    patch.cedula = input.analysis.identity.ci;
+  }
+
   if (input.analysis.visitTime) {
     const visit = resolveVisitTime(input.analysis.visitTime, input.now);
     patch.day_detected = visit.day_detected;

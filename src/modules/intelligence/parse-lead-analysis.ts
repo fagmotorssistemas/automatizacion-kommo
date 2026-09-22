@@ -1,3 +1,5 @@
+import { extractCedula } from './extract-cedula';
+
 export type FinancingAction = {
   budget: unknown;
   financing: unknown;
@@ -28,11 +30,16 @@ export type VisitTimeHint = {
   hour_detected: string | null;
 };
 
+export type IdentityAction = {
+  ci: string;
+};
+
 export type ParsedLeadAnalysis = {
   financing: FinancingAction | null;
   tradeIn: TradeInAction | null;
   signals: SignalFlags | null;
   visitTime: VisitTimeHint | null;
+  identity: IdentityAction | null;
 };
 
 function tryParse(value: string): unknown {
@@ -112,7 +119,7 @@ function asBoolean(value: unknown): boolean {
   return value === true;
 }
 
-/** Code in JavaScript: saca financing / trade_in / signals / visit_time. identity no se persiste. */
+/** Code in JavaScript: saca financing / trade_in / signals / visit_time / identity.ci. */
 export function parseLeadAnalysis(raw: unknown): ParsedLeadAnalysis | null {
   let parsed: unknown = raw;
   if (typeof raw === 'string') {
@@ -133,6 +140,9 @@ export function parseLeadAnalysis(raw: unknown): ParsedLeadAnalysis | null {
   );
   const signalsAction = actions.find(
     (item) => asRecord(item)?.action === 'signals',
+  );
+  const identityAction = actions.find(
+    (item) => asRecord(item)?.action === 'identity',
   );
 
   const financingRaw = asRecord(financingAction);
@@ -191,7 +201,11 @@ export function parseLeadAnalysis(raw: unknown): ParsedLeadAnalysis | null {
     }
   }
 
-  return { financing, tradeIn, signals, visitTime };
+  const identityRaw = asRecord(identityAction);
+  const ci = identityRaw ? extractCedula(String(identityRaw.ci ?? '')) : null;
+  const identity = ci ? { ci } : null;
+
+  return { financing, tradeIn, signals, visitTime, identity };
 }
 
 export function leadAnalyzerUserPrompt(

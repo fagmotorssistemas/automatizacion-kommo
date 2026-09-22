@@ -7,6 +7,7 @@ const base: TurnSignals = {
   alertaFaltaDatos: false,
   requiereAtencionVendedor: false,
   detectadoAsesorFinanciamiento: false,
+  cedula: null,
   clienteTieneLimitePresupuesto: false,
   montoCliente: null,
   respondioPostFotos: true,
@@ -43,16 +44,30 @@ describe('planLeadSignalWrites', () => {
     expect(writes.financingAdvice).toBeNull();
   });
 
-  it('financiamiento pisa el status si también faltan datos', () => {
+  it('sin cédula no dispara asesoria_financiamiento', () => {
     const writes = planLeadSignalWrites({
       ...base,
       alertaFaltaDatos: true,
       detectadoAsesorFinanciamiento: true,
       requiereAtencionVendedor: true,
     });
+    expect(writes.patch.status).toBe('datos_pedidos');
+    expect(writes.patch.cedula).toBeUndefined();
+    expect(writes.financingAdvice).toBeNull();
+  });
+
+  it('cédula pisa el status y se guarda', () => {
+    const writes = planLeadSignalWrites({
+      ...base,
+      alertaFaltaDatos: true,
+      detectadoAsesorFinanciamiento: true,
+      cedula: '0102030405',
+      requiereAtencionVendedor: true,
+    });
     expect(writes.patch.status).toBe('asesoria_financiamiento');
+    expect(writes.patch.cedula).toBe('0102030405');
     expect(writes.missingData).not.toBeNull();
-    expect(writes.financingAdvice).not.toBeNull();
+    expect(writes.financingAdvice).toEqual({ message: '0102030405' });
   });
 
   it('presupuesto y llamada solo si las If disparan', () => {
