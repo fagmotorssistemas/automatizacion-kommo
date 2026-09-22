@@ -63,6 +63,18 @@ describe('clasificar filas', () => {
     expect(userNamedModel(['quiero la x trail'], nissans)).toBe(true);
   });
 
+  it('4runner pega con 4 runner del inventario', () => {
+    expect(
+      textMentionsModel('Me interesa el Toyota 4runner', '4 runner 4x2 t/a'),
+    ).toBe(true);
+    expect(
+      userNamedModel(
+        ['Hola. Me interesa el Toyota 4runner'],
+        [{ model: '4 runner 4x2 t/a' }],
+      ),
+    ).toBe(true);
+  });
+
   it('la revisión lista las líneas y ofrece la x-trail sin cerrar', () => {
     const text = formatRevisionMarca({
       marca: 'nissan',

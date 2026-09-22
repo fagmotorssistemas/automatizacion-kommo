@@ -44,9 +44,18 @@ const FAMILIA_TRES_FILAS =
 
 const FAMILIA_POSIBLE = /\bx[\s-]?trail\b|\bxtrail\b|\bcaptiva\b|\btrailblazer\b|\bmontero\b/i;
 
+function normalizeModelText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\bx[\s-]?trail\b/g, 'xtrail')
+    .replace(/\b4[\s-]*runner\b/g, '4runner')
+    .replace(/\bgrand?\s*vitara\b/g, 'vitara');
+}
+
 export function modelFamily(model: string): string {
-  const normalized = model.toLowerCase().replace(/\bx[\s-]?trail\b/g, 'xtrail');
-  const skip = new Set(['new', 'ac', 'all', 'gran']);
+  const normalized = normalizeModelText(model);
+  const skip = new Set(['new', 'ac', 'all', 'gran', 'next']);
   const token = normalized
     .split(/[^a-z0-9]+/)
     .find((part) => part.length >= 3 && !skip.has(part));
@@ -58,7 +67,7 @@ export function textMentionsModel(text: string, model: string): boolean {
   if (!family) {
     return false;
   }
-  const normalized = text.toLowerCase().replace(/\bx[\s-]?trail\b/g, 'xtrail');
+  const normalized = normalizeModelText(text);
   return new RegExp(`\\b${family}\\b`, 'i').test(normalized);
 }
 

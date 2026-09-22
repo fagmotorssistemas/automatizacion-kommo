@@ -14,6 +14,7 @@ import { MediaModule } from './modules/media/media.module';
 import { OutboundModule } from './modules/outbound/outbound.module';
 import { PersistenceModule } from './modules/persistence/persistence.module';
 import { FollowupModule } from './modules/followup/followup.module';
+import { PostFotosModule } from './modules/post-fotos/post-fotos.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 
 @Module({
@@ -34,6 +35,7 @@ import { WebhookModule } from './modules/webhook/webhook.module';
     HandoffModule,
     AnalysisModule,
     FollowupModule,
+    PostFotosModule,
   ],
 })
 export class AppModule {}

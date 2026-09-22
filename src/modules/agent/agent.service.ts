@@ -42,6 +42,7 @@ import {
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
+import { formatTransmissionTypoHint } from '../conversation/rewrite-customer-typos';
 import {
   formatInterestedCar,
   refersToInterestedCar,
@@ -156,6 +157,7 @@ export class AgentService {
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
       formatVisitHourHint(input.customerText),
+      formatTransmissionTypoHint(input.customerText),
       showPrice
         ? ''
         : 'EN ESTE TURNO el cliente NO pidió el precio: prohibido decir el valor del carro ($…, precio de…). Sí puedes decir plate_short (ej. "La placa es P7"). Prohibido placa completa y chasis.',
