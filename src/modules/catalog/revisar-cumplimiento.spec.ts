@@ -131,14 +131,15 @@ describe('revisión de cumplimiento', () => {
     expect(vehicleToSend(review, null)).toBe('xtrail');
   });
 
-  it('si ninguno se acerca deja el espacio para otra marca', () => {
+  it('si ninguno cumple exacto ofrece cercanos de la misma marca, no otra marca', () => {
     const review = {
       cumplen: [],
       parecidos: [],
       noCumplen: ['sentra', 'xtrail', 'epower'],
     };
     const text = formatComplianceForAgent('7 pasajeros', cars, review);
-    expect(text).toContain('ni se acerca');
+    expect(text).toContain('Ofrece lo más cercano de ESTA misma marca');
+    expect(text).toContain('No pases a otra marca');
     expect(vehicleToSend(review, null)).toBeNull();
   });
 });

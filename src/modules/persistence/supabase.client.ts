@@ -40,6 +40,7 @@ function mapStockRow(row: {
   doors_count?: unknown;
   drive_type?: unknown;
   vin?: unknown;
+  plate_short?: unknown;
   bot_id?: unknown;
 }) {
   const text = (value: unknown) =>
@@ -62,6 +63,7 @@ function mapStockRow(row: {
     doorsCount: num(row.doors_count),
     driveType: text(row.drive_type),
     vin: text(row.vin),
+    plateShort: text(row.plate_short),
     botId: botId && botId > 0 ? botId : null,
   };
 }
@@ -241,7 +243,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     const { data, error } = await client
       .from('inventoryoracle')
       .select(
-        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, bot_id',
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, plate_short, bot_id',
       )
       .eq('status', 'disponible')
       .neq('brand', brand.trim().toLowerCase())
@@ -272,6 +274,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       doorsCount: number | null;
       driveType: string | null;
       vin: string | null;
+      plateShort: string | null;
       botId: number | null;
     }[]
   > {
@@ -283,7 +286,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     const { data, error } = await client
       .from('inventoryoracle')
       .select(
-        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, bot_id',
+        'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, plate_short, bot_id',
       )
       .eq('status', 'disponible')
       .ilike('brand', brand.trim())

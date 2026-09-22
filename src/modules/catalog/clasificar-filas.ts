@@ -16,6 +16,8 @@ export type StockCar = {
   doorsCount?: number | null;
   driveType?: string | null;
   vin?: string | null;
+  /** Apodo corto de placa para el cliente (ej. P7). No es la placa completa. */
+  plateShort?: string | null;
   /** Salesbot de fotos en Kommo. Null/0 = no hay fotos. */
   botId?: number | null;
 };

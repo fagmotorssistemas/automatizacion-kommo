@@ -9,10 +9,11 @@ REGLAS:
 - "5p" o "4p" en el modelo son puertas, no pasajeros.
 - Pasajeros, filas, transmisión, combustible, tracción, techo y color se juzgan con la ficha y con lo que corresponde a ese modelo y año.
 - El chasis es solo para distinguir la unidad. No lo repitas en la respuesta.
+- plate_short sí se puede usar con el cliente (ej. P7). No inventes ni completes la placa larga.
 - Devuelve JSON válido y nada más:
 {"cumplen":["id"],"parecidos":["id"],"no_cumplen":["id"]}
 - cumplen: solo los que sí cumplen. Si ninguno cumple, va vacío.
-- parecidos: si ninguno cumple, hasta 3 de esta misma marca que más se acercan. Vacío solo si ninguno se acerca ni en tipo de vehículo.
+- parecidos: si ninguno cumple, hasta 3 de ESTA misma marca que más se acercan (año, versión, tipo). Si la lista de vehículos no está vacía, parecidos NO puede ir vacío: elige los más cercanos.
 - no_cumplen: el resto.`;
 
 export type ComplianceReview = {
@@ -45,6 +46,7 @@ export function carsForReview(cars: StockCar[]): Record<string, unknown>[] {
     add('transmision', car.transmission);
     add('combustible', car.fuelType);
     add('traccion', car.driveType);
+    add('plate_short', car.plateShort);
     add('chasis', car.vin);
     return row;
   });
@@ -183,10 +185,17 @@ export function formatComplianceForAgent(
   }
 
   if (review.cumplen.length === 0) {
-    parts.push(
-      'Ningún carro de esta marca cumple ni se acerca al pedido.',
-    );
-    parts.push(`Revisados: ${cars.map((car) => label(car, includePrice)).join('; ')}.`);
+    if (cars.length > 0) {
+      parts.push(
+        'Ninguno cumple exacto. Ofrece lo más cercano de ESTA misma marca (de la lista revisada). Nómbralos para que elija. No pases a otra marca todavía.',
+      );
+      parts.push(
+        `En patio de esta marca: ${cars.map((car) => label(car, includePrice)).join('; ')}.`,
+      );
+      parts.push('vehiculo null hasta que elija uno.');
+    } else {
+      parts.push('No hay stock de esta marca en patio. Díselo y pregunta si quiere ver otra línea. No inventes carros. vehiculo null.');
+    }
     return parts.join('\n');
   }
 

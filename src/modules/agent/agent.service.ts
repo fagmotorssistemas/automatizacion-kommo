@@ -36,6 +36,10 @@ import {
 import { detectBrand, resolveBrand } from '../conversation/vehicle-brand';
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
 import { asksForPrice } from '../conversation/asks-for-price';
+import {
+  messageLeaksPrice,
+  stripUnsolicitedPriceAndPlate,
+} from '../conversation/strip-unsolicited-price';
 import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
 import {
   formatInterestedCar,
@@ -51,7 +55,6 @@ import {
   carsForReview,
   COMPLIANCE_SYSTEM_PROMPT,
   formatComplianceForAgent,
-  formatOtherBrands,
   idsToOffer,
   parseComplianceReview,
   vehicleToSend,
@@ -151,6 +154,9 @@ export class AgentService {
       revision.text,
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+      showPrice
+        ? ''
+        : 'EN ESTE TURNO el cliente NO pidió el precio: prohibido decir el valor del carro ($…, precio de…). Sí puedes decir plate_short (ej. "La placa es P7"). Prohibido placa completa y chasis.',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -201,6 +207,18 @@ export class AgentService {
     ) {
       parsed.meta.vehiculo.precio = Math.round(interested.price);
     }
+
+    if (!showPrice && parsed.mensaje) {
+      const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje);
+      if (cleaned !== parsed.mensaje || messageLeaksPrice(parsed.mensaje)) {
+        this.logger.warn(
+          `Se quitó precio no pedido contactId=${input.contactId}`,
+        );
+      }
+      parsed.mensaje = cleaned;
+      parsed.meta.precioMostrado = false;
+    }
+
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
         role: 'assistant',
@@ -341,15 +359,11 @@ export class AgentService {
     }
 
     if (idsToOffer(review).length === 0) {
-      const other = await this.reviewOtherBrands(
-        concreteAsk,
-        brand,
-        userTexts,
-        includePrice,
-      );
+      // No saltar solo a otras marcas: primero similares de esta marca / ajustar pedido.
       return {
-        ...other,
-        text: `${formatComplianceForAgent(concreteAsk, cars, review, includePrice)}\n${other.text}`,
+        text: formatComplianceForAgent(concreteAsk, cars, review, includePrice),
+        holdVehicle: true,
+        sendId: null,
       };
     }
 
@@ -358,53 +372,6 @@ export class AgentService {
       text: formatComplianceForAgent(concreteAsk, cars, review, includePrice),
       holdVehicle: vehicleToSend(review, null) === null,
       sendId: vehicleToSend(review, namedId),
-    };
-  }
-
-  private async reviewOtherBrands(
-    concreteAsk: string,
-    brand: string,
-    userTexts: string[],
-    includePrice: boolean,
-  ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
-    const others = await this.catalog.listAvailableExcept(brand);
-    const none = {
-      cumplen: [] as string[],
-      parecidos: [] as string[],
-      noCumplen: [] as string[],
-    };
-    if (others.length === 0) {
-      return {
-        text: formatOtherBrands(concreteAsk, brand, others, none, includePrice),
-        holdVehicle: true,
-        sendId: null,
-      };
-    }
-
-    const raw = await this.openai.completeJson(
-      COMPLIANCE_SYSTEM_PROMPT,
-      JSON.stringify({
-        pedido: concreteAsk,
-        vehiculos: carsForReview(others),
-      }),
-    );
-    const review = parseComplianceReview(
-      raw,
-      others.map((car) => car.id),
-    );
-    if (!review) {
-      return {
-        text: `PEDIDO: ${concreteAsk}\nDe ${brand} ninguno se acerca y no se pudo revisar el resto. No afirmes que un carro cumple. vehiculo null.`,
-        holdVehicle: true,
-        sendId: null,
-      };
-    }
-
-    const namedId = namedOfferId(others, idsToOffer(review, false), userTexts);
-    return {
-      text: formatOtherBrands(concreteAsk, brand, others, review, includePrice),
-      holdVehicle: vehicleToSend(review, null, false) === null,
-      sendId: vehicleToSend(review, namedId, false),
     };
   }
 

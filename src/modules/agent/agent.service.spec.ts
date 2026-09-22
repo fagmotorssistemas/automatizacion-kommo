@@ -503,7 +503,7 @@ describe('AgentService', () => {
     );
   });
 
-  it('si ninguno se acerca ofrece otra marca que sí cumple', async () => {
+  it('si ninguno se acerca no salta solo a otra marca', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('nissan');
     catalog.listByBrand.mockResolvedValue([
       {
@@ -515,25 +515,15 @@ describe('AgentService', () => {
         typeBody: 'sedan',
       },
     ]);
-    catalog.listAvailableExcept.mockResolvedValue([
-      {
-        id: 'santa-fe',
-        brand: 'hyundai',
-        model: 'santa fe dm 7pas ac 2.4 5p 4x2',
-        year: 2018,
-        price: 22990,
-        typeBody: 'jeep',
-      },
-    ]);
-    openai.completeJson
-      .mockResolvedValueOnce(JSON.stringify({ cumplen: [], parecidos: [] }))
-      .mockResolvedValueOnce(JSON.stringify({ cumplen: ['santa-fe'] }));
+    openai.completeJson.mockResolvedValue(
+      JSON.stringify({ cumplen: [], parecidos: [] }),
+    );
     openai.complete
       .mockResolvedValueOnce('RESUMEN')
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
-        respuesta_cliente: 'No hay Nissan.',
+        respuesta_cliente: 'De Nissan lo más cercano es el Sentra.',
         meta: { vehiculo: null },
       }),
     );
@@ -543,10 +533,11 @@ describe('AgentService', () => {
       customerText: 'que sea diésel',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'santa-fe' });
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('inventory_id=santa-fe'),
+        system: expect.stringContaining('No pases a otra marca'),
       }),
     );
   });
@@ -582,7 +573,7 @@ describe('AgentService', () => {
     expect(result?.reply.meta.vehiculo).toBeNull();
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('Ningún carro'),
+        system: expect.stringContaining('No pases a otra marca'),
       }),
     );
   });
