@@ -3,11 +3,13 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { CtwaMatch } from '../persistence/lead.types';
 import { parseVehicleKind, VehicleKind } from './vehicle-kind';
+import { Gearbox } from './gearbox';
 import {
   MEMORY_MAX_MESSAGES,
   MEMORY_TTL_SECONDS,
   memoryKey,
   concreteAskKey,
+  gearboxKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
@@ -70,6 +72,43 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar el tipo de vehículo contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadGearbox(contactId: string): Promise<Gearbox | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(gearboxKey(contactId));
+      return value === 'manual' || value === 'automatica' ? value : null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer la caja contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveGearbox(contactId: string, gearbox: Gearbox): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        gearboxKey(contactId),
+        gearbox,
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar la caja contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

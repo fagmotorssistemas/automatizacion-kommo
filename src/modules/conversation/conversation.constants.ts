@@ -11,3 +11,6 @@ export const vehicleBrandKey = (contactId: string) =>
 
 export const concreteAskKey = (contactId: string) =>
   `conversation:concrete-ask:${contactId}`;
+
+export const gearboxKey = (contactId: string) =>
+  `conversation:gearbox:${contactId}`;

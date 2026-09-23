@@ -37,6 +37,16 @@ import {
   VehicleKind,
 } from '../conversation/vehicle-kind';
 import { detectBrand, resolveBrand } from '../conversation/vehicle-brand';
+import {
+  bodyGroupOf,
+  carBodyGroup,
+  formatGearboxAlternatives,
+  formatGearboxPedido,
+  gearboxOf,
+  Gearbox,
+  pickGearboxAlternatives,
+  resolveGearbox,
+} from '../conversation/gearbox';
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
 import { asksForPrice } from '../conversation/asks-for-price';
 import {
@@ -50,6 +60,7 @@ import {
 } from '../conversation/interested-car';
 import {
   formatRevisionMarca,
+  modelFamily,
   StockCar,
   textMentionsModel,
   userNamedModel,
@@ -133,6 +144,11 @@ export class AgentService {
       history,
       input.customerText,
     );
+    const gearbox = await this.rememberGearbox(
+      input.contactId,
+      history,
+      input.customerText,
+    );
     const showPrice = asksForPrice(input.customerText);
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
@@ -167,14 +183,29 @@ export class AgentService {
             concreteAsk,
             showPrice,
             vehicleKind,
+            gearbox,
+            interested
+              ? {
+                  price: interested.price,
+                  family: modelFamily(interested.model),
+                }
+              : null,
           );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
+    const shownOtherBox =
+      gearbox &&
+      interested &&
+      gearboxOf(interested) !== null &&
+      gearboxOf(interested) !== gearbox;
     const interestedText =
-      interested && refersToInterestedCar(input.customerText, interested)
+      interested &&
+      refersToInterestedCar(input.customerText, interested) &&
+      !shownOtherBox
         ? formatInterestedCar(interested, showPrice)
         : '';
     const pedidoVigente = [
       formatPedidoVigente(vehicleKind),
+      formatGearboxPedido(gearbox),
       revision.text,
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
@@ -324,6 +355,19 @@ export class AgentService {
     return ask;
   }
 
+  private async rememberGearbox(
+    contactId: string,
+    history: { role: string; content: string }[],
+    customerText: string,
+  ): Promise<Gearbox | null> {
+    const remembered = await this.conversation.loadGearbox(contactId);
+    const gearbox = resolveGearbox({ history, customerText, remembered });
+    if (gearbox && gearbox !== remembered) {
+      await this.conversation.saveGearbox(contactId, gearbox);
+    }
+    return gearbox;
+  }
+
   private async reviewBrand(
     history: { role: string; content: string }[],
     customerText: string,
@@ -331,6 +375,8 @@ export class AgentService {
     concreteAsk: string | null,
     includePrice: boolean,
     vehicleKind: VehicleKind | null,
+    gearbox: Gearbox | null,
+    reference: { price: number | null; family: string | null } | null,
   ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
     const empty = { text: '', holdVehicle: false, sendId: null };
     if (!brand) {
@@ -346,9 +392,42 @@ export class AgentService {
     }
 
     const listed = await this.catalog.listByBrand(brand);
-    const cars = vehicleKind
-      ? listed.filter((car) => matchesVehicleKind(car.typeBody, vehicleKind))
-      : listed;
+    let stock = listed;
+    if (gearbox && reference?.family) {
+      const group = bodyGroupOf(vehicleKind);
+      const inBrand = pickGearboxAlternatives({
+        cars: listed,
+        gearbox,
+        family: reference.family,
+        group,
+        referencePrice: reference.price,
+      });
+      if (inBrand?.sameModel) {
+        stock = inBrand.cars;
+      } else {
+        const others = await this.catalog.listAvailableExcept(brand);
+        const pick = pickGearboxAlternatives({
+          cars: [...listed, ...others],
+          gearbox,
+          family: reference.family,
+          group,
+          referencePrice: reference.price,
+        });
+        if (pick) {
+          return formatGearboxAlternatives({ gearbox, pick, includePrice });
+        }
+      }
+    }
+    if (gearbox) {
+      const opposite = gearbox === 'manual' ? 'automatica' : 'manual';
+      stock = stock.filter((car) => gearboxOf(car) !== opposite);
+    }
+    const cars =
+      gearbox && bodyGroupOf(vehicleKind) === 'chico'
+        ? stock.filter((car) => carBodyGroup(car.typeBody) === 'chico')
+        : vehicleKind
+          ? stock.filter((car) => matchesVehicleKind(car.typeBody, vehicleKind))
+          : stock;
     if (vehicleKind && listed.length > 0 && cars.length === 0) {
       return {
         text: `De ${brand} no hay ${vehicleKind} disponible. No ofrezcas otro tipo. vehiculo null.`,

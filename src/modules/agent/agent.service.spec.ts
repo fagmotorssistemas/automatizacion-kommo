@@ -24,6 +24,8 @@ describe('AgentService', () => {
     saveVehicleBrand: jest.fn(),
     loadConcreteAsk: jest.fn(),
     saveConcreteAsk: jest.fn(),
+    loadGearbox: jest.fn(),
+    saveGearbox: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -64,6 +66,9 @@ describe('AgentService', () => {
     conversation.saveVehicleBrand.mockReset();
     conversation.loadConcreteAsk.mockReset();
     conversation.saveConcreteAsk.mockReset();
+    conversation.loadGearbox.mockReset();
+    conversation.loadGearbox.mockResolvedValue(null);
+    conversation.saveGearbox.mockReset();
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);
@@ -187,6 +192,68 @@ describe('AgentService', () => {
       }),
     );
     expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('si pide manual no vuelve a ofrecer el automático y manda uno parecido', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'sedan',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'sportage',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2 tm',
+        year: 2019,
+        price: 22200,
+        typeBody: 'jeep',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'fiat500',
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 13990,
+        typeBody: 'hatckback',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En manual está el Fiat 500.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Y en manual no dispone\nCon la jep porfavor',
+    });
+
+    expect(openai.completeJson).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('inventory_id=fiat500'),
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'fiat500' });
   });
 
   it('el RESUMEN PREVIO recibe el hilo cliente-bot', async () => {
