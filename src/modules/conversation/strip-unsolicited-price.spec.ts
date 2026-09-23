@@ -23,6 +23,35 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/\bP7\b/);
   });
 
+  it('el km no es placa', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Estimado, tenemos un Chevrolet D-max CRDI 2023. La placa es 77613. Aquí tiene las fotos.',
+      { keepPlateShort: true },
+    );
+    expect(clean).not.toMatch(/placa/i);
+    expect(clean).not.toMatch(/77613/);
+    expect(clean.toLowerCase()).toContain('d-max');
+  });
+
+  it('quita “el precio registrado es .”', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'El Chevrolet D-max 2023 está en buen estado. El precio registrado es $28,990.',
+    );
+    expect(clean).not.toMatch(/28,990|28990|\$/);
+    expect(clean).not.toMatch(/precio registrado es\s*\./i);
+    expect(clean.toLowerCase()).toContain('d-max');
+  });
+
+  it('quita el primer bloque hex del UUID pegado como placa', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Estimado, tenemos un Nissan X-Trail 2016. La placa es 62434e00. Aquí tiene las fotos.',
+      { keepPlateShort: true },
+    );
+    expect(clean).not.toMatch(/62434e00/i);
+    expect(clean).not.toMatch(/placa/i);
+    expect(clean.toLowerCase()).toContain('x-trail');
+  });
+
   it('quita un UUID pegado como placa', () => {
     const clean = stripUnsolicitedPriceAndPlate(
       'Estimado, tenemos disponible una Toyota Hilux SR 2023 color plateado, con 13086 km, transmisión manual y 4x4. La placa es 61d90585-7047-4db8-bb7f-1cf9f2ced204. Por ahora no tengo fotos de este vehículo para enviarle.',

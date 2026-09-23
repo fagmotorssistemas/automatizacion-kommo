@@ -209,7 +209,7 @@ describe('AgentService', () => {
     expect(openai.completeJson).not.toHaveBeenCalled();
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('Ranger XLT 2026'),
+        system: expect.stringMatching(/ranger xlt/i),
       }),
     );
     expect(result?.reply.meta.vehiculo).toBeNull();
@@ -490,6 +490,85 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=plata-1');
     expect(system).toMatch(/HILO SIGUE/i);
+  });
+
+  it('el km no se manda como placa ni inventa MAX', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 77613,
+        transmission: 'manual',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la D-max 2023 y solicita fotos.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Chevrolet D-max MAX 2023 color plateado, con 77613 km, transmisión manual y tracción 4x2. La placa es 77613. Aquí tiene también las fotos del vehículo.',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hola. Me interesa el Chevrolet D-max CRDI 2023',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/d-max crdi 2\.5 cd 4x2 tm diesel/i);
+    expect(system).toMatch(/sin plate_short/i);
+    expect(system).not.toMatch(/D-max MAX/i);
+    expect(result?.reply.mensaje).not.toMatch(/placa/i);
+    expect(result?.reply.mensaje).not.toMatch(/La placa es 77613/i);
+    expect(result?.reply.mensaje).toMatch(/77613 km/i);
+  });
+
+  it('no manda el primer bloque hex del inventory_id como placa', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: '62434e00-aaaa-4bbb-8ccc-ddddeeeeffff',
+        brand: 'nissan',
+        model: 'x-trail sense cvt ac 2.5 5p 4x2 ta',
+        year: 2016,
+        price: 16890,
+        typeBody: 'jeep',
+        color: 'azul',
+        mileage: 144904,
+        transmission: 'automática',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el X-Trail 2016 y solicita fotos.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Nissan X-Trail TRAIL 2016 color azul. La placa es 62434e00. Aquí tiene también las fotos del vehículo.',
+        meta: {
+          vehiculo: { inventory_id: '62434e00-aaaa-4bbb-8ccc-ddddeeeeffff' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Me interesa el Nissan X-Trail 2016',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/62434e00/i);
+    expect(result?.reply.mensaje).not.toMatch(/placa/i);
   });
 
   it('no manda el inventory_id como si fuera la placa', async () => {
@@ -2577,6 +2656,476 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/No hay 2008 2008/i);
     expect(system).not.toMatch(/No hay 3008n 2008/i);
     expect(system).not.toMatch(/no tenemos Peugeot 3008n 2008/i);
+  });
+
+  it('hyundai y 10: primero no hay i10, no lo vende como Kona ni vuelve al Sportage', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-1',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos Sportage SL 2019 negro, GTI 2019 rojo y GTI 2019 plateado. ¿Cuál le interesa?',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'kona-1',
+        brand: 'hyundai',
+        model: 'kona gls',
+        year: 2022,
+        price: 21990,
+        typeBody: 'jeep',
+        color: 'azul',
+        mileage: 54694,
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'kona-1',
+        brand: 'hyundai',
+        model: 'kona gls',
+        year: 2022,
+        price: 21990,
+        typeBody: 'jeep',
+        color: 'azul',
+        mileage: 54694,
+      },
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 64000,
+      },
+      {
+        id: 'picanto-1',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+        mileage: 21000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Hyundai i10.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Hyundai i10. Si le interesa, hay un Picanto.',
+        meta: { vehiculo: { inventory_id: 'picanto-1' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Tiene el hyundai y 10',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('hyundai');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/No hay i10|no tenemos i10/i);
+    expect(system).toMatch(/picanto/i);
+    expect(system).toMatch(/inventory_id=picanto-1/);
+    expect(system).toMatch(/CAMBIO DE MODELO/i);
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/inventory_id=sportage-1/);
+    expect(system).not.toMatch(/inventory_id=kona-1/);
+  });
+
+  it('dispongo de 10000 es presupuesto: lista lo que cabe, no arma cuota', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-1',
+      brand: 'nissan',
+      model: 'x-trail sense cvt',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+      color: 'azul',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Nissan X-Trail 2016 tiene un precio de contado de $16890.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('nissan');
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'xtrail-1',
+        brand: 'nissan',
+        model: 'x-trail sense cvt',
+        year: 2016,
+        price: 16890,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'kona-1',
+        brand: 'hyundai',
+        model: 'kona gls',
+        year: 2022,
+        price: 21990,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'rio-1',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'picanto-1',
+        brand: 'kia',
+        model: 'picanto lx',
+        year: 2017,
+        price: 8900,
+        typeBody: 'hatchback',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente dispone de 10000 de contado.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En ese presupuesto hay un Picanto y un Río.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Dispongo de 10.000$',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PRESUPUESTO DE CONTADO: \$10000/);
+    expect(system).toMatch(/picanto|rio/i);
+    expect(system).not.toMatch(/PIDIÓ CRÉDITO \/ FINANCIAMIENTO/i);
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/inventory_id=kona-1/);
+    expect(system).not.toMatch(/inventory_id=xtrail-1/);
+  });
+
+  it('qué vehículo por 10000 lista patio y no dice que no hay SUV si no toca', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-1',
+      brand: 'nissan',
+      model: 'x-trail sense cvt',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'El X-Trail 2016 queda por encima. ¿Ve otras opciones?',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'rio-1',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'kona-1',
+        brand: 'hyundai',
+        model: 'kona gls',
+        year: 2022,
+        price: 21990,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta qué hay por 10000.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Hay un Kia Río 2018 en ese presupuesto.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Qué vehículo tiene por 10.000$',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PRESUPUESTO DE CONTADO: \$10000/);
+    expect(system).toMatch(/rio/i);
+    expect(system).not.toMatch(/inventory_id=kona-1/);
+    expect(system).toMatch(/Prohibido decir que no hay un tipo/i);
+  });
+
+  it('los precios de las que ya listó sí salen, sin placa', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-1',
+      brand: 'nissan',
+      model: 'x-trail sense cvt',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Hay un Kia Río 2018 sedán y un Picanto 2017 hatchback en ese presupuesto.',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'rio-1',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'picanto-1',
+        brand: 'kia',
+        model: 'picanto lx',
+        year: 2017,
+        price: 8900,
+        typeBody: 'hatchback',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide los precios de esas unidades.\nPide precio: sí\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Río 2018 está en $9800 y el Picanto 2017 en $8900. La placa del Río es P7.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Los precio por favor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/\$9800|\$8900/);
+    expect(system).toMatch(/PIDIÓ LOS PRECIOS/i);
+    expect(result?.reply.mensaje).toMatch(/\$9800/);
+    expect(result?.reply.mensaje).toMatch(/\$8900/);
+    expect(result?.reply.mensaje).not.toMatch(/placa/i);
+  });
+
+  it('2019 de la misma D-max no ofrece un Tracker', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Chevrolet D-max CRDI 2023 plateado está en $28990. Es un carro cuidado y en buen estado.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 77613,
+      },
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+        mileage: 93787,
+      },
+      {
+        id: 'tracker-1',
+        brand: 'chevrolet',
+        model: 'tracker ls',
+        year: 2022,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 18277,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay D-max 2019.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No hay D-max 2019. Hay una 2020.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'tendrá del 2019 de la misma',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/No hay Dmax 2019|no tenemos Dmax 2019/i);
+    expect(system).toMatch(/dmax-2020|d-max crdi/i);
+    expect(system).toMatch(/PROHIBIDO otra línea/i);
+    expect(system).not.toMatch(/tracker/i);
+  });
+
+  it('si ya dijo lo del mecánico no lo vuelve a mandar', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+      mileage: 77613,
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El D-max 2023 está en $28990. Es un carro cuidado y en buen estado, con 77613 km reales. Puede traer a su mecánico para que lo revise.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide el valor.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El precio es $28990. Es un carro cuidado y en buen estado. Puede traer a su mecánico para que lo revise. El precio registrado es $28990.',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Si iel valor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PROHIBIDO repetirlo/i);
+    expect(result?.reply.mensaje).toMatch(/\$28990/);
+    expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
+    expect(result?.reply.mensaje).not.toMatch(/carro cuidado/i);
+  });
+
+  it('si ya dijo D-max CRDI 2023 no lista otras ni una Luv', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+        mileage: 93787,
+      },
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28900,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 77613,
+      },
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 26900,
+        typeBody: 'camioneta',
+        color: 'vino',
+        mileage: 87687,
+      },
+      {
+        id: 'luv-2006',
+        brand: 'chevrolet',
+        model: 'luv max 4x4 tm',
+        year: 2006,
+        price: 8900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la D-max 2023.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos la D-max CRDI 2023 plateado. Aquí las fotos.',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Hola. Me interesa el Chevrolet D-max CRDI 2023q\nQ precio esta la Dimax',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=dmax-2023');
+    expect(system).toMatch(/una sola unidad/i);
+    expect(system).not.toMatch(/Nómbralas todas/i);
+    expect(system).not.toMatch(/dmax-2020|dmax-2022|luv-2006/i);
   });
 
   it('cuota con entrada y plazo no deja huecos de precio', async () => {

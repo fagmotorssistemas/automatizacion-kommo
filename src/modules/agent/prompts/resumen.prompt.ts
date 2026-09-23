@@ -54,6 +54,7 @@ Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
 Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
+Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no.
 Si pide precio de contado Y a crédito (o financiamiento), SOLICITUD debe decir las dos cosas. Pide precio: sí. Pide crédito: sí.
 Si pide otro color del mismo modelo (sin nombrar otro carro), SOLICITUD: quiere otro color de ESA línea. Pide otro color: sí. Pide precio: no, salvo que también pida el valor. No lo dejes en la misma unidad.
 Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envió la cédula para que un asesor revise si califica. No pidas la cédula otra vez. Pide precio: no.

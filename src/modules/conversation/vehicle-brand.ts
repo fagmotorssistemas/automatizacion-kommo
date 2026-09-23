@@ -103,22 +103,68 @@ export type NamedModelAsk = {
   year: number | null;
 };
 
+/**
+ * Código tipo i10 / y 10 / a4 junto a una marca, aunque no esté en patio.
+ * “y 10” se lee como i10 (así suena). No es año ni plazo.
+ */
+function letterNumberModelAsk(
+  text: string,
+  lexicon: VehicleLexicon,
+): string | null {
+  if (!lastBrandHit(text, lexicon)) {
+    return null;
+  }
+  const folded = foldAccents(text).toLowerCase();
+  const re = /\b([a-z])[\s-]?(\d{1,3})\b/gi;
+  let last: string | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(folded)) !== null) {
+    const raw = `${match[1]}${match[2]}`;
+    const after = folded.slice(
+      (match.index ?? 0) + match[0].length,
+      (match.index ?? 0) + match[0].length + 14,
+    );
+    if (/\s*(an[io]s|meses|mil|km|dolares)/i.test(after)) {
+      continue;
+    }
+    const families = lexicon.models.map((row) => row.family);
+    const alt =
+      match[1] === 'y' ? `i${match[2]}` : match[1] === 'i' ? `y${match[2]}` : '';
+    last = families.includes(raw)
+      ? raw
+      : alt && families.includes(alt)
+        ? alt
+        : match[1] === 'y'
+          ? `i${match[2]}`
+          : raw;
+  }
+  return last;
+}
+
 /** Último modelo concreto del mensaje (Sportage, Tucson) y año si lo dijo. */
 export function detectNamedModelAsk(
   text: string,
   lexicon: VehicleLexicon = emptyLexicon(),
 ): NamedModelAsk | null {
   const winner = lastModelHit(text, lexicon);
-  if (!winner) {
+  if (winner) {
+    const near = brandBeforeModel(text, winner.index, lexicon);
+    const brands = brandsOfFamily(lexicon, winner.family);
+    const year = detectYearInText(text);
+    return {
+      brand: near ?? (brands.length === 1 ? winner.brand : ''),
+      family: winner.family,
+      year: year && String(year) === winner.family ? null : year,
+    };
+  }
+  const code = letterNumberModelAsk(text, lexicon);
+  if (!code) {
     return null;
   }
-  const near = brandBeforeModel(text, winner.index, lexicon);
-  const brands = brandsOfFamily(lexicon, winner.family);
-  const year = detectYearInText(text);
   return {
-    brand: near ?? (brands.length === 1 ? winner.brand : ''),
-    family: winner.family,
-    year: year && String(year) === winner.family ? null : year,
+    brand: lastBrandHit(text, lexicon)?.name ?? '',
+    family: code,
+    year: detectYearInText(text),
   };
 }
 
@@ -134,7 +180,7 @@ function looksLikeMoneyAmount(text: string, index: number, raw: string): boolean
 
 export function detectYearInText(text: string): number | null {
   const folded = foldAccents(text);
-  const matches = [...folded.matchAll(/\b((?:19|20)\d{2})\b/g)].filter(
+  const matches = [...folded.matchAll(/\b((?:19|20)\d{2})(?!\d)/g)].filter(
     (match) => !looksLikeMoneyAmount(folded, match.index ?? 0, match[1]),
   );
   if (matches.length === 0) {

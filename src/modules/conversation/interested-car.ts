@@ -1,4 +1,4 @@
-import { modelFamily } from '../catalog/clasificar-filas';
+import { modelFamily, textMentionsModel } from '../catalog/clasificar-filas';
 import { formatMileageFact } from '../catalog/mileage';
 import { detectVehicleKind, kindFromTypeBody } from './vehicle-kind';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
+import { detectCashBudget } from './budget';
 
 export type ShownCarContext = {
   text: string;
@@ -91,6 +92,26 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (namedOtherUnit(input.text, car, lexicon)) {
     return true;
   }
+  const budget =
+    detectCashBudget(input.text) ?? detectCashBudget(input.resumen ?? '');
+  if (budget && (!car.price || budget < car.price)) {
+    return true;
+  }
+  if (
+    /\botras opciones\b|\bdentro de (?:ese |su )?presupuesto\b/i.test(
+      input.resumen ?? '',
+    )
+  ) {
+    return true;
+  }
+  if (/\bprecios?\b/i.test(input.text) && input.history?.length) {
+    const last = [...input.history]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+    if (last && !textMentionsModel(last.content, car.model)) {
+      return true;
+    }
+  }
   if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {
     return true;
   }
@@ -157,6 +178,7 @@ export function followsShownCar(input: ShownCarContext): boolean {
 export function formatInterestedCar(
   car: InterestedCarSnapshot,
   includePrice = false,
+  options?: { skipMileageCare?: boolean },
 ): string {
   const year = car.year ? ` ${car.year}` : '';
   const shown =
@@ -173,7 +195,9 @@ export function formatInterestedCar(
     : '';
   const plate = sanitizePlateShort(car.plateShort);
   const facts = [
-    formatMileageFact(car.mileage, car.year),
+    formatMileageFact(car.mileage, car.year, new Date().getFullYear(), {
+      skipClientCare: options?.skipMileageCare === true,
+    }),
     car.color ? `color=${car.color}` : '',
     car.transmission ? `caja=${car.transmission}` : '',
     plate ? `plate_short=${plate}` : '',
@@ -182,7 +206,7 @@ export function formatInterestedCar(
     .join('\n');
   const factsLine = facts
     ? `\n${facts}
-Estos datos son para responder si el resumen o el mensaje los piden. Placa: solo plate_short (nunca inventes una placa larga).`
+Estos datos son para responder si el resumen o el mensaje los piden. Placa: solo plate_short (nunca inventes una placa; el km no es placa).`
     : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}

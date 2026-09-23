@@ -67,6 +67,25 @@ describe('vehículo de interés', () => {
       leftShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),
     ).toBe(true);
     expect(
+      leftShownCar({
+        text: 'Tiene el hyundai y 10',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'Dispongo de 10.000$',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'Qué vehículo tiene por 10.000$',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
       followsShownCar({
         text: 'sí, esa',
         resumen: 'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.',

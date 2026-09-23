@@ -41,4 +41,11 @@ describe('mileage', () => {
     expect(alto.note).toMatch(/aunque/i);
     expect(alto.note).toMatch(/mecánico/i);
   });
+
+  it('si ya lo dijo no vuelve a pedir el texto del mecánico', () => {
+    const fact = formatMileageFact(77613, 2023, 2026, { skipClientCare: true });
+    expect(fact).toMatch(/km=77613/);
+    expect(fact).not.toMatch(/mecánico/i);
+    expect(fact).not.toMatch(/AL CLIENTE/i);
+  });
 });

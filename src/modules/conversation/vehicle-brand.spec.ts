@@ -67,6 +67,22 @@ describe('marca y tres filas', () => {
     expect(detectYearInText('El jeptour Blanco 2023')).toBe(2023);
     expect(detectYearInText('Cliente da 2000 de entrada a 6 años')).toBeNull();
     expect(detectYearInText('Vitara 2008')).toBe(2008);
+    expect(
+      detectNamedModelAsk('Tiene el hyundai y 10', TEST_LEXICON),
+    ).toEqual({ brand: 'hyundai', family: 'i10', year: null });
+    expect(
+      detectNamedModelAsk('Tiene el hyuidai y 10', TEST_LEXICON),
+    ).toEqual({ brand: 'hyundai', family: 'i10', year: null });
+    expect(
+      detectNamedModelAsk('tiene el hyundai gran i 10', TEST_LEXICON),
+    ).toEqual({ brand: 'hyundai', family: 'i10', year: null });
+    expect(detectYearInText('Chevrolet D-max CRDI 2023q')).toBe(2023);
+    expect(
+      detectNamedModelAsk(
+        'Hola. Me interesa el Chevrolet D-max CRDI 2023q',
+        TEST_LEXICON,
+      ),
+    ).toEqual({ brand: 'chevrolet', family: 'dmax', year: 2023 });
     expect(detectColorInText('El jeptour Blanco 2023')).toBe('blanco');
   });
 

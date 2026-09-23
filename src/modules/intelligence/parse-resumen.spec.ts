@@ -6,6 +6,7 @@ import {
   resumenHasPendingDoubt,
   resumenIsFarewell,
   textAsksForCredit,
+  textAsksForListedPrice,
   textAsksForOtherColor,
 } from './parse-resumen';
 
@@ -88,6 +89,14 @@ describe('contado y crédito', () => {
     ).toBe(true);
     expect(textAsksForCredit('2 mil de entrada')).toBe(true);
     expect(textAsksForCredit('Para 6 años')).toBe(true);
+  });
+});
+
+describe('textAsksForListedPrice', () => {
+  it('iel valor y cotizar piden el precio', () => {
+    expect(textAsksForListedPrice('Si iel valor')).toBe(true);
+    expect(textAsksForListedPrice('me puede alludar cotisando')).toBe(true);
+    expect(textAsksForListedPrice('Dispongo de 10.000$')).toBe(false);
   });
 });
 

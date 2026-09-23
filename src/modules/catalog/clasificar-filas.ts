@@ -1,4 +1,6 @@
+import { kindFromTypeBody } from '../conversation/vehicle-kind';
 import { formatUnitMileage } from './mileage';
+import { sanitizePlateShort } from './plate-short';
 
 export type FilaClase = 'tres_filas' | 'posible' | 'no' | 'no_consta';
 
@@ -124,51 +126,35 @@ function etiqueta(car: StockCar, includePrice = false): string {
   return `${prettyFamily(car.model)}${year}${price}`;
 }
 
-const TRIM_SKIP = new Set([
-  'new',
-  'ac',
-  'all',
-  'gran',
-  'next',
-  'cd',
-  'sc',
-  'cs',
-  'diesel',
-  'gasolina',
-]);
-
-/** Año, versión, color y caja para distinguir unidades del mismo modelo. */
+/** Ficha de inventoryoracle: modelo tal cual, sin inventar MAX/TRAIL. */
 export function describeUnit(car: StockCar, includePrice = false): string {
-  const familyKey = modelFamily(car.model);
-  const trim = car.model
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .find(
-      (part) =>
-        part.length >= 2 &&
-        part !== familyKey &&
-        !TRIM_SKIP.has(part) &&
-        !/^\d/.test(part),
-    );
+  const extras = [
+    car.color,
+    car.transmission ||
+      (/\btm\b/i.test(car.model)
+        ? 'manual'
+        : /\bta\b/i.test(car.model)
+          ? 'automática'
+          : ''),
+    car.driveType ||
+      (/\b4x4\b/i.test(car.model)
+        ? '4x4'
+        : /\b4x2\b/i.test(car.model)
+          ? '4x2'
+          : ''),
+  ].filter(Boolean);
+  const extra = extras.length ? `, ${extras.join(', ')}` : '';
   const year = car.year ? ` ${car.year}` : '';
-  const color = car.color ? `, ${car.color}` : '';
-  const box = /\btm\b/i.test(car.model)
-    ? ', manual'
-    : /\bta\b/i.test(car.model)
-      ? ', automática'
-      : '';
-  const drive = /\b4x4\b/i.test(car.model)
-    ? ', 4x4'
-    : /\b4x2\b/i.test(car.model)
-      ? ', 4x2'
-      : '';
   const price =
     includePrice && car.price && car.price > 0
       ? `, $${Math.round(car.price)}`
       : '';
   const km = formatUnitMileage(car.mileage);
-  const version = trim ? ` ${trim.toUpperCase()}` : '';
-  return `${prettyFamily(car.model)}${version}${year}${color}${box}${drive}${km}${price} (inventory_id=${car.id})`;
+  const plate = sanitizePlateShort(car.plateShort);
+  const plateBit = plate
+    ? `, plate_short=${plate}`
+    : ', sin plate_short (PROHIBIDO inventar placa; el km NO es placa)';
+  return `${car.model}${year}${extra}${km}${price}${plateBit} (inventory_id=${car.id})`;
 }
 
 /** Una unidad se manda. Varias se nombran para que elija. */
@@ -194,6 +180,50 @@ ${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`,
   };
 }
 
+/** i10 / y10 / i20: city hatch, no un SUV de la misma marca. */
+export function isCityLetterCode(family: string): boolean {
+  return /^[iy]\d{1,2}$/i.test(family);
+}
+
+/**
+ * Si el pedido no está en patio, el más cercano en tamaño.
+ * Un i10 no se sustituye por un Kona; el Sportage ya rechazado no vuelve.
+ */
+export function pickClosestToMissingModel(
+  cars: StockCar[],
+  family: string,
+  except?: { inventoryId?: string | null; family?: string | null },
+): StockCar[] {
+  if (!isCityLetterCode(family)) {
+    return [];
+  }
+  const pool = cars.filter((car) => {
+    if (except?.inventoryId && car.id === except.inventoryId) {
+      return false;
+    }
+    if (except?.family && textMentionsModel(car.model, except.family)) {
+      return false;
+    }
+    return true;
+  });
+  const byPrice = (a: StockCar, b: StockCar) =>
+    (a.price ?? Number.POSITIVE_INFINITY) -
+    (b.price ?? Number.POSITIVE_INFINITY);
+  const hatches = pool
+    .filter((car) => kindFromTypeBody(car.typeBody) === 'hatchback')
+    .sort(byPrice);
+  if (hatches.length > 0) {
+    return [hatches[0]];
+  }
+  const sedans = pool
+    .filter((car) => kindFromTypeBody(car.typeBody) === 'sedan')
+    .sort(byPrice);
+  if (sedans.length > 0) {
+    return [sedans[0]];
+  }
+  return [];
+}
+
 /** No hay el modelo (o el año) pedido: primero dilo, después ofrece otra. */
 export function formatMissingNamedModel(
   family: string,
@@ -203,7 +233,7 @@ export function formatMissingNamedModel(
 ): { text: string; holdVehicle: boolean; sendId: string | null } {
   const pretty = family.charAt(0).toUpperCase() + family.slice(1);
   const asked = year ? `${pretty} ${year}` : pretty;
-  const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS ofrece otra opción de esta marca. Prohibido presentarla como si fuera el ${pretty}.`;
+  const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA (lo más cercano en tamaño). Prohibido presentarla como si fuera el ${pretty}. Prohibido volver al carro que el cliente ya dejó.`;
   if (alternatives.length === 1) {
     const car = alternatives[0];
     return {
@@ -225,7 +255,7 @@ ${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
   }
   return {
     text: `${header}
-No hay otra unidad de esta marca. Pregunta si quiere ver otra línea. vehiculo null.`,
+No hay otra unidad cercana en tamaño. Pregunta si quiere ver otra línea. vehiculo null.`,
     holdVehicle: true,
     sendId: null,
   };

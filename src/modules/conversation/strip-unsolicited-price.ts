@@ -1,3 +1,5 @@
+import { sanitizePlateShort } from '../catalog/plate-short';
+
 export type StripUnsolicitedOptions = {
   keepPrice?: boolean;
   keepPlateShort?: boolean;
@@ -31,6 +33,17 @@ export function stripUnsolicitedPriceAndPlate(
   out = out.replace(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
     '',
+  );
+  // El modelo copia el primer bloque hex del UUID (62434e00) y el strip del UUID completo no lo ve.
+  out = out.replace(
+    /\b((?:la\s+)?placa\s*(?:es|:)?)\s*([A-Za-z0-9-]{2,})\b\.?/gi,
+    (full, label: string, token: string) => {
+      const short = sanitizePlateShort(token);
+      return short ? `${label} ${short}` : '';
+    },
+  );
+  out = out.replace(/\b[0-9a-f]{8}\b/gi, (token) =>
+    /^[0-9a-f]{8}$/i.test(token) && /[a-f]/i.test(token) ? '' : token,
   );
   out = out.replace(/\b(?:la\s+)?placa\s*(?:es|:)?\s*[.,]/gi, '.');
 
@@ -71,6 +84,7 @@ function tidyStrippedPriceHoles(text: string): string {
     .replace(/\bdisponible\s+por\s+(?:al\s+)?contado\b/gi, 'disponible')
     .replace(/\bpor\s+al\s+contado\b/gi, '')
     .replace(/\b(?:el\s+)?precio\s+de\s+contado\s+es\s+de\s*[.,]?\s*/gi, '')
+    .replace(/\b(?:el\s+)?precio(?:\s+registrado)?\s+es\s*[.,]?\s*/gi, '')
     .replace(/\bentrada\s+de\s+y\b/gi, 'entrada y')
     .replace(/\bes\s+de\s*[.,]/gi, '.')
     .replace(/\bde\s+[.,]/g, '.')

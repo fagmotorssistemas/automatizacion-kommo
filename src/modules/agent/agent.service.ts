@@ -81,8 +81,13 @@ import {
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
   textAsksForCredit,
+  textAsksForListedPrice,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
+import {
+  historySaidMileageCare,
+  stripRepeatedMileageCare,
+} from '../catalog/mileage';
 import {
   followsShownCar,
   formatInterestedCar,
@@ -98,11 +103,18 @@ import {
   formatRevisionMarca,
   formatMissingNamedModel,
   formatNamedUnits,
+  isCityLetterCode,
   modelFamily,
+  pickClosestToMissingModel,
   StockCar,
   textMentionsModel,
   userNamedModel,
 } from '../catalog/clasificar-filas';
+import {
+  carsInBudget,
+  detectCashBudget,
+  formatBudgetRevision,
+} from '../conversation/budget';
 import {
   carsForReview,
   COMPLIANCE_SYSTEM_PROMPT,
@@ -308,9 +320,13 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
-    const askedPrice = resumenAsksForListedPrice(resumen);
-    const askedCredit =
-      resumenAsksForCredit(resumen) || textAsksForCredit(input.customerText);
+    const askedPrice =
+      resumenAsksForListedPrice(resumen) ||
+      textAsksForListedPrice(input.customerText);
+    const cashBudget = detectCashBudget(input.customerText);
+    const askedCredit = cashBudget
+      ? false
+      : resumenAsksForCredit(resumen) || textAsksForCredit(input.customerText);
     const askedOtherColor =
       resumenAsksForOtherColor(resumen) ||
       textAsksForOtherColor(input.customerText);
@@ -405,6 +421,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         ? formatInterestedCar(
             interested,
             (askedPrice || askedCredit) && alreadyShown,
+            { skipMileageCare: historySaidMileageCare(history) },
           )
         : '';
     const saidBoxNow = detectGearbox(input.customerText, lexicon);
@@ -432,8 +449,19 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           (stayOnShown ||
             refersToInterestedCar(input.customerText, interested, lexicon))),
     );
+    const lastAssistantMsg = [...history]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+    const lastAssistantListedOther =
+      askedPrice &&
+      Boolean(
+        lastAssistantMsg &&
+          (!interested ||
+            !textMentionsModel(lastAssistantMsg.content, interested.model)),
+      );
     const canQuotePrice =
-      hasQuotedUnit && alreadyShown && (askedPrice || askedCredit);
+      (hasQuotedUnit && alreadyShown && (askedPrice || askedCredit)) ||
+      lastAssistantListedOther;
     const creditoHint = askedCredit
       ? hasQuotedUnit && alreadyShown
         ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. Cédula solo después de una cuota.'
@@ -467,6 +495,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         storedCedula ||
         cedulaFromThread(input.customerText, history),
     );
+    const mileageCareHint = historySaidMileageCare(history)
+      ? 'Ya dijiste lo del carro cuidado y el mecánico. PROHIBIDO repetirlo. No vuelvas a mencionar mecánico ni “km reales” de respaldo.'
+      : '';
     const cedulaHint = sentCedulaNow
       ? 'YA ENVIÓ LA CÉDULA EN ESTE MENSAJE. PROHIBIDO pedirla otra vez. Confirma que un asesor revisa si califica. No repitas el número.'
       : hasCedula
@@ -486,6 +517,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             creditoHint,
             colorHint,
             cedulaHint,
+            mileageCareHint,
             precioHint,
           ]
         : [
@@ -512,6 +544,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             creditoHint,
             colorHint,
             cedulaHint,
+            mileageCareHint,
             precioHint,
           ]
     )
@@ -587,7 +620,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       const replyId = parsed.meta.vehiculo?.inventory_id;
       const firstPresentation =
         Boolean(replyId) &&
-        (!interested || replyId !== interested.inventoryId);
+        (!interested || replyId !== interested.inventoryId) &&
+        !askedPrice;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
         keepPrice: canQuotePrice,
         keepPlateShort: askedPlate || firstPresentation,
@@ -597,7 +631,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           `Se quitó dato no pedido contactId=${input.contactId}`,
         );
       }
-      parsed.mensaje = cleaned;
+      parsed.mensaje = historySaidMileageCare(history)
+        ? stripRepeatedMileageCare(cleaned)
+        : cleaned;
       if (hasCedula && replyAsksForCedula(parsed.mensaje)) {
         const carLabel = interested
           ? [interested.brand, interested.model, interested.year]
@@ -730,8 +766,17 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const asked = detectNamedModelAsk(customerText, lexicon);
+    const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
+    const wantsListedPrices = /\bprecios?\b/i.test(customerText);
     const targetBrand = asked?.brand || brand;
-    if (!targetBrand && !asked && !spaceAsk && !askedOtherColor) {
+    if (
+      !targetBrand &&
+      !asked &&
+      !spaceAsk &&
+      !askedOtherColor &&
+      !cashBudgetEarly &&
+      !wantsListedPrices
+    ) {
       return empty;
     }
 
@@ -740,8 +785,14 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       isConcreteAsk(customerText) ||
       (Boolean(concreteAsk) && namesBrandNow) ||
       spaceAsk ||
-      askedOtherColor;
-    if (!maybeAsk && !namesBrandNow && !mightNameModel(customerText)) {
+      askedOtherColor ||
+      Boolean(cashBudgetEarly) ||
+      wantsListedPrices;
+    if (
+      !maybeAsk &&
+      !namesBrandNow &&
+      !mightNameModel(customerText)
+    ) {
       return empty;
     }
 
@@ -762,6 +813,22 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         ),
         holdVehicle: true,
         sendId: null,
+      };
+    }
+    const cashBudget = asked ? null : detectCashBudget(customerText);
+    if (cashBudget) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      const hits = carsInBudget(patio, cashBudget, reference?.inventoryId);
+      return {
+        ...formatBudgetRevision({
+          budget: cashBudget,
+          cars: hits,
+          over: reference
+            ? { family: reference.family, price: reference.price }
+            : undefined,
+        }),
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(hits),
       };
     }
     if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
@@ -816,6 +883,24 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
     const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon);
+    if (!asked && wantsListedPrices && lastAssistant) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      const offered = patio.filter((car) =>
+        textMentionsModel(lastAssistant.content, car.model),
+      );
+      if (offered.length > 0) {
+        const named = formatNamedUnits(offered, true);
+        return {
+          ...named,
+          holdVehicle: offered.length !== 1,
+          sendId: offered.length === 1 ? offered[0].id : null,
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(offered),
+          text: `${named.text}
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+        };
+      }
+    }
     if (!asked && (yearAsk || colorAsk || trimAsk)) {
       const offered = lastAssistant
         ? listed.filter((car) =>
@@ -846,6 +931,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           .reverse()
           .map((text) => detectNamedModelAsk(text, lexicon)?.family)
           .find(Boolean) ||
+        reference?.family ||
         '';
       if (threadFamily && !trimAsk) {
         const inFamily = listed.filter((car) =>
@@ -863,13 +949,16 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           };
         }
         if (yearAsk) {
+          const missingYear = formatMissingNamedModel(
+            threadFamily,
+            yearAsk,
+            carsNearYear(inFamily, yearAsk),
+            includePrice,
+          );
           return {
-            ...formatMissingNamedModel(
-              threadFamily,
-              yearAsk,
-              carsNearYear(inFamily, yearAsk),
-              includePrice,
-            ),
+            ...missingYear,
+            text: `${missingYear.text}
+Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de la marca.`,
             switchedModel: true,
             vehicleKind: kindOfNamedUnits(inFamily),
           };
@@ -999,21 +1088,36 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       if (elsewhere.length > 0) {
         return this.namedModelFound(elsewhere, includePrice, false);
       }
+      const sameFamily = listed.filter((car) =>
+        textMentionsModel(car.model, asked.family),
+      );
+      let alternatives =
+        asked.year && sameFamily.length > 0
+          ? carsNearYear(sameFamily, asked.year)
+          : sameFamily;
+      if (alternatives.length === 0) {
+        const patio = await this.catalog.listAvailableExcept('_');
+        const close = pickClosestToMissingModel(patio, asked.family, {
+          inventoryId: reference?.inventoryId,
+          family: reference?.family,
+        });
+        alternatives =
+          close.length > 0
+            ? close
+            : isCityLetterCode(asked.family)
+              ? []
+              : listed;
+      }
       const missing = formatMissingNamedModel(
         asked.family,
         asked.year,
-        asked.year
-          ? carsNearYear(
-              listed.filter((car) => textMentionsModel(car.model, asked.family)),
-              asked.year,
-            )
-          : listed,
+        alternatives,
         includePrice,
       );
       return {
         ...missing,
-        switchedModel: false,
-        vehicleKind: kindOfNamedUnits(listed) ?? vehicleKind,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(alternatives) ?? vehicleKind,
       };
     }
 
@@ -1274,7 +1378,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     return {
       ...named,
       text: `${named.text}
-Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca.`,
+Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca. PROHIBIDO nombrar otra línea (otra pickup u otro modelo). Solo las unidades de arriba. Si ya hay año, manda ESA unidad; no listes las demás.`,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(cars),
     };

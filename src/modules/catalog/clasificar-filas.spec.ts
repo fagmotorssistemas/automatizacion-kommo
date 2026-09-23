@@ -3,6 +3,7 @@ import {
   formatMissingNamedModel,
   formatNamedUnits,
   formatRevisionMarca,
+  pickClosestToMissingModel,
   textMentionsModel,
   userNamedModel,
 } from './clasificar-filas';
@@ -86,6 +87,60 @@ describe('clasificar filas', () => {
     expect(text.sendId).toBe('kona-1');
   });
 
+  it('si no hay i10 elige un hatch, no el Kona ni el Sportage rechazado', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'kona-1',
+          brand: 'hyundai',
+          model: 'kona gls ac 1.6',
+          year: 2022,
+          price: 21990,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'sportage-1',
+          brand: 'kia',
+          model: 'sportage r gti',
+          year: 2019,
+          price: 22900,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'picanto-1',
+          brand: 'kia',
+          model: 'picanto lx ac 1.2',
+          year: 2023,
+          price: 15990,
+          typeBody: 'hatchback',
+        },
+      ],
+      'i10',
+      { inventoryId: 'sportage-1', family: 'sportage' },
+    );
+    expect(close.map((car) => car.id)).toEqual(['picanto-1']);
+  });
+
+  it('X-Trail no se nombra X-Trail TRAIL', () => {
+    const named = formatNamedUnits(
+      [
+        {
+          id: 'xtrail-1',
+          brand: 'nissan',
+          model: 'x-trail sense cvt ac 2.5 5p 4x2 ta',
+          year: 2016,
+          price: 16890,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+    );
+    expect(named.text).toMatch(/x-trail sense/i);
+    expect(named.text).toMatch(/2016/);
+    expect(named.text).not.toMatch(/X-Trail TRAIL/i);
+    expect(named.text).toMatch(/sin plate_short/i);
+  });
+
   it('Land Cruiser Prado pega con prado del inventario', () => {
     expect(
       textMentionsModel(
@@ -151,8 +206,10 @@ describe('clasificar filas', () => {
     const varias = formatNamedUnits(rangers, false);
     expect(varias.holdVehicle).toBe(true);
     expect(varias.sendId).toBeNull();
-    expect(varias.text).toContain('Ranger XLT 2026');
-    expect(varias.text).toContain('Ranger XL 2024');
+    expect(varias.text).toMatch(/ranger xlt/i);
+    expect(varias.text).toMatch(/2026/);
+    expect(varias.text).toMatch(/ranger xl/i);
+    expect(varias.text).toMatch(/2024/);
     expect(varias.text).toContain('11061 km');
     expect(varias.text).toContain('cuál le interesa');
     expect(varias.text).not.toContain('$');

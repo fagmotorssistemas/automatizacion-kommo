@@ -103,10 +103,31 @@ export function formatUnitMileage(mileage: number | null | undefined): string {
   return `, ${Math.round(mileage)} km`;
 }
 
+export function historySaidMileageCare(
+  history?: { role: string; content: string }[],
+): boolean {
+  return (history ?? []).some(
+    (item) =>
+      item.role === 'assistant' &&
+      /mec[aá]nico|carro cuidado y en buen estado/i.test(item.content),
+  );
+}
+
+export function stripRepeatedMileageCare(text: string): string {
+  return text
+    .replace(/\s*Puede traer a su mec[aá]nico[^.]*\./gi, '')
+    .replace(/\s*Es un carro cuidado y en buen estado[^.]*\./gi, '')
+    .replace(/\s*con [\d.,]+\s*km reales\.?/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+\./g, '.')
+    .trim();
+}
+
 export function formatMileageFact(
   mileage: number | null | undefined,
   year?: number | null,
   nowYear = new Date().getFullYear(),
+  options?: { skipClientCare?: boolean },
 ): string {
   if (mileage == null || !Number.isFinite(mileage)) {
     return '';
@@ -116,7 +137,14 @@ export function formatMileageFact(
   }
   const km = `km=${Math.round(mileage)}`;
   const vsYear = assessMileageForYear(mileage, year, nowYear).note;
-  return vsYear ? `${km}\n${vsYear}` : km;
+  const note =
+    options?.skipClientCare && vsYear
+      ? vsYear
+          .replace(/\n?AL CLIENTE:[\s\S]*$/i, '')
+          .replace(/\n?Puede traer a su mec[aá]nico[^\n]*/gi, '')
+          .trim()
+      : vsYear;
+  return note ? `${km}\n${note}` : km;
 }
 
 export function formatMileageForPrompt(

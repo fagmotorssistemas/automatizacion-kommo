@@ -64,6 +64,18 @@ function stripResumenFlags(text: string): string {
     .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '');
 }
 
+/** El cliente pide el valor de la unidad (precio / cotizar / “el valor”). */
+export function textAsksForListedPrice(text: string): boolean {
+  const n = fold(stripResumenFlags(text));
+  if (/\bprecio\s+menor\b/.test(n) || /\bpresupuesto\b/.test(n)) {
+    return false;
+  }
+  if (/\b(?:precios?|cotiz|cotis)/.test(n)) {
+    return true;
+  }
+  return /\biel\s+valor\b|\bel\s+valor\b|\bvalores?\b/.test(n);
+}
+
 /** El mensaje da o pide entrada, plazo o crédito. */
 export function textAsksForCredit(text: string): boolean {
   const n = fold(stripResumenFlags(text));
