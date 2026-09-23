@@ -127,6 +127,29 @@ describe('PersistenceService', () => {
     expect(result.ctwa.matched).toBe(false);
   });
 
+  it('hasShownCar mira ese inventory, no solo el último', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      leadIdKommo: '41807269',
+      name: 'Rosa Gonzalez',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+    });
+    supabase.hasInterestedCar.mockResolvedValue(true);
+
+    await expect(
+      service.hasShownCar('59458509', 'seltos-uuid'),
+    ).resolves.toBe(true);
+    expect(supabase.hasInterestedCar).toHaveBeenCalledWith(
+      'lead-row-1',
+      'seltos-uuid',
+    );
+  });
+
   it('guarda interested_cars si ese inventario es nuevo', async () => {
     supabase.hasInterestedCar.mockResolvedValue(false);
     supabase.insertInterestedCar.mockResolvedValue(undefined);

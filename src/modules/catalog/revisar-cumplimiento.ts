@@ -11,7 +11,7 @@ REGLAS:
 - Si fichas_tecnicas trae seguro=true, ese dato es un hecho de la ficha técnica de ese modelo y año. Si confirma el pedido, cumple. No lo trates como duda.
 - Si seguro=false o el dato es "no consta", y la ficha del patio tampoco lo trae, no cumple. No pongas en duda a los que sí tienen ficha confirmada.
 - El chasis es solo para distinguir la unidad. No lo repitas en la respuesta.
-- plate_short sí se puede usar con el cliente (ej. P7). No inventes ni completes la placa larga.
+- plate_short solo si el cliente preguntó por la placa. No inventes ni completes la placa larga.
 - Devuelve JSON válido y nada más:
 {"cumplen":["id"],"parecidos":["id"],"no_cumplen":["id"]}
 - cumplen: solo los que sí cumplen. Si ninguno cumple, va vacío.
@@ -166,9 +166,9 @@ export function formatComplianceForAgent(
     const closest = review.parecidos.map(line).join('\n');
     if (review.parecidos.length === 1) {
       const id = review.parecidos[0];
-      parts.push(`Ninguno cumple exacto. Lo más parecido de esta marca, y hay que mandarlo: ${line(id)}.`);
+      parts.push(`Ninguno cumple exacto. PRIMERO dilo: no tenemos lo que pidió. DESPUÉS ofrece lo más parecido de esta marca, y hay que mandarlo: ${line(id)}.`);
       parts.push(
-        `Di que es lo más cercano, no que cumple exacto. En meta.vehiculo.inventory_id pon exactamente "${id}".`,
+        `No lo presentes como si fuera el pedido. En meta.vehiculo.inventory_id pon exactamente "${id}".`,
       );
       const near = byId.get(id);
       if (!near?.botId) {

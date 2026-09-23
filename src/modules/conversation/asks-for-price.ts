@@ -7,10 +7,9 @@ export function asksForPrice(text: string): boolean {
 
   return (
     /\bprecios?\b/.test(normalized) ||
+    /\bvalor(?:es)?\b/.test(normalized) ||
+    /\b(?:q|que|k)\s+vale\b/.test(normalized) ||
     /\bcuant[oa]s?\s+(?:cuesta|valen?|sale|queda|es)\b/.test(normalized) ||
-    /\ba\s+como\s+(?:esta|queda|sale)\b/.test(normalized) ||
-    /\bvalor(?:es)?\s+(?:del|de\s+la|de\s+el)\s+(?:carro|auto|vehiculo|camioneta)\b/.test(
-      normalized,
-    )
+    /\ba\s+como\s+(?:esta|queda|sale|vale)\b/.test(normalized)
   );
 }

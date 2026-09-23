@@ -1,9 +1,11 @@
+import { modelFamily } from '../catalog/clasificar-filas';
+
 const BRANDS: { name: string; pattern: RegExp }[] = [
   { name: 'great wall', pattern: /\bgreat\s*wall\b|\bgwm\b/gi },
   { name: 'mercedes benz', pattern: /\bmercedez?(?:\s*benz)?\b/gi },
   { name: 'volkswagen', pattern: /\bvolkswagen\b|\bvw\b/gi },
   { name: 'zx auto', pattern: /\bzx(?:\s*auto)?\b/gi },
-  { name: 'chevrolet', pattern: /\bchevrolet\b|\bchevy\b/gi },
+  { name: 'chevrolet', pattern: /\bchevrolet\b|\bchevy\b|\bchebrole[ct]s?\b/gi },
   { name: 'citroen', pattern: /\bcitro[eë]n\b/gi },
   { name: 'mitsubishi', pattern: /\bmitsubishi\b/gi },
   { name: 'peugeot', pattern: /\bpeugeot\b/gi },
@@ -30,7 +32,42 @@ const BRANDS: { name: string; pattern: RegExp }[] = [
 const TRES_FILAS =
   /\b(?:3|tres)\s+filas?\b|\b7\s*pasajeros?\b|\bsiete\s+pasajeros?\b/i;
 
-export function detectBrand(text: string): string | null {
+/** Modelo inequívoco → marca. "Hilux" es Toyota aunque no la nombren. */
+const MODEL_BRANDS: { brand: string; pattern: RegExp }[] = [
+  { brand: 'toyota', pattern: /\b(?:hilux|hilus|prado|fortuner|4[\s-]*runner|rav4|yaris|corolla|land\s*cruiser)\b/gi },
+  { brand: 'ford', pattern: /\b(?:ranger|explorer|escape|f[\s-]?150)\b/gi },
+  { brand: 'kia', pattern: /\b(?:seltos|sportage|picanto|rio|sorento|cerato)\b/gi },
+  { brand: 'nissan', pattern: /\b(?:frontier|np300|navara|sentra|versa|kicks|x[\s-]?trail)\b/gi },
+  { brand: 'chevrolet', pattern: /\b(?:d[\s-]?max|colorado|tracker|aveo|optra|sail|spark)\b/gi },
+  { brand: 'volkswagen', pattern: /\b(?:t[\s-]?cross|tiguan|amarok|vento|jetta)\b/gi },
+  { brand: 'hyundai', pattern: /\b(?:tucson|accent|creta|santa\s*fe|ix\s*35)\b/gi },
+  { brand: 'mazda', pattern: /\b(?:bt[\s-]?50|cx[\s-]?5|cx[\s-]?30)\b/gi },
+  { brand: 'great wall', pattern: /\b(?:poer|wingle)\b/gi },
+  { brand: 'mitsubishi', pattern: /\b(?:l200|montero)\b/gi },
+  { brand: 'suzuki', pattern: /\b(?:jimny|vitara|swift)\b/gi },
+  { brand: 'foton', pattern: /\btunland\b/gi },
+];
+
+function foldAccents(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+export function detectBrandFromModel(text: string): string | null {
+  const folded = foldAccents(text);
+  let winner: { brand: string; index: number } | null = null;
+  for (const row of MODEL_BRANDS) {
+    row.pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = row.pattern.exec(folded)) !== null) {
+      if (!winner || match.index >= winner.index) {
+        winner = { brand: row.brand, index: match.index };
+      }
+    }
+  }
+  return winner?.brand ?? null;
+}
+
+function detectBrandName(text: string): string | null {
   let winner: { name: string; index: number } | null = null;
 
   for (const brand of BRANDS) {
@@ -44,6 +81,45 @@ export function detectBrand(text: string): string | null {
   }
 
   return winner?.name ?? null;
+}
+
+export function detectBrand(text: string): string | null {
+  return detectBrandFromModel(text) ?? detectBrandName(text);
+}
+
+export type NamedModelAsk = {
+  brand: string;
+  family: string;
+  year: number | null;
+};
+
+/** Último modelo concreto del mensaje (Sportage, Tucson) y año si lo dijo. */
+export function detectNamedModelAsk(text: string): NamedModelAsk | null {
+  const folded = foldAccents(text);
+  let winner: { brand: string; family: string; index: number } | null = null;
+  for (const row of MODEL_BRANDS) {
+    row.pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = row.pattern.exec(folded)) !== null) {
+      const family = modelFamily(match[0]);
+      if (!family) {
+        continue;
+      }
+      if (!winner || match.index >= winner.index) {
+        winner = { brand: row.brand, family, index: match.index };
+      }
+    }
+  }
+  if (!winner) {
+    return null;
+  }
+  const yearHit = folded.match(/\b((?:19|20)\d{2})\b/);
+  const year = yearHit ? Number(yearHit[1]) : null;
+  return {
+    brand: winner.brand,
+    family: winner.family,
+    year: year && year >= 1990 && year <= 2035 ? year : null,
+  };
 }
 
 export function resolveBrand(input: {

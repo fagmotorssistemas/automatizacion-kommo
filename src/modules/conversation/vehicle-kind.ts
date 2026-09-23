@@ -6,7 +6,7 @@ const DETECTORS: { kind: VehicleKind; pattern: RegExp }[] = [
   {
     kind: 'camioneta',
     pattern:
-      /\b(?:camionet\w*|pick[\s-]?ups?|doble cabina|cabina doble|cabina simple)\b/gi,
+      /\b(?:camionet\w*|pick[\s-]?ups?|pikups?|picups?|doble cabina|cabina doble|cabina simple)\b/gi,
   },
   {
     kind: 'suv',
@@ -160,7 +160,8 @@ export function formatPedidoVigente(kind: VehicleKind | null): string {
   return `PEDIDO VIGENTE DEL CLIENTE
 Tipo: ${kind}
 El cliente pidió ${LABELS[kind]}. Sigue vigente aunque pasen varios mensajes y no lo repita.
-Solo ofrece vehículos de este tipo. Doble cabina, cabina doble y cabina simple son camioneta.
+Solo ofrece vehículos de este tipo, SALVO que nombre un modelo de otro tipo (Hilux, Ranger = camioneta aunque antes haya pedido SUV).
+Doble cabina, cabina doble y cabina simple son camioneta.
 "Parecida" u "otra" es otro vehículo del mismo tipo.
 En buscarvehiuclo pasa siempre tipo="${kind}".`;
 }

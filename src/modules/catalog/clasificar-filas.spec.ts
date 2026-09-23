@@ -1,5 +1,6 @@
 import {
   clasificarFilas,
+  formatMissingNamedModel,
   formatNamedUnits,
   formatRevisionMarca,
   textMentionsModel,
@@ -62,6 +63,41 @@ describe('clasificar filas', () => {
     expect(textMentionsModel('Nissan', nissans[0].model)).toBe(false);
     expect(userNamedModel(['Nissan'], nissans)).toBe(false);
     expect(userNamedModel(['quiero la x trail'], nissans)).toBe(true);
+  });
+
+  it('si no hay Tucson primero lo dice y después ofrece otra', () => {
+    const text = formatMissingNamedModel(
+      'tucson',
+      null,
+      [
+        {
+          id: 'kona-1',
+          brand: 'hyundai',
+          model: 'kona gls ac 1.6',
+          year: 2022,
+          price: 21990,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+    );
+    expect(text.text).toMatch(/no tenemos Tucson/i);
+    expect(text.text).toContain('kona');
+    expect(text.sendId).toBe('kona-1');
+  });
+
+  it('Land Cruiser Prado pega con prado del inventario', () => {
+    expect(
+      textMentionsModel(
+        'Me interesa el Toyota Land Cruiser Prado',
+        'prado txl ac 2.7 5p 4x4 ta',
+      ),
+    ).toBe(true);
+  });
+
+  it('Río con tilde pega con rio del inventario', () => {
+    expect(textMentionsModel('Río ?', 'rio lx ac 1.4 4p')).toBe(true);
+    expect(textMentionsModel('Kia rio', 'rio lx ac 1.4 4p')).toBe(true);
   });
 
   it('4runner pega con 4 runner del inventario', () => {

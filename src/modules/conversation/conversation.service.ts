@@ -114,6 +114,21 @@ export class ConversationService {
     }
   }
 
+  async clearGearbox(contactId: string): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.del(gearboxKey(contactId));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo borrar la caja contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
   async loadVehicleBrand(contactId: string): Promise<string | null> {
     if (!contactId) {
       return null;
@@ -183,6 +198,21 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar el pedido concreto contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async clearConcreteAsk(contactId: string): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.del(concreteAskKey(contactId));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo borrar el pedido concreto contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

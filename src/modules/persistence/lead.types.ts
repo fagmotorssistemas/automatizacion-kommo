@@ -125,6 +125,10 @@ export type InterestedCarSnapshot = {
   year: number | null;
   price: number | null;
   typeBody?: string | null;
+  mileage?: number | null;
+  color?: string | null;
+  plateShort?: string | null;
+  transmission?: string | null;
 };
 
 export type CtwaMatch = {

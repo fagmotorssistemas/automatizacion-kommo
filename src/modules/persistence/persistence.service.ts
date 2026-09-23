@@ -442,6 +442,30 @@ export class PersistenceService {
     }
   }
 
+  /** Este inventory ya se presentó a este contacto (interested_cars). */
+  async hasShownCar(
+    contactId: string,
+    inventoryId: string,
+  ): Promise<boolean> {
+    if (!this.supabase || !contactId || !inventoryId) {
+      return false;
+    }
+
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (!lead) {
+        return false;
+      }
+      return await this.supabase.hasInterestedCar(lead.id, inventoryId);
+    } catch (error) {
+      this.logger.error(
+        `hasShownCar falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
   async latestInterestedCar(
     contactId: string,
   ): Promise<InterestedCarSnapshot | null> {

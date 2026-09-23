@@ -37,6 +37,8 @@ const sportage: StockCar = {
 describe('caja', () => {
   it('lee manual del mensaje y ta/tm del modelo', () => {
     expect(detectGearbox('Y en manual no dispone')).toBe('manual');
+    expect(detectGearbox('Hilux Manuel')).toBe('manual');
+    expect(detectGearbox('Hola soy Manuel')).toBeNull();
     expect(detectGearbox('lo quiero automático')).toBe('automatica');
     expect(gearboxOf(picanto)).toBe('automatica');
     expect(gearboxOf(fiat)).toBe('manual');

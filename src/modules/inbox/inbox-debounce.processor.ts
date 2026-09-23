@@ -5,6 +5,8 @@ import { AgentService } from '../agent/agent.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { OutboundService } from '../outbound/outbound.service';
+import { asksForPrice } from '../conversation/asks-for-price';
+import { asksForPhotos } from '../outbound/should-send-photos';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
 import { InboxService } from './inbox.service';
@@ -212,9 +214,28 @@ export class InboxDebounceProcessor extends WorkerHost {
       },
     });
 
+    const inventoryId = turn.reply.meta.vehiculo?.inventory_id?.trim() ?? '';
+    const latestShown = await this.persistenceService.latestInterestedCar(
+      data.contactId,
+    );
+    const alreadyShown = inventoryId
+      ? latestShown?.inventoryId === inventoryId ||
+        (await this.persistenceService.hasShownCar(
+          data.contactId,
+          inventoryId,
+        ))
+      : false;
     const outbound = await this.outboundService.dispatch(
       data.leadId,
       turn.reply,
+      {
+        alreadyShown,
+        wantsPhotos: asksForPhotos(inbound.message),
+        skipFirstShot:
+          Boolean(latestShown) &&
+          asksForPrice(inbound.message) &&
+          !asksForPhotos(inbound.message),
+      },
     );
     if (!outbound.shadow) {
       await this.inboxService.markOutboundSent(

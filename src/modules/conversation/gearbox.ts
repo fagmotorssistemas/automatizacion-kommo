@@ -1,9 +1,11 @@
 import { modelFamily, StockCar } from '../catalog/clasificar-filas';
 import { kindFromTypeBody, VehicleKind } from './vehicle-kind';
+import { detectBrandFromModel } from './vehicle-brand';
 
 export type Gearbox = 'manual' | 'automatica';
 
-const MANUAL = /\b(?:manual(?:es)?|mec[aá]nic[oa]s?)\b/gi;
+const MANUAL = /\b(?:manual(?:es)?|mec[aá]nic[oa]s?|manuak|manaul)\b/gi;
+const MANUEL_TYPO = /\bmanue?l\b/gi;
 const AUTOMATIC = /\bautom[aá]tic[oa]s?\b/gi;
 
 /** 25% alrededor del precio del carro que ya estaban viendo. */
@@ -11,10 +13,14 @@ const PRICE_BAND = 0.25;
 
 export function detectGearbox(text: string): Gearbox | null {
   let winner: { gearbox: Gearbox; index: number } | null = null;
-  for (const detector of [
-    { gearbox: 'manual' as const, pattern: MANUAL },
-    { gearbox: 'automatica' as const, pattern: AUTOMATIC },
-  ]) {
+  const detectors: { gearbox: Gearbox; pattern: RegExp }[] = [
+    { gearbox: 'manual', pattern: MANUAL },
+    { gearbox: 'automatica', pattern: AUTOMATIC },
+  ];
+  if (detectBrandFromModel(text)) {
+    detectors.push({ gearbox: 'manual', pattern: MANUEL_TYPO });
+  }
+  for (const detector of detectors) {
     detector.pattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = detector.pattern.exec(text)) !== null) {

@@ -125,7 +125,7 @@ describe('revisión de cumplimiento', () => {
       noCumplen: ['sentra', 'epower'],
     };
     const text = formatComplianceForAgent('7 pasajeros', cars, review);
-    expect(text).toContain('Lo más parecido');
+    expect(text).toMatch(/lo más parecido/i);
     expect(text).toContain('inventory_id=xtrail');
     expect(text).toContain('No pases a otra marca');
     expect(vehicleToSend(review, null)).toBe('xtrail');

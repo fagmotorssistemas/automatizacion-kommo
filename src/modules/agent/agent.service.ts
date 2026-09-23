@@ -36,10 +36,15 @@ import {
   resolveVehicleKind,
   VehicleKind,
 } from '../conversation/vehicle-kind';
-import { detectBrand, resolveBrand } from '../conversation/vehicle-brand';
+import {
+  detectBrand,
+  detectNamedModelAsk,
+  resolveBrand,
+} from '../conversation/vehicle-brand';
 import {
   bodyGroupOf,
   carBodyGroup,
+  detectGearbox,
   formatGearboxAlternatives,
   formatGearboxPedido,
   gearboxOf,
@@ -50,16 +55,19 @@ import {
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
 import { asksForPrice } from '../conversation/asks-for-price';
 import {
+  asksForPlate,
   messageLeaksPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
 import {
+  followsShownCar,
   formatInterestedCar,
   refersToInterestedCar,
 } from '../conversation/interested-car';
 import {
   formatRevisionMarca,
+  formatMissingNamedModel,
   formatNamedUnits,
   modelFamily,
   StockCar,
@@ -74,6 +82,10 @@ import {
   parseComplianceReview,
   vehicleToSend,
 } from '../catalog/revisar-cumplimiento';
+import {
+  carsFromMatchJson,
+  inventorySearchPlan,
+} from '../catalog/inventory-search-plan';
 import {
   carsForSpecLookup,
   factsFromResearch,
@@ -100,6 +112,60 @@ function namedOfferId(
       userTexts.some((text) => textMentionsModel(text, car.model)),
   );
   return named.length === 1 ? named[0].id : null;
+}
+
+type BrandReview = {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  switchedModel?: boolean;
+  vehicleKind?: VehicleKind | null;
+};
+
+function kindOfNamedUnits(cars: StockCar[]): VehicleKind | null {
+  const kinds = [
+    ...new Set(
+      cars
+        .map((car) => kindFromTypeBody(car.typeBody))
+        .filter((kind): kind is VehicleKind => Boolean(kind)),
+    ),
+  ];
+  return kinds.length === 1 ? kinds[0] : null;
+}
+
+const MODEL_STOP = new Set([
+  'que',
+  'precio',
+  'vale',
+  'cuesta',
+  'este',
+  'esta',
+  'eso',
+  'ese',
+  'mismo',
+  'hola',
+  'okey',
+  'por',
+  'favor',
+  'una',
+  'uno',
+  'los',
+  'las',
+  'con',
+  'para',
+  'tiene',
+  'hay',
+]);
+
+/** Palabra que puede ser un modelo (rio, seltos), no "ok" ni "precio". */
+function mightNameModel(text: string): boolean {
+  return text.split(/[^\p{L}0-9]+/u).some((word) => {
+    const token = word
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return token.length >= 3 && !MODEL_STOP.has(token);
+  });
 }
 
 @Injectable()
@@ -174,24 +240,44 @@ export class AgentService {
     const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
     const selling = turnIsSellingTheirCar(promptNames, resumen);
     const buying = turnAlsoWantsToBuy(promptNames, resumen);
+    const stayOnShown = followsShownCar({
+      text: input.customerText,
+      resumen,
+      history,
+      car: interested,
+    });
     const revision =
       selling && !buying
         ? { text: '', holdVehicle: true, sendId: null }
-        : await this.reviewBrand(
-            history,
-            input.customerText,
-            selling ? detectBrand(input.customerText) : brand,
-            concreteAsk,
-            showPrice,
-            vehicleKind,
-            gearbox,
-            interested
-              ? {
-                  price: interested.price,
-                  family: modelFamily(interested.model),
-                }
-              : null,
-          );
+        : stayOnShown && interested
+          ? {
+              text: `EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS (${interested.brand} ${interested.model}).
+inventory_id=${interested.inventoryId}
+Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ESTA unidad.
+No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
+No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
+              holdVehicle:
+                isMoneyNotVisit(input.customerText) && !showPrice,
+              sendId:
+                isMoneyNotVisit(input.customerText) && !showPrice
+                  ? null
+                  : interested.inventoryId,
+            }
+          : await this.reviewBrand(
+              history,
+              input.customerText,
+              selling ? detectBrand(input.customerText) : brand,
+              concreteAsk,
+              showPrice,
+              vehicleKind,
+              gearbox,
+              interested
+                ? {
+                    price: interested.price,
+                    family: modelFamily(interested.model),
+                  }
+                : null,
+            );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
     const shownOtherBox =
       gearbox &&
@@ -200,23 +286,62 @@ export class AgentService {
       gearboxOf(interested) !== gearbox;
     const interestedText =
       interested &&
-      refersToInterestedCar(input.customerText, interested) &&
+      (stayOnShown ||
+        refersToInterestedCar(input.customerText, interested)) &&
       !shownOtherBox
         ? formatInterestedCar(interested, showPrice)
         : '';
-    const pedidoVigente = [
-      formatPedidoVigente(vehicleKind),
-      formatGearboxPedido(gearbox),
-      revision.text,
-      interestedText,
-      isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
-      isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
-      formatVisitHourHint(input.customerText),
-      selling ? SU_CARRO_NO_SE_OFRECE : '',
-      showPrice || (selling && !buying)
+    const saidBoxNow = detectGearbox(input.customerText);
+    if (revision.switchedModel) {
+      if (!saidBoxNow) {
+        await this.conversation.clearGearbox(input.contactId);
+      }
+      await this.conversation.clearConcreteAsk(input.contactId);
+      if (revision.vehicleKind) {
+        await this.conversation.saveVehicleKind(
+          input.contactId,
+          revision.vehicleKind,
+        );
+      }
+    }
+    const cambioModelo =
+      revision.switchedModel && interested
+        ? `CAMBIO DE MODELO: el cliente ya no habla del ${interested.brand} ${interested.model}. Prohibido volver a ofrecerlo ni poner su inventory_id. Habla solo del que pidió ahora.`
+        : '';
+    const precioHint = showPrice
+      ? 'PIDIÓ EL PRECIO de esta unidad: dilo ($…). Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
+      : selling && !buying
         ? ''
-        : 'EN ESTE TURNO el cliente NO pidió el precio: prohibido decir el valor del carro ($…, precio de…). Sí puedes decir plate_short (ej. "La placa es P7"). Prohibido placa completa y chasis.',
-    ]
+        : 'Si el resumen no pide el precio, no lo digas. Placa solo en la primera presentación de ese carro o si la preguntó. Prohibido placa completa y chasis.';
+    const pedidoVigente = (
+      stayOnShown
+        ? [
+            revision.text,
+            interestedText,
+            isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+            isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
+            formatVisitHourHint(input.customerText),
+            precioHint,
+          ]
+        : [
+            formatPedidoVigente(
+              revision.switchedModel
+                ? (revision.vehicleKind ?? null)
+                : vehicleKind,
+            ),
+            formatGearboxPedido(
+              revision.switchedModel && !saidBoxNow ? null : gearbox,
+            ),
+            cambioModelo,
+            revision.text,
+            interestedText,
+            isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+            isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
+            formatVisitHourHint(input.customerText),
+            selling ? SU_CARRO_NO_SE_OFRECE : '',
+            precioHint,
+          ]
+    )
       .filter(Boolean)
       .join('\n\n');
     const system = salesSystemPrompt(
@@ -233,7 +358,7 @@ export class AgentService {
         this.executeTool(
           name,
           argsJson,
-          vehicleKind,
+          revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
           showPrice,
         ),
@@ -249,6 +374,13 @@ export class AgentService {
         ...(parsed.meta.vehiculo ?? {}),
         inventory_id: revision.sendId,
       };
+      parsed.img_prefix = '';
+    } else if (
+      revision.switchedModel &&
+      interested &&
+      parsed.meta.vehiculo?.inventory_id === interested.inventoryId
+    ) {
+      parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
     } else if (revision.holdVehicle || isMoneyNotVisit(input.customerText)) {
       parsed.meta.vehiculo = null;
@@ -273,15 +405,25 @@ export class AgentService {
       parsed.meta.vehiculo.precio = Math.round(interested.price);
     }
 
-    if (!showPrice && parsed.mensaje) {
-      const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje);
-      if (cleaned !== parsed.mensaje || messageLeaksPrice(parsed.mensaje)) {
+    if (parsed.mensaje) {
+      const askedPlate = asksForPlate(input.customerText);
+      const replyId = parsed.meta.vehiculo?.inventory_id;
+      const firstPresentation =
+        Boolean(replyId) &&
+        (!interested || replyId !== interested.inventoryId);
+      const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
+        keepPrice: showPrice,
+        keepPlateShort: askedPlate || firstPresentation,
+      });
+      if (cleaned !== parsed.mensaje || (!showPrice && messageLeaksPrice(parsed.mensaje))) {
         this.logger.warn(
-          `Se quitó precio no pedido contactId=${input.contactId}`,
+          `Se quitó dato no pedido contactId=${input.contactId}`,
         );
       }
       parsed.mensaje = cleaned;
-      parsed.meta.precioMostrado = false;
+      if (!showPrice) {
+        parsed.meta.precioMostrado = false;
+      }
     }
 
     if (parsed.mensaje) {
@@ -379,23 +521,136 @@ export class AgentService {
     vehicleKind: VehicleKind | null,
     gearbox: Gearbox | null,
     reference: { price: number | null; family: string | null } | null,
-  ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
-    const empty = { text: '', holdVehicle: false, sendId: null };
-    if (!brand) {
+  ): Promise<BrandReview> {
+    const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
+    const asked = detectNamedModelAsk(customerText);
+    const targetBrand = asked?.brand || brand;
+    if (!targetBrand) {
       return empty;
     }
+
+    const namesBrandNow = Boolean(detectBrand(customerText));
+    const maybeAsk =
+      isConcreteAsk(customerText) ||
+      (Boolean(concreteAsk) && namesBrandNow);
+    if (!maybeAsk && !namesBrandNow && !mightNameModel(customerText)) {
+      return empty;
+    }
+
+    const listed = await this.catalog.listByBrand(targetBrand);
+    const saidBox = detectGearbox(customerText);
+    const lastAssistant = [...history]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+    if (saidBox && lastAssistant && !asked) {
+      const offered = listed.filter((car) =>
+        textMentionsModel(lastAssistant.content, car.model),
+      );
+      const boxed = offered.filter((car) => gearboxOf(car) === saidBox);
+      if (boxed.length > 0) {
+        const named = formatNamedUnits(boxed, includePrice);
+        return {
+          ...named,
+          text: `${named.text}
+El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido decir que no está o "lo más cercano".`,
+          switchedModel: false,
+          vehicleKind: kindOfNamedUnits(boxed),
+        };
+      }
+    }
+    const namedNow = listed.filter(
+      (car) =>
+        textMentionsModel(customerText, car.model) ||
+        (asked ? textMentionsModel(car.model, asked.family) : false),
+    );
+    const referenceFamily = reference?.family ?? '';
+    if (namedNow.length > 0) {
+      const boxed = saidBox
+        ? namedNow.filter((car) => gearboxOf(car) === saidBox)
+        : namedNow;
+      let offer = boxed.length > 0 ? boxed : namedNow;
+      if (asked?.year) {
+        const exactYear = offer.filter((car) => car.year === asked.year);
+        if (exactYear.length > 0) {
+          offer = exactYear;
+        } else {
+          const yearFromEmbed = (
+            await this.lookupNamedByEmbedding(
+              customerText,
+              asked.family,
+              asked.brand,
+              listed,
+              includePrice,
+            )
+          ).filter((car) => car.year === asked.year);
+          if (yearFromEmbed.length > 0) {
+            return this.namedModelFound(yearFromEmbed, includePrice, true);
+          }
+          const missingYear = formatMissingNamedModel(
+            asked.family,
+            asked.year,
+            offer,
+            includePrice,
+          );
+          return {
+            ...missingYear,
+            switchedModel: true,
+            vehicleKind: kindOfNamedUnits(offer),
+          };
+        }
+      }
+      return this.namedModelFound(offer, includePrice, false);
+    }
+    if (asked) {
+      const fromEmbed = await this.lookupNamedByEmbedding(
+        customerText,
+        asked.family,
+        asked.brand,
+        listed,
+        includePrice,
+      );
+      if (fromEmbed.length > 0) {
+        return this.namedModelFound(fromEmbed, includePrice, true);
+      }
+      const missing = formatMissingNamedModel(
+        asked.family,
+        asked.year,
+        listed,
+        includePrice,
+      );
+      return {
+        ...missing,
+        switchedModel: false,
+        vehicleKind: kindOfNamedUnits(listed) ?? vehicleKind,
+      };
+    }
+
+    const mentionsReference = Boolean(
+      referenceFamily && textMentionsModel(customerText, referenceFamily),
+    );
+    const askingOther =
+      Boolean(referenceFamily) &&
+      !mentionsReference &&
+      Boolean(detectBrand(customerText));
 
     const asksNow =
       isConcreteAsk(customerText) ||
-      (Boolean(concreteAsk) && Boolean(detectBrand(customerText)));
-    const namesBrandNow = Boolean(detectBrand(customerText));
+      (Boolean(concreteAsk) && namesBrandNow && !askingOther);
     if (!asksNow && !namesBrandNow) {
       return empty;
     }
+    if (askingOther && !asksNow) {
+      return {
+        text: '',
+        holdVehicle: false,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: null,
+      };
+    }
 
-    const listed = await this.catalog.listByBrand(brand);
     let stock = listed;
-    if (gearbox && reference?.family) {
+    if (gearbox && reference?.family && !askingOther) {
       const group = bodyGroupOf(vehicleKind);
       const inBrand = pickGearboxAlternatives({
         cars: listed,
@@ -407,7 +662,7 @@ export class AgentService {
       if (inBrand?.sameModel) {
         stock = inBrand.cars;
       } else {
-        const others = await this.catalog.listAvailableExcept(brand);
+        const others = await this.catalog.listAvailableExcept(targetBrand);
         const pick = pickGearboxAlternatives({
           cars: [...listed, ...others],
           gearbox,
@@ -432,7 +687,7 @@ export class AgentService {
           : stock;
     if (vehicleKind && listed.length > 0 && cars.length === 0) {
       return {
-        text: `De ${brand} no hay ${vehicleKind} disponible. No ofrezcas otro tipo. vehiculo null.`,
+        text: `De ${targetBrand} no hay ${vehicleKind} disponible. No ofrezcas otro tipo. vehiculo null.`,
         holdVehicle: true,
         sendId: null,
       };
@@ -460,7 +715,7 @@ export class AgentService {
       }
       return {
         text: formatRevisionMarca({
-          marca: brand,
+          marca: targetBrand,
           cars,
           tresFilas: false,
           soloMarca: true,
@@ -615,6 +870,54 @@ export class AgentService {
     return facts;
   }
 
+  private namedModelFound(
+    cars: StockCar[],
+    includePrice: boolean,
+    fromEmbed: boolean,
+  ): BrandReview {
+    const named = formatNamedUnits(cars, includePrice);
+    const via = fromEmbed ? ' (búsqueda por inventario)' : '';
+    return {
+      ...named,
+      text: `${named.text}
+Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca.`,
+      switchedModel: true,
+      vehicleKind: kindOfNamedUnits(cars),
+    };
+  }
+
+  private async lookupNamedByEmbedding(
+    query: string,
+    family: string,
+    brand: string,
+    listed: StockCar[],
+    includePrice: boolean,
+  ): Promise<StockCar[]> {
+    const embedding = await this.openai.embed(query);
+    if (!embedding?.length) {
+      return [];
+    }
+    const raw = await this.catalog.searchByQuery({
+      embedding,
+      query,
+      tipo: null,
+      marca: brand,
+      includePrice,
+    });
+    const hits = carsFromMatchJson(raw).filter(
+      (car) =>
+        textMentionsModel(car.model, family) ||
+        modelFamily(car.model) === family,
+    );
+    if (hits.length === 0) {
+      this.logger.log(`Embedding no halló ${family} (marca=${brand})`);
+      return [];
+    }
+    this.logger.log(`Embedding halló ${family}: ${hits.map((car) => car.id).join(',')}`);
+    const listedById = new Map(listed.map((car) => [car.id, car]));
+    return hits.map((car) => listedById.get(car.id) ?? car);
+  }
+
   private async executeTool(
     name: string,
     argsJson: string,
@@ -634,10 +937,15 @@ export class AgentService {
       const tipo = vehicleKind ?? parseVehicleKind(args.tipo);
       const fromTool = String(args.marca ?? '').trim();
       const marca = brand ?? (fromTool || null);
+      const plan = inventorySearchPlan(query, tipo, marca);
       const embedding = await this.openai.embed(query);
-      return marca
-        ? this.catalog.searchInventory(embedding ?? [], tipo, marca, includePrice)
-        : this.catalog.searchInventory(embedding ?? [], tipo, null, includePrice);
+      return this.catalog.searchByQuery({
+        embedding: embedding ?? [],
+        query,
+        tipo: plan.tipo,
+        marca: plan.marca,
+        includePrice,
+      });
     }
 
     if (name === 'calcular_financiamiento') {

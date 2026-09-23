@@ -1,6 +1,49 @@
-import { detectBrand, detectTresFilas, resolveBrand, resolveTresFilas } from './vehicle-brand';
+import {
+  detectBrand,
+  detectNamedModelAsk,
+  detectTresFilas,
+  resolveBrand,
+  resolveTresFilas,
+} from './vehicle-brand';
 
 describe('marca y tres filas', () => {
+  it('Aveo y Chebrolec son Chevrolet', () => {
+    expect(detectNamedModelAsk('Aveo')).toEqual({
+      brand: 'chevrolet',
+      family: 'aveo',
+      year: null,
+    });
+    expect(detectBrand('Chebrolec')).toBe('chevrolet');
+  });
+
+  it('Río con tilde es el mismo Kia Rio', () => {
+    expect(detectNamedModelAsk('Río ?')).toEqual({
+      brand: 'kia',
+      family: 'rio',
+      year: null,
+    });
+    expect(detectBrand('Río ?')).toBe('kia');
+  });
+
+  it('Sportage manda sobre un Hyundai suelto en el mismo mensaje', () => {
+    expect(
+      detectBrand(
+        'Quiero más información sobre el Kia Sportage 2019\nTiene en Hyundai ix\nSí, por favor',
+      ),
+    ).toBe('kia');
+  });
+
+  it('Hilux sin marca es Toyota y suelta la marca anterior', () => {
+    expect(detectBrand('Hilux Manuel')).toBe('toyota');
+    expect(
+      resolveBrand({
+        history: [{ role: 'user', content: 'esa gris' }],
+        customerText: 'Hilux Manuel',
+        remembered: 'volkswagen',
+      }),
+    ).toBe('toyota');
+  });
+
   it('detecta nissan y se queda con la última marca del mensaje', () => {
     expect(detectBrand('Nissan')).toBe('nissan');
     expect(detectBrand('no quiero hyundai, yo necesito un Nissan')).toBe(

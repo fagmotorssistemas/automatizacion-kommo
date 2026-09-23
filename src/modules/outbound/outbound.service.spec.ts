@@ -109,6 +109,56 @@ describe('OutboundService', () => {
     expect(crm.runSalesbot).not.toHaveBeenCalled();
   });
 
+  it('no reenvía fotos si ese carro ya se mostró', async () => {
+    const result = await service.dispatch(
+      '41807269',
+      {
+        mensaje: 'El Seltos está en $19990.',
+        meta: {
+          precioMostrado: true,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: UUID },
+        },
+        img_prefix: '',
+      },
+      { alreadyShown: true },
+    );
+
+    expect(result.photoBots).toEqual([]);
+    expect(result.missingPhotos).toBe(false);
+    expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
+    expect(crm.runSalesbot).toHaveBeenCalledTimes(1);
+    expect(crm.runSalesbot).toHaveBeenCalledWith(
+      KOMMO_SALESBOT.TEXTO,
+      '41807269',
+    );
+    expect(crm.setRespuestaIa).toHaveBeenCalledWith(
+      '41807269',
+      'El Seltos está en $19990.',
+    );
+  });
+
+  it('si pide fotos otra vez, sí las manda aunque ya las haya visto', async () => {
+    await service.dispatch(
+      '41807269',
+      {
+        mensaje: 'Aquí de nuevo las fotos.',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: UUID },
+        },
+        img_prefix: '',
+      },
+      { alreadyShown: true, wantsPhotos: true },
+    );
+
+    expect(catalog.resolvePhotoBots).toHaveBeenCalledWith({
+      inventoryId: UUID,
+    });
+    expect(crm.runSalesbot).toHaveBeenNthCalledWith(2, 166291, '41807269');
+  });
+
   it('en vivo dispara el salesbot 187553', async () => {
     await expect(service.announceNewContact('41807269')).resolves.toEqual({
       ran: true,

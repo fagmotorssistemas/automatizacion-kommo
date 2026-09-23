@@ -5,8 +5,15 @@ import {
 } from '../persistence/supabase.gateway';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 import { StockCar } from './clasificar-filas';
+import { detectNamedModelAsk } from '../conversation/vehicle-brand';
+import {
+  INVENTORY_NAMED_TOP_K,
+  INVENTORY_TOP_K,
+  inventorySearchPlan,
+  matchRowsMentionFamily,
+} from './inventory-search-plan';
 
-export const INVENTORY_TOP_K = 3;
+export { INVENTORY_TOP_K };
 
 function hidePrices(rows: unknown): unknown {
   if (!Array.isArray(rows)) {
@@ -59,20 +66,17 @@ export class CatalogService {
     tipo?: VehicleKind | null,
     marca?: string | null,
     includePrice = false,
+    matchCount = INVENTORY_TOP_K,
   ): Promise<string> {
     if (!this.supabase || embedding.length === 0) {
       return '[]';
     }
 
     try {
-      const rows = await this.supabase.matchInventory(
-        embedding,
-        INVENTORY_TOP_K,
-        {
-          ...(tipo ? { tipo } : {}),
-          ...(marca ? { marca } : {}),
-        },
-      );
+      const rows = await this.supabase.matchInventory(embedding, matchCount, {
+        ...(tipo ? { tipo } : {}),
+        ...(marca ? { marca } : {}),
+      });
       return JSON.stringify(
         includePrice ? (rows ?? []) : hidePrices(rows ?? []),
       );
@@ -83,6 +87,68 @@ export class CatalogService {
       );
       return '[]';
     }
+  }
+
+  /**
+   * Embedding primero. Si nombra un modelo, no se clava en SUV/sedán viejo.
+   * Si no aparece, reintenta sin tipo y luego sin marca.
+   */
+  async searchByQuery(input: {
+    embedding: number[];
+    query: string;
+    tipo?: VehicleKind | null;
+    marca?: string | null;
+    includePrice?: boolean;
+  }): Promise<string> {
+    const includePrice = input.includePrice === true;
+    const plan = inventorySearchPlan(
+      input.query,
+      input.tipo ?? null,
+      input.marca ?? null,
+    );
+    const topK = plan.named ? INVENTORY_NAMED_TOP_K : INVENTORY_TOP_K;
+    const family = detectNamedModelAsk(input.query)?.family ?? '';
+
+    const first = await this.searchInventory(
+      input.embedding,
+      plan.tipo,
+      plan.marca,
+      includePrice,
+      topK,
+    );
+    if (!family || matchRowsMentionFamily(first, family)) {
+      return first;
+    }
+
+    if (plan.tipo) {
+      const withoutTipo = await this.searchInventory(
+        input.embedding,
+        null,
+        plan.marca,
+        includePrice,
+        topK,
+      );
+      if (matchRowsMentionFamily(withoutTipo, family)) {
+        this.logger.log(`Embedding sin tipo encontró ${family}`);
+        return withoutTipo;
+      }
+    }
+
+    if (plan.marca) {
+      const open = await this.searchInventory(
+        input.embedding,
+        null,
+        null,
+        includePrice,
+        topK,
+      );
+      if (matchRowsMentionFamily(open, family)) {
+        this.logger.log(`Embedding sin marca encontró ${family}`);
+        return open;
+      }
+    }
+
+    return first;
   }
 
   async listAvailableExcept(brand: string): Promise<StockCar[]> {

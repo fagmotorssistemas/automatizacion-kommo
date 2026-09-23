@@ -29,4 +29,14 @@ describe('stripUnsolicitedPriceAndPlate', () => {
       false,
     );
   });
+
+  it('si no preguntó placa quita también la corta', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'El X-Trail 2016 azul tiene 144904 km. La placa es L5, con documentos en regla.',
+      { keepPlateShort: false },
+    );
+    expect(clean).not.toMatch(/placa/i);
+    expect(clean).toMatch(/144904/);
+    expect(clean).toMatch(/documentos en regla/i);
+  });
 });

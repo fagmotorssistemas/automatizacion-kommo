@@ -56,6 +56,7 @@ describe('vehicle kind', () => {
       'camioneta',
     );
     expect(detectVehicleKind('busco un pickup')).toBe('camioneta');
+    expect(detectVehicleKind('Pikup')).toBe('camioneta');
     expect(detectVehicleKind('doble cabina diesel')).toBe('camioneta');
   });
 

@@ -47,9 +47,13 @@ const FAMILIA_POSIBLE = /\bx[\s-]?trail\b|\bxtrail\b|\bcaptiva\b|\btrailblazer\b
 function normalizeModelText(value: string): string {
   return value
     .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .replace(/\bx[\s-]?trail\b/g, 'xtrail')
     .replace(/\b4[\s-]*runner\b/g, '4runner')
+    .replace(/\bland\s*cruiser\s*prado\b/g, 'prado')
+    .replace(/\blc\s*prado\b/g, 'prado')
     .replace(/\bgrand?\s*vitara\b/g, 'vitara')
     .replace(/-/g, '');
 }
@@ -182,6 +186,43 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
   return {
     text: `De este modelo hay ${cars.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
 ${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+    holdVehicle: true,
+    sendId: null,
+  };
+}
+
+/** No hay el modelo (o el año) pedido: primero dilo, después ofrece otra. */
+export function formatMissingNamedModel(
+  family: string,
+  year: number | null,
+  alternatives: StockCar[],
+  includePrice = false,
+): { text: string; holdVehicle: boolean; sendId: string | null } {
+  const pretty = family.charAt(0).toUpperCase() + family.slice(1);
+  const asked = year ? `${pretty} ${year}` : pretty;
+  const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS ofrece otra opción de esta marca. Prohibido presentarla como si fuera el ${pretty}.`;
+  if (alternatives.length === 1) {
+    const car = alternatives[0];
+    return {
+      text: `${header}
+Lo más cercano, y hay que mandarlo solo después de decir que no hay ${asked}: ${describeUnit(car, includePrice)}.
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
+      holdVehicle: false,
+      sendId: car.id,
+    };
+  }
+  if (alternatives.length > 1) {
+    return {
+      text: `${header}
+Nómbralas para que elija. vehiculo null.
+${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+      holdVehicle: true,
+      sendId: null,
+    };
+  }
+  return {
+    text: `${header}
+No hay otra unidad de esta marca. Pregunta si quiere ver otra línea. vehiculo null.`,
     holdVehicle: true,
     sendId: null,
   };

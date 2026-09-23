@@ -423,7 +423,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
 
     const { data: car, error: carError } = await client
       .from('inventoryoracle')
-      .select('brand, model, year, price, type_body')
+      .select('brand, model, year, price, type_body, mileage, color, plate_short, transmission')
       .eq('id', inventoryId)
       .maybeSingle();
 
@@ -443,6 +443,10 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       year: car.year == null ? null : Number(car.year),
       price: car.price == null ? null : Number(car.price),
       typeBody: car.type_body == null ? null : String(car.type_body),
+      mileage: car.mileage == null ? null : Number(car.mileage),
+      color: car.color == null ? null : String(car.color),
+      plateShort: car.plate_short == null ? null : String(car.plate_short),
+      transmission: car.transmission == null ? null : String(car.transmission),
     };
   }
 

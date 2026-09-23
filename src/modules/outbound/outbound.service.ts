@@ -6,6 +6,7 @@ import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { isUuid } from '../persistence/is-uuid';
 import { OUTBOUND_CONFIG, type OutboundConfig } from './outbound.config';
 import { appendNoPhotosNotice } from './no-photos-notice';
+import { shouldSendVehiclePhotos } from './should-send-photos';
 
 export type OutboundDispatchResult = {
   delivered: boolean;
@@ -64,14 +65,30 @@ export class OutboundService {
   async dispatch(
     leadId: string,
     reply: ParsedAgentOutput,
+    options?: {
+      alreadyShown?: boolean;
+      wantsPhotos?: boolean;
+      skipFirstShot?: boolean;
+    },
   ): Promise<OutboundDispatchResult> {
     const inventoryId = reply.meta.vehiculo?.inventory_id?.trim() ?? '';
-    const photoBots = await this.catalog.resolvePhotoBots({
-      inventoryId: inventoryId || undefined,
+    const sendPhotos = shouldSendVehiclePhotos({
+      inventoryId,
+      alreadyShown: options?.alreadyShown === true,
+      wantsPhotos: options?.wantsPhotos === true,
+      skipFirstShot: options?.skipFirstShot === true,
     });
+    const photoBots = sendPhotos
+      ? await this.catalog.resolvePhotoBots({
+          inventoryId: inventoryId || undefined,
+        })
+      : [];
 
     const missingPhotos =
-      Boolean(inventoryId) && isUuid(inventoryId) && photoBots.length === 0;
+      sendPhotos &&
+      Boolean(inventoryId) &&
+      isUuid(inventoryId) &&
+      photoBots.length === 0;
 
     let mensaje = reply.mensaje;
     if (missingPhotos) {
