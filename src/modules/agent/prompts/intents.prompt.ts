@@ -92,4 +92,12 @@ Debes devolver SIEMPRE este formato exacto:
 
 {
   "intenciones": ["compra", "consulta_modelo"]
-}`;
+}
+
+REGLA DE SU VEHÍCULO (OBLIGATORIA):
+Si la solicitud dice que quiere vendernos su carro, dejarlo en parte de pago o intercambiarlo:
+- incluye "venta" si quiere venderlo
+- incluye "tomavehicular" si es parte de pago
+- incluye "intercambio" si quiere cambiarlo por uno nuestro
+- NO incluyas "compra" por el vehículo que nos está vendiendo
+- "compra" solo si además quiere comprar OTRO vehículo nuestro`

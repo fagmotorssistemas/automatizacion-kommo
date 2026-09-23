@@ -149,6 +149,46 @@ describe('AgentService', () => {
     );
   });
 
+  it('si nos vende su carro no ofrece uno parecido del inventario', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'seltos',
+        brand: 'kia',
+        model: 'seltos',
+        year: 2020,
+        price: 18000,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere vendernos su Kia Seltos 2020.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["venta"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Para su Seltos 2020, ¿de qué color es y me pasa fotos?',
+        meta: {
+          vehiculo: { inventory_id: '70f0b727-15a0-4aa9-ad1e-1e8a5d203968' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Tengo un Seltos 2020 que quiero vender',
+    });
+
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Prohibido buscar'),
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('el RESUMEN PREVIO recibe el hilo cliente-bot', async () => {
     conversation.recentMessages.mockResolvedValue([
       { role: 'user', content: 'hay ranger?' },

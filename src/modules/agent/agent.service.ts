@@ -71,6 +71,11 @@ import {
   specTopic,
   SpecFact,
 } from '../catalog/ficha-tecnica';
+import {
+  SU_CARRO_NO_SE_OFRECE,
+  turnAlsoWantsToBuy,
+  turnIsSellingTheirCar,
+} from './su-carro';
 
 function namedOfferId(
   cars: StockCar[],
@@ -129,14 +134,6 @@ export class AgentService {
       input.customerText,
     );
     const showPrice = asksForPrice(input.customerText);
-    const revision = await this.reviewBrand(
-      history,
-      input.customerText,
-      brand,
-      concreteAsk,
-      showPrice,
-      vehicleKind,
-    );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
       history,
@@ -158,6 +155,19 @@ export class AgentService {
     const intentsRaw =
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
     const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
+    const selling = turnIsSellingTheirCar(promptNames, resumen);
+    const buying = turnAlsoWantsToBuy(promptNames, resumen);
+    const revision =
+      selling && !buying
+        ? { text: '', holdVehicle: true, sendId: null }
+        : await this.reviewBrand(
+            history,
+            input.customerText,
+            selling ? detectBrand(input.customerText) : brand,
+            concreteAsk,
+            showPrice,
+            vehicleKind,
+          );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
     const interestedText =
       interested && refersToInterestedCar(input.customerText, interested)
@@ -169,7 +179,8 @@ export class AgentService {
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
       formatVisitHourHint(input.customerText),
-      showPrice
+      selling ? SU_CARRO_NO_SE_OFRECE : '',
+      showPrice || (selling && !buying)
         ? ''
         : 'EN ESTE TURNO el cliente NO pidió el precio: prohibido decir el valor del carro ($…, precio de…). Sí puedes decir plate_short (ej. "La placa es P7"). Prohibido placa completa y chasis.',
     ]
@@ -186,7 +197,13 @@ export class AgentService {
       user: pedidoVigente ? `${resumen}\n\n${pedidoVigente}` : resumen,
       history,
       executeTool: (name, argsJson) =>
-        this.executeTool(name, argsJson, vehicleKind, brand, showPrice),
+        this.executeTool(
+          name,
+          argsJson,
+          vehicleKind,
+          selling && !buying ? null : brand,
+          showPrice,
+        ),
     });
 
     if (!raw) {

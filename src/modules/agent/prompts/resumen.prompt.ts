@@ -64,4 +64,8 @@ Vehículo: [o No aplica]
 Contexto: [texto corto]
 
 SOLICITUD ACTUAL:
-Cliente quiere [acción].`;
+Cliente quiere [acción].
+
+REGLA DE SU VEHÍCULO (OBLIGATORIA):
+Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de su carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
+Si además nombra otro carro que quiere ver o comprar en la concesionaria, dilo en la misma oración: cuál es el suyo y cuál quiere ver.`
