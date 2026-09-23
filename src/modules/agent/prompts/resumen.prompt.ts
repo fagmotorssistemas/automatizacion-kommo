@@ -45,6 +45,12 @@ SOLICITUD ACTUAL:
 Escribe una sola oración exacta con este inicio:
 Cliente quiere ...
 
+REGLA DE PRECIO (OBLIGATORIA):
+Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
+Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km.
+Si pregunta km, cuota, entrada o visita, dilo así; no pongas precio.
+Después de SOLICITUD ACTUAL agrega una línea: Pide precio: sí   o   Pide precio: no
+
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
@@ -65,6 +71,7 @@ Contexto: [texto corto]
 
 SOLICITUD ACTUAL:
 Cliente quiere [acción].
+Pide precio: sí|no
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de su carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.

@@ -375,7 +375,9 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
@@ -520,6 +522,39 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('km=144904');
     expect(system).toMatch(/resumen y el HISTORIAL/i);
+  });
+
+  it('Cuánto pide el precio de la unidad que ya mostramos', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'optra-1',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l 4p tm',
+      year: 2012,
+      price: 10900,
+      typeBody: 'sedan',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Optra 2012 vino\nSOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El Optra 2012 está en $10900.',
+        meta: { vehiculo: { inventory_id: 'optra-1', precio: 10900 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuánto',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/10900/);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('$10900');
+    expect(system).toMatch(/PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
   });
 
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {

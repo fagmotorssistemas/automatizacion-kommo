@@ -5,8 +5,8 @@ import { AgentService } from '../agent/agent.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { OutboundService } from '../outbound/outbound.service';
-import { asksForPrice } from '../conversation/asks-for-price';
 import { asksForPhotos } from '../outbound/should-send-photos';
+import { resumenAsksForListedPrice } from '../intelligence/parse-resumen';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
 import { InboxService } from './inbox.service';
@@ -233,7 +233,7 @@ export class InboxDebounceProcessor extends WorkerHost {
         wantsPhotos: asksForPhotos(inbound.message),
         skipFirstShot:
           Boolean(latestShown) &&
-          asksForPrice(inbound.message) &&
+          resumenAsksForListedPrice(turn.resumen) &&
           !asksForPhotos(inbound.message),
       },
     );

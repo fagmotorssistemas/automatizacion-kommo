@@ -59,7 +59,7 @@ import {
   resolveGearbox,
 } from '../conversation/gearbox';
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
-import { asksForPrice } from '../conversation/asks-for-price';
+import { resumenAsksForListedPrice } from '../intelligence/parse-resumen';
 import {
   asksForPlate,
   messageLeaksPrice,
@@ -225,7 +225,6 @@ export class AgentService {
       input.customerText,
       lexicon,
     );
-    const showPrice = asksForPrice(input.customerText);
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
       history,
@@ -243,6 +242,7 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
+    const showPrice = resumenAsksForListedPrice(resumen);
 
     const intentsRaw =
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
