@@ -1,8 +1,11 @@
 import {
   parseResumen,
+  resumenAsksForCredit,
   resumenAsksForListedPrice,
+  resumenAsksForOtherColor,
   resumenHasPendingDoubt,
   resumenIsFarewell,
+  textAsksForOtherColor,
 } from './parse-resumen';
 
 describe('resumenAsksForListedPrice', () => {
@@ -57,6 +60,43 @@ Cliente quiere el precio.
 Pide precio: sí`);
     expect(parsed.vehiculo).toBe('Optra 2012');
     expect(parsed.solicitudActual).toMatch(/quiere el precio/i);
+  });
+});
+
+describe('contado y crédito', () => {
+  it('lee si pidió crédito además del precio', () => {
+    expect(
+      resumenAsksForCredit(
+        'SOLICITUD ACTUAL:\nCliente quiere precio de contado y a crédito.\nPide precio: sí\nPide crédito: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nCliente quiere precio de contado y a crédito.\nPide precio: sí\nPide crédito: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForCredit(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nPide crédito: no',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('otro color', () => {
+  it('lee si pidió otro color del mismo modelo', () => {
+    expect(
+      resumenAsksForOtherColor(
+        'SOLICITUD ACTUAL:\nCliente quiere otro color del Sportage.\nPide precio: no\nPide otro color: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForOtherColor(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nPide otro color: no',
+      ),
+    ).toBe(false);
+    expect(textAsksForOtherColor('No tienen otro color?')).toBe(true);
+    expect(textAsksForOtherColor('Cuál es el precio de contado')).toBe(false);
   });
 });
 

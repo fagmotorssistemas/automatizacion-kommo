@@ -20,4 +20,16 @@ describe('su carro', () => {
     expect(turnIsSellingTheirCar(['rol', 'compra'], resumen)).toBe(false);
     expect(turnAlsoWantsToBuy(['rol', 'compra'], resumen)).toBe(true);
   });
+
+  it('vender su casa para pagar al contado no es toma', () => {
+    const resumen =
+      'SOLICITUD ACTUAL:\nCliente quiere vender su casa para comprar al contado.';
+    const text =
+      'Excelente pero estoy construyendo unas casa en Manta y espero vender para poder comprar al contado';
+    expect(turnIsSellingTheirCar(['venta', 'tomavehicular'], resumen, text)).toBe(
+      false,
+    );
+    expect(turnAlsoWantsToBuy(['venta'], resumen, text)).toBe(false);
+    expect(turnAlsoWantsToBuy(['compra'], resumen, text)).toBe(true);
+  });
 });

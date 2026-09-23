@@ -2113,4 +2113,225 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/EL CLIENTE AGRADECIÓ\. NO ES DESPEDIDA/i);
     expect(system).not.toMatch(/EL CLIENTE DEJÓ UNA DUDA/i);
   });
+
+  it('vender la casa para pagar al contado no pide un carro en toma', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'ranger-xl-2024',
+      brand: 'ford',
+      model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+      year: 2024,
+      price: 44590,
+      typeBody: 'doble cabina',
+      mileage: 11061,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente sigue con la Ranger 2024; comprará al contado cuando venda su casa.\nPide precio: no\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["venta","tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'De acuerdo, cuando venda la casa seguimos con la Ford Ranger XL 2024 al contado.',
+        meta: { vehiculo: { inventory_id: 'ranger-xl-2024' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Excelente pero estoy construyendo unas casa en Manta y espero vender para poder comprar al contado',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/NO es toma/i);
+    expect(system).toMatch(/HILO SIGUE/i);
+    expect(system).not.toMatch(/TOMA: el cliente nos está vendiendo SU vehículo/i);
+  });
+
+  it('furgoneta de 17-20 no ofrece Picanto ni camioneta', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+      },
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        passengerCapacity: '5',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'hilux-1',
+        brand: 'toyota',
+        model: 'hilux cd 2.4',
+        year: 2022,
+        price: 32900,
+        typeBody: 'doble cabina',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere furgoneta o vehículo grande de 17 o 20 pasajeros.\nPide precio: no\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos furgonetas de 17 o 20 pasajeros. Lo más grande es un Kia Sportage.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Por favor páseme los modelos de vehículos y furgonetas de 17 o 20 pasajeros',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PEDIDO DE ESPACIO/i);
+    expect(system).toContain('inventory_id=sportage-1');
+    expect(system).not.toContain('picanto');
+    expect(system).not.toContain('inventory_id=hilux');
+    expect(system).toMatch(/PROHIBIDO ofrecer camioneta/i);
+  });
+
+  it('precio sin unidad confirmada no inventa un valor', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio y dónde verlo.\nPide precio: sí\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'La dirección es Av. España. El precio del vehículo que menciona es $15,000.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Precio y dónde le puedo ver',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/NO HAY UNIDAD CONFIRMADA/i);
+    expect(system).toMatch(/PROHIBIDO inventar un precio/i);
+    expect(result?.reply.mensaje).not.toMatch(/15[,.]?000/);
+    expect(result?.reply.mensaje).toMatch(/España/i);
+  });
+
+  it('contado y crédito: da el precio y abre financiamiento', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-1',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere precio de contado y a crédito.\nPide precio: sí\nPide crédito: sí\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra","financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Sportage 2019 plateado está en $22900 de contado. Para crédito, ¿con cuánto de entrada y a qué plazo le gustaría?',
+        meta: { vehiculo: { inventory_id: 'sportage-1', precio: 22900 } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuál es el precio de contado y a crédito por favor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/CONTADO Y CRÉDITO/i);
+    expect(system).toMatch(/entrada y plazo/i);
+    expect(system).toMatch(/PIDIÓ CRÉDITO/i);
+  });
+
+  it('otro color: ofrece las otras Sportage y no repite el plateado', async () => {
+    const sportages = [
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+      },
+      {
+        id: 'sportage-rojo',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'rojo',
+      },
+      {
+        id: 'sportage-plomo',
+        brand: 'kia',
+        model: 'sportage',
+        year: 2024,
+        price: 28900,
+        typeBody: 'jeep',
+        color: 'plomo',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(sportages);
+    catalog.listAvailableExcept.mockResolvedValue(sportages);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-1',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere otro color del Sportage.\nPide precio: no\nPide otro color: sí\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Sí, hay Sportage 2019 rojo y Sportage 2024 plomo. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'No tienen otro color?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/OTRO COLOR/i);
+    expect(system).toMatch(/rojo/i);
+    expect(system).toMatch(/plomo/i);
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/inventory_id=sportage-1/);
+    expect(system).not.toMatch(/\$22900/);
+  });
 });

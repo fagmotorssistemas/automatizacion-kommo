@@ -24,6 +24,15 @@ const sportage = {
   typeBody: 'jeep',
 };
 
+const picanto = {
+  inventoryId: 'picanto-1',
+  brand: 'kia',
+  model: 'picanto lx ac 1.2',
+  year: 2023,
+  price: 15990,
+  typeBody: 'hatchback',
+};
+
 describe('vehículo de interés', () => {
   it('el hilo sigue aunque no use este/precio/automático', () => {
     expect(
@@ -167,5 +176,37 @@ describe('vehículo de interés', () => {
     });
     expect(text).toMatch(/aún no cargado/i);
     expect(text).not.toMatch(/^km=0$/m);
+  });
+
+  it('otro color suelta la unidad mostrada', () => {
+    expect(
+      leftShownCar({
+        text: 'No tienen otro color?',
+        car: { ...sportage, color: 'plateado' },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'No tienen otro color?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere otro color del Sportage.\nPide otro color: sí',
+        car: { ...sportage, color: 'plateado' },
+      }),
+    ).toBe(false);
+  });
+
+  it('si pide furgoneta suelta el carro chico', () => {
+    expect(
+      leftShownCar({
+        text: 'Por favor páseme furgonetas de 17 o 20 pasajeros',
+        car: picanto,
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'tiene cámara de reversa?',
+        car: picanto,
+      }),
+    ).toBe(true);
   });
 });

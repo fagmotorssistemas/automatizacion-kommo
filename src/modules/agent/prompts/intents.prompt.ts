@@ -100,4 +100,6 @@ Si la solicitud dice que quiere vendernos su carro, dejarlo en parte de pago o i
 - incluye "tomavehicular" si es parte de pago
 - incluye "intercambio" si quiere cambiarlo por uno nuestro
 - NO incluyas "compra" por el vehículo que nos está vendiendo
-- "compra" solo si además quiere comprar OTRO vehículo nuestro`
+- "compra" solo si además quiere comprar OTRO vehículo nuestro
+Vender casa, terreno, departamento o negocio para pagar al contado NO es "venta" ni "tomavehicular". Es compra (contado más adelante).
+`;

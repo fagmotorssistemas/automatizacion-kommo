@@ -25,6 +25,7 @@ Detectar SOLO si menciona:
 - "parte de pago"
 - "intercambio"
 - "retoma"
+NO es trade_in si vende una casa, terreno, departamento o negocio para pagar.
 Extraer:
 - brand: marca o null
 - model: modelo o null

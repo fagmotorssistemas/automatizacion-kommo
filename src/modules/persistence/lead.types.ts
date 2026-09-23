@@ -129,6 +129,7 @@ export type InterestedCarSnapshot = {
   color?: string | null;
   plateShort?: string | null;
   transmission?: string | null;
+  passengerCapacity?: string | number | null;
 };
 
 export type CtwaMatch = {

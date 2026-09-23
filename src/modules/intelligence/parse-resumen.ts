@@ -57,6 +57,32 @@ function flagSiNo(resumen: string, name: string): boolean | null {
   return /^s/i.test(match[1]);
 }
 
+/** El analizador vio que quiere crédito / financiamiento, no solo el precio de contado. */
+export function resumenAsksForCredit(resumen: string): boolean {
+  const flag = flagSiNo(resumen, 'pide\\s+cr[eé]dito');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = parseResumen(resumen).solicitudActual ?? resumen;
+  const n = fold(solicitud);
+  return /\b(credito|financiamiento|cuota)\b/.test(n);
+}
+
+/** El analizador vio que quiere otro color del mismo modelo, no la misma unidad. */
+export function resumenAsksForOtherColor(resumen: string): boolean {
+  const flag = flagSiNo(resumen, 'pide\\s+otro\\s+color');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = parseResumen(resumen).solicitudActual ?? '';
+  return /otro(?:s)?\s+colore?s?|otra(?:s)?\s+colore?s?/.test(fold(solicitud));
+}
+
+/** El mensaje pide otro color de la misma línea. */
+export function textAsksForOtherColor(text: string): boolean {
+  return /otro(?:s)?\s+colore?s?|otra(?:s)?\s+colore?s?/.test(fold(text));
+}
+
 /** El analizador vio una duda o malentendido pendiente. No es cierre. */
 export function resumenHasPendingDoubt(resumen: string): boolean {
   const flag = flagSiNo(resumen, 'tiene\\s+duda');

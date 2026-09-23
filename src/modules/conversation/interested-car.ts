@@ -11,7 +11,17 @@ import {
   modelHasTrim,
 } from './vehicle-brand';
 import { detectGearbox, gearboxOf } from './gearbox';
+import {
+  asksForLargePassengerSpace,
+  isLargePassengerCar,
+  parsePassengerAsk,
+  seatsOfCar,
+} from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
+import {
+  resumenAsksForOtherColor,
+  textAsksForOtherColor,
+} from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 
 export type ShownCarContext = {
@@ -64,6 +74,12 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return false;
   }
   const lexicon = input.lexicon ?? emptyLexicon();
+  if (
+    textAsksForOtherColor(input.text) ||
+    resumenAsksForOtherColor(input.resumen ?? '')
+  ) {
+    return true;
+  }
   if (namedOtherUnit(input.text, car, lexicon)) {
     return true;
   }
@@ -94,6 +110,17 @@ export function leftShownCar(input: ShownCarContext): boolean {
   const shownKind = kindFromTypeBody(car.typeBody);
   if (saidKind && shownKind && saidKind !== shownKind) {
     return true;
+  }
+  const spaceText = `${input.text}\n${input.resumen ?? ''}`;
+  if (asksForLargePassengerSpace(spaceText)) {
+    if (!isLargePassengerCar({ model: car.model, typeBody: car.typeBody })) {
+      return true;
+    }
+    const want = parsePassengerAsk(spaceText);
+    const have = seatsOfCar(car.passengerCapacity);
+    if (want && want >= 8 && (have == null || have < 7)) {
+      return true;
+    }
   }
   return false;
 }

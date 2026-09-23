@@ -70,14 +70,23 @@ import {
   SEGUIR_VENTA,
 } from '../conversation/polite-thanks';
 import {
+  resumenAsksForCredit,
   resumenAsksForListedPrice,
+  resumenAsksForOtherColor,
   resumenHasPendingDoubt,
+  textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import {
   followsShownCar,
   formatInterestedCar,
   refersToInterestedCar,
 } from '../conversation/interested-car';
+import {
+  asksForLargePassengerSpace,
+  formatLargePassengerPedido,
+  formatLargePassengerRevision,
+  pickLargePassengerCars,
+} from '../conversation/large-passenger';
 import {
   formatRevisionMarca,
   formatMissingNamedModel,
@@ -288,7 +297,11 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
-    const showPrice = resumenAsksForListedPrice(resumen);
+    const askedPrice = resumenAsksForListedPrice(resumen);
+    const askedCredit = resumenAsksForCredit(resumen);
+    const askedOtherColor =
+      resumenAsksForOtherColor(resumen) ||
+      textAsksForOtherColor(input.customerText);
     const thanksHint = resumenHasPendingDoubt(resumen)
       ? CONTESTA_DUDA
       : isPoliteThanks(input.customerText)
@@ -298,8 +311,21 @@ export class AgentService {
     const intentsRaw =
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
     const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
-    const selling = turnIsSellingTheirCar(promptNames, resumen);
-    const buying = turnAlsoWantsToBuy(promptNames, resumen);
+    const selling = turnIsSellingTheirCar(
+      promptNames,
+      resumen,
+      input.customerText,
+    );
+    const buying = turnAlsoWantsToBuy(
+      promptNames,
+      resumen,
+      input.customerText,
+    );
+    const spaceText = `${input.customerText}\n${resumen}\n${history
+      .filter((item) => item.role === 'user')
+      .map((item) => item.content)
+      .join('\n')}`;
+    const spaceAsk = asksForLargePassengerSpace(spaceText);
     const stayOnShown = followsShownCar({
       text: input.customerText,
       resumen,
@@ -318,9 +344,9 @@ Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ES
 No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
 No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
               holdVehicle:
-                isMoneyNotVisit(input.customerText) && !showPrice,
+                isMoneyNotVisit(input.customerText) && !askedPrice,
               sendId:
-                isMoneyNotVisit(input.customerText) && !showPrice
+                isMoneyNotVisit(input.customerText) && !askedPrice
                   ? null
                   : interested.inventoryId,
             }
@@ -329,16 +355,20 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               input.customerText,
               selling ? detectBrand(input.customerText, lexicon) : brand,
               concreteAsk,
-              showPrice,
+              askedPrice,
               vehicleKind,
               gearbox,
               interested
                 ? {
                     price: interested.price,
                     family: modelFamily(interested.model),
+                    color: interested.color ?? null,
+                    inventoryId: interested.inventoryId,
                   }
                 : null,
               lexicon,
+              spaceAsk,
+              askedOtherColor,
             );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
     const shownOtherBox =
@@ -351,7 +381,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       (stayOnShown ||
         refersToInterestedCar(input.customerText, interested, lexicon)) &&
       !shownOtherBox
-        ? formatInterestedCar(interested, showPrice)
+        ? formatInterestedCar(interested, askedPrice)
         : '';
     const saidBoxNow = detectGearbox(input.customerText, lexicon);
     if (revision.switchedModel) {
@@ -370,11 +400,32 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       revision.switchedModel && interested
         ? `CAMBIO DE MODELO: el cliente ya no habla del ${interested.brand} ${interested.model}. Prohibido volver a ofrecerlo ni poner su inventory_id. Habla solo del que pidió ahora.`
         : '';
-    const precioHint = showPrice
-      ? 'PIDIÓ EL PRECIO de esta unidad: dilo ($…). Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
-      : selling && !buying
-        ? ''
-        : 'Si el resumen no pide el precio, no lo digas. Placa solo en la primera presentación de ese carro o si la preguntó. Prohibido placa completa y chasis.';
+    const hasQuotedUnit = Boolean(
+      revision.sendId ||
+        (interested &&
+          interested.price &&
+          interested.price > 0 &&
+          (stayOnShown ||
+            refersToInterestedCar(input.customerText, interested, lexicon))),
+    );
+    const canQuotePrice = askedPrice && hasQuotedUnit;
+    const creditoHint = askedCredit
+      ? hasQuotedUnit
+        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado si también lo pidió. Luego HABLA DE FINANCIAMIENTO: pregunta con cuánto de entrada y a qué plazo. No inventes una cuota si no hay entrada. No te quedes solo en el contado. Cédula solo después de una cuota.'
+        : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
+      : '';
+    const precioHint = canQuotePrice
+      ? askedCredit
+        ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
+        : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
+      : askedPrice
+        ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
+        : selling && !buying
+          ? ''
+          : 'Si el resumen no pide el precio, no lo digas. Placa solo en la primera presentación de ese carro o si la preguntó. Prohibido placa completa y chasis.';
+    const colorHint = askedOtherColor
+      ? 'PIDIÓ OTRO COLOR del mismo modelo. Presenta las otras unidades de patio. PROHIBIDO repetir la que ya mostraste. No inventes colores. No sueltes precio si no lo pidió.'
+      : '';
     const pedidoVigente = (
       stayOnShown
         ? [
@@ -383,13 +434,18 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             thanksHint,
             isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
             formatVisitHourHint(input.customerText),
+            spaceAsk ? formatLargePassengerPedido(spaceText) : '',
+            creditoHint,
+            colorHint,
             precioHint,
           ]
         : [
             formatPedidoVigente(
-              revision.switchedModel
-                ? (revision.vehicleKind ?? null)
-                : vehicleKind,
+              spaceAsk
+                ? null
+                : revision.switchedModel
+                  ? (revision.vehicleKind ?? null)
+                  : vehicleKind,
             ),
             formatGearboxPedido(
               revision.switchedModel && !saidBoxNow ? null : gearbox,
@@ -401,6 +457,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
             formatVisitHourHint(input.customerText),
             selling ? SU_CARRO_NO_SE_OFRECE : '',
+            spaceAsk ? formatLargePassengerPedido(spaceText) : '',
+            creditoHint,
+            colorHint,
             precioHint,
           ]
     )
@@ -422,7 +481,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           argsJson,
           revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
-          showPrice,
+          canQuotePrice,
           lexicon,
         ),
     });
@@ -475,17 +534,20 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         Boolean(replyId) &&
         (!interested || replyId !== interested.inventoryId);
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice: showPrice,
+        keepPrice: canQuotePrice,
         keepPlateShort: askedPlate || firstPresentation,
       });
-      if (cleaned !== parsed.mensaje || (!showPrice && messageLeaksPrice(parsed.mensaje))) {
+      if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
         this.logger.warn(
           `Se quitó dato no pedido contactId=${input.contactId}`,
         );
       }
       parsed.mensaje = cleaned;
-      if (!showPrice) {
+      if (!canQuotePrice) {
         parsed.meta.precioMostrado = false;
+        if (parsed.meta.vehiculo && !parsed.meta.vehiculo.inventory_id) {
+          parsed.meta.vehiculo = null;
+        }
       }
     }
 
@@ -590,20 +652,29 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     includePrice: boolean,
     vehicleKind: VehicleKind | null,
     gearbox: Gearbox | null,
-    reference: { price: number | null; family: string | null } | null,
+    reference: {
+      price: number | null;
+      family: string | null;
+      color?: string | null;
+      inventoryId?: string | null;
+    } | null,
     lexicon: VehicleLexicon,
+    spaceAsk = false,
+    askedOtherColor = false,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const asked = detectNamedModelAsk(customerText, lexicon);
     const targetBrand = asked?.brand || brand;
-    if (!targetBrand && !asked) {
+    if (!targetBrand && !asked && !spaceAsk && !askedOtherColor) {
       return empty;
     }
 
     const namesBrandNow = Boolean(detectBrand(customerText, lexicon));
     const maybeAsk =
       isConcreteAsk(customerText) ||
-      (Boolean(concreteAsk) && namesBrandNow);
+      (Boolean(concreteAsk) && namesBrandNow) ||
+      spaceAsk ||
+      askedOtherColor;
     if (!maybeAsk && !namesBrandNow && !mightNameModel(customerText)) {
       return empty;
     }
@@ -611,6 +682,64 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
+    if (spaceAsk && !asked) {
+      let pool = pickLargePassengerCars(listed);
+      if (pool.length === 0) {
+        const others = await this.catalog.listAvailableExcept(targetBrand || '_');
+        pool = pickLargePassengerCars(others);
+      }
+      return {
+        text: formatLargePassengerRevision(
+          `${customerText}\n${concreteAsk ?? ''}`,
+          pool,
+          includePrice,
+        ),
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
+    if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
+      let pool = listed.filter((car) =>
+        textMentionsModel(car.model, reference.family ?? ''),
+      );
+      if (pool.length === 0) {
+        const others = await this.catalog.listAvailableExcept(
+          targetBrand || '_',
+        );
+        pool = others.filter((car) =>
+          textMentionsModel(car.model, reference.family ?? ''),
+        );
+      }
+      const others = pool.filter((car) => {
+        if (reference.inventoryId && car.id === reference.inventoryId) {
+          return false;
+        }
+        if (
+          reference.color &&
+          car.color &&
+          colorMatches(car.color, reference.color)
+        ) {
+          return false;
+        }
+        return true;
+      });
+      const shown = reference.color ? ` (${reference.color})` : '';
+      if (others.length === 0) {
+        return {
+          text: `PIDIÓ OTRO COLOR del ${reference.family}. No hay otro color en patio. Dilo. No inventes colores. No vuelvas a presentar la misma unidad${shown}. No sueltes precio si no lo pidió.`,
+          holdVehicle: true,
+          sendId: null,
+        };
+      }
+      const named = formatNamedUnits(others, includePrice);
+      return {
+        ...named,
+        switchedModel: false,
+        vehicleKind: kindOfNamedUnits(others),
+        text: `${named.text}
+PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distintos a la que ya vio${shown}). PROHIBIDO repetir la misma unidad. No sueltes precio si no lo pidió.`,
+      };
+    }
     const yearAsk = asked?.year ?? detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
