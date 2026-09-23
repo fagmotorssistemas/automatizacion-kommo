@@ -1,6 +1,7 @@
 import { modelFamily, StockCar } from '../catalog/clasificar-filas';
 import { kindFromTypeBody, VehicleKind } from './vehicle-kind';
 import { detectBrandFromModel } from './vehicle-brand';
+import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 
 export type Gearbox = 'manual' | 'automatica';
 
@@ -11,13 +12,16 @@ const AUTOMATIC = /\bautom[aá]tic[oa]s?\b/gi;
 /** 25% alrededor del precio del carro que ya estaban viendo. */
 const PRICE_BAND = 0.25;
 
-export function detectGearbox(text: string): Gearbox | null {
+export function detectGearbox(
+  text: string,
+  lexicon: VehicleLexicon = emptyLexicon(),
+): Gearbox | null {
   let winner: { gearbox: Gearbox; index: number } | null = null;
   const detectors: { gearbox: Gearbox; pattern: RegExp }[] = [
     { gearbox: 'manual', pattern: MANUAL },
     { gearbox: 'automatica', pattern: AUTOMATIC },
   ];
-  if (detectBrandFromModel(text)) {
+  if (detectBrandFromModel(text, lexicon)) {
     detectors.push({ gearbox: 'manual', pattern: MANUEL_TYPO });
   }
   for (const detector of detectors) {
@@ -58,8 +62,10 @@ export function resolveGearbox(input: {
   history: { role: string; content: string }[];
   customerText: string;
   remembered: Gearbox | null;
+  lexicon?: VehicleLexicon;
 }): Gearbox | null {
-  const saidNow = detectGearbox(input.customerText);
+  const lexicon = input.lexicon ?? emptyLexicon();
+  const saidNow = detectGearbox(input.customerText, lexicon);
   if (saidNow) {
     return saidNow;
   }
@@ -68,7 +74,7 @@ export function resolveGearbox(input: {
     if (text.role !== 'user') {
       continue;
     }
-    const found = detectGearbox(text.content);
+    const found = detectGearbox(text.content, lexicon);
     if (found) {
       gearbox = found;
     }

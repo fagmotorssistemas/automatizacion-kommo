@@ -44,7 +44,7 @@ const FAMILIA_TRES_FILAS =
 
 const FAMILIA_POSIBLE = /\bx[\s-]?trail\b|\bxtrail\b|\bcaptiva\b|\btrailblazer\b|\bmontero\b/i;
 
-function normalizeModelText(value: string): string {
+export function normalizeModelText(value: string): string {
   return value
     .toLowerCase()
     .normalize('NFD')

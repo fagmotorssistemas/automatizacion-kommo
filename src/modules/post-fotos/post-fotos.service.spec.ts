@@ -16,7 +16,7 @@ describe('PostFotosService', () => {
     draft: jest.fn(),
   };
   const crm = {
-    isLeadBotStopped: jest.fn(),
+    inspectLead: jest.fn(),
   };
   const outbound = {
     isShadowMode: jest.fn(),
@@ -58,7 +58,8 @@ describe('PostFotosService', () => {
     }
     repository.isReady.mockReturnValue(true);
     llm.draft.mockReset();
-    crm.isLeadBotStopped.mockReset();
+    crm.inspectLead.mockReset();
+    crm.inspectLead.mockResolvedValue({ stopped: false, raw: { id: 1 } });
     outbound.isShadowMode.mockReset();
     outbound.sendText.mockReset();
     outbound.isShadowMode.mockReturnValue(true);
@@ -93,7 +94,6 @@ describe('PostFotosService', () => {
 
   it('en SHADOW marca enviado y programa paso 2', async () => {
     repository.listDue.mockResolvedValue([row]);
-    crm.isLeadBotStopped.mockResolvedValue(false);
     llm.draft.mockResolvedValue('Juan, ¿qué le pareció el Picanto?');
 
     const result = await service.runOnce();
@@ -104,5 +104,36 @@ describe('PostFotosService', () => {
       expect.objectContaining({ paso: 2, sessionId: '59619959' }),
     );
     expect(outbound.sendText).not.toHaveBeenCalled();
+  });
+
+  it('si Kommo no deja escribir Respuesta IA, cancela y no reintenta', async () => {
+    repository.listDue.mockResolvedValue([row]);
+    outbound.isShadowMode.mockReturnValue(false);
+    llm.draft.mockResolvedValue('Juan, ¿le gustó el Picanto?');
+    outbound.sendText.mockResolvedValue({ wrote: false, botRan: false });
+
+    const result = await service.runOnce();
+
+    expect(result.cancelled).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(repository.markCancelled).toHaveBeenCalledWith(
+      10,
+      'kommo_respuesta_ia',
+    );
+    expect(repository.schedulePaso).not.toHaveBeenCalled();
+  });
+
+  it('si el lead ya no está en Kommo, cancela', async () => {
+    repository.listDue.mockResolvedValue([row]);
+    crm.inspectLead.mockResolvedValue({ stopped: false, raw: null });
+
+    const result = await service.runOnce();
+
+    expect(result.cancelled).toBe(1);
+    expect(repository.markCancelled).toHaveBeenCalledWith(
+      10,
+      'lead_kommo_inexistente',
+    );
+    expect(llm.draft).not.toHaveBeenCalled();
   });
 });

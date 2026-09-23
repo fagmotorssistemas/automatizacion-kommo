@@ -300,6 +300,25 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     return (data ?? []).map((row) => mapStockRow(row));
   }
 
+  async listInventoryNames(): Promise<Array<{ brand: string; model: string }>> {
+    const client = this.requireClient();
+    if (!client) {
+      return [];
+    }
+    const { data, error } = await client
+      .from('inventoryoracle')
+      .select('brand, model')
+      .eq('status', 'disponible');
+    if (error) {
+      this.logger.warn(`GET inventoryoracle nombres: ${error.message}`);
+      throw error;
+    }
+    return (data ?? []).map((row) => ({
+      brand: String(row.brand ?? ''),
+      model: String(row.model ?? ''),
+    }));
+  }
+
   async matchInventory(
     embedding: number[],
     topK: number,

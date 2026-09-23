@@ -1,13 +1,36 @@
 import { CatalogService } from './catalog.service';
+import { TEST_LEXICON } from '../conversation/test-lexicon';
 
 describe('CatalogService.searchByQuery', () => {
   const supabase = {
     matchInventory: jest.fn(),
+    listInventoryNames: jest.fn(),
   };
   const service = new CatalogService(supabase as never);
 
   beforeEach(() => {
     supabase.matchInventory.mockReset();
+    supabase.listInventoryNames.mockReset();
+    supabase.listInventoryNames.mockResolvedValue([
+      { brand: 'toyota', model: 'hilux 2.4 cd' },
+      { brand: 'volkswagen', model: 't-cross' },
+    ]);
+  });
+
+  it('las marcas salen del patio de hoy, no de una lista fija', async () => {
+    const patio = {
+      matchInventory: jest.fn(),
+      listInventoryNames: jest
+        .fn()
+        .mockResolvedValue([{ brand: 'marca-rotando', model: 'linea 2024' }]),
+    };
+    const fresh = new CatalogService(patio as never);
+    const lexicon = await fresh.getLexicon();
+    expect(lexicon.brands).toEqual(['marca-rotando']);
+    expect(lexicon.models).toEqual([
+      { brand: 'marca-rotando', family: 'linea' },
+    ]);
+    expect(lexicon).not.toEqual(TEST_LEXICON);
   });
 
   it('si nombra Hilux no busca con el SUV viejo', async () => {

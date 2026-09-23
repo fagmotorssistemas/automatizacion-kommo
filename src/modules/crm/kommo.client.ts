@@ -210,7 +210,13 @@ export class KommoClient {
     });
 
     if (!response.ok) {
-      this.logger.warn(`${method} ${label} falló: ${response.status}`);
+      const detail = (await response.text())
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 400);
+      this.logger.warn(
+        `${method} ${label} falló: ${response.status}${detail ? ` ${detail}` : ''}`,
+      );
       return false;
     }
 

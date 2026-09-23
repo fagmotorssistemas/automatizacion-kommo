@@ -67,6 +67,7 @@ export type SupabaseGateway = {
       botId: number | null;
     }[]
   >;
+  listInventoryNames(): Promise<Array<{ brand: string; model: string }>>;
   listAvailableByBrand(brand: string): Promise<
     {
       id: string;

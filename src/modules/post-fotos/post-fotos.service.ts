@@ -144,7 +144,12 @@ export class PostFotosService {
       await this.repository.markCancelled(row.id, 'sin_lead_kommo');
       return 'cancelled';
     }
-    if (row.botApagado || (await this.crm.isLeadBotStopped(row.leadIdKommo))) {
+    const inspect = await this.crm.inspectLead(row.leadIdKommo);
+    if (inspect.raw == null) {
+      await this.repository.markCancelled(row.id, 'lead_kommo_inexistente');
+      return 'cancelled';
+    }
+    if (row.botApagado || inspect.stopped) {
       await this.repository.markCancelled(row.id, 'bot_stopped');
       return 'cancelled';
     }
@@ -180,7 +185,14 @@ export class PostFotosService {
     const sent = await this.outbound.sendText(row.leadIdKommo, mensaje, {
       waitBeforeBotMs: POST_FOTOS_WAIT_MS,
     });
-    if (!sent.wrote || !sent.botRan) {
+    if (!sent.wrote) {
+      await this.repository.markCancelled(row.id, 'kommo_respuesta_ia');
+      this.logger.warn(
+        `Post-fotos id=${row.id} lead=${row.leadIdKommo} Kommo rechazó Respuesta IA; se cancela para no reintentar`,
+      );
+      return 'cancelled';
+    }
+    if (!sent.botRan) {
       throw new Error('No se pudo enviar texto post-fotos');
     }
 

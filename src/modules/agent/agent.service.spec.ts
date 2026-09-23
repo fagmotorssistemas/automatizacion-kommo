@@ -1,4 +1,5 @@
 import { AgentService } from './agent.service';
+import { TEST_LEXICON } from '../conversation/test-lexicon';
 
 describe('AgentService', () => {
   const openai = {
@@ -15,6 +16,7 @@ describe('AgentService', () => {
     searchByQuery: jest.fn(),
     listByBrand: jest.fn(),
     listAvailableExcept: jest.fn(),
+    getLexicon: jest.fn(),
   };
   const conversation = {
     recentMessages: jest.fn(),
@@ -63,6 +65,8 @@ describe('AgentService', () => {
     catalog.listByBrand.mockResolvedValue([]);
     catalog.listAvailableExcept.mockReset();
     catalog.listAvailableExcept.mockResolvedValue([]);
+    catalog.getLexicon.mockReset();
+    catalog.getLexicon.mockResolvedValue(TEST_LEXICON);
     conversation.recentMessages.mockReset();
     conversation.appendMessage.mockReset();
     conversation.loadVehicleKind.mockReset();
@@ -396,6 +400,52 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).not.toHaveBeenCalled();
   });
 
+  it('si pide Premiere 2020 no se queda en la D-Max 2022', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-vino-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2022,
+      price: 28900,
+      typeBody: 'camioneta',
+      color: 'vino',
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2020-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos Premier 2020. Tenemos una D-Max 2020.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020-cs' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'estoy buscando la premiere 2020',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/EL HILO SIGUE CON/i);
+    expect(system).toMatch(/No hay Premier 2020|no tenemos Premier 2020/i);
+    expect(system).toContain('dmax-2020-cs');
+  });
+
   it('después de mostrar un carro un mensaje suelto no reabre inventario', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'plata-1',
@@ -539,6 +589,82 @@ describe('AgentService', () => {
     expect(system).toContain('$19990');
     expect(system).toMatch(/PIDIÓ EL PRECIO/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
+  });
+
+  it('Jetour blanco 2023 elige esa unidad para poder mandar fotos', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 't1-2026',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 28900,
+        typeBody: 'suv',
+        color: 'blanco',
+      },
+      {
+        id: 'x70-2023',
+        brand: 'jetour',
+        model: 'x70 ii ac 1.5 5p 4x2 tm',
+        year: 2023,
+        price: 18900,
+        typeBody: 'suv',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Le paso la Jetour X70 2023 blanca.',
+        meta: { vehiculo: { inventory_id: 'x70-2023' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'El jeptour\nBlanco 2023\nAyúdeme con fotos\nRecorrido\nPrecio',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('jetour');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('x70-2023');
+    expect(system).toMatch(/SÍ está en patio/i);
+  });
+
+  it('Chevrolet Grand Vitara 2008 se presenta si está en patio', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'chevy-vitara-2008',
+        brand: 'chevrolet',
+        model: 'grand vitara 3p tm ac sport',
+        year: 2008,
+        price: 11900,
+        typeBody: 'suv',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos la Grand Vitara 2008.',
+        meta: { vehiculo: { inventory_id: 'chevy-vitara-2008' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'me interesa su auto Chevrolet Grand Vitara 3P Sport 2008. Lo vi en PATIOTuerca',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('chevy-vitara-2008');
+    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).not.toMatch(/No hay Vitara 2008/i);
   });
 
   it('si pide Aveo y no hay, lo dice y no lo presenta como Optra', async () => {
@@ -1553,7 +1679,7 @@ describe('AgentService', () => {
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         system: expect.stringContaining('precio_interno=33990'),
-        user: expect.stringContaining('No vuelvas a pedir'),
+        user: expect.stringContaining('interested_cars'),
       }),
     );
     expect(openai.runSalesAgent.mock.calls[0][0].system).not.toContain('$33990');

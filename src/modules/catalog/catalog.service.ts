@@ -7,6 +7,11 @@ import type { VehicleKind } from '../conversation/vehicle-kind';
 import { StockCar } from './clasificar-filas';
 import { detectNamedModelAsk } from '../conversation/vehicle-brand';
 import {
+  buildLexicon,
+  emptyLexicon,
+  type VehicleLexicon,
+} from '../conversation/fuzzy-vehicle-name';
+import {
   INVENTORY_NAMED_TOP_K,
   INVENTORY_TOP_K,
   inventorySearchPlan,
@@ -40,10 +45,32 @@ function hidePrices(rows: unknown): unknown {
 @Injectable()
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
+  private lexicon: VehicleLexicon = emptyLexicon();
+  private lexiconAt = 0;
 
   constructor(
     @Inject(SUPABASE_GATEWAY) private readonly supabase: SupabaseGateway | null,
   ) {}
+
+  /** Marcas y modelos del patio ahora. Se refresca solo. */
+  async getLexicon(): Promise<VehicleLexicon> {
+    if (this.lexicon.brands.length > 0 && Date.now() - this.lexiconAt < 300_000) {
+      return this.lexicon;
+    }
+    if (!this.supabase) {
+      return emptyLexicon();
+    }
+    try {
+      this.lexicon = buildLexicon(await this.supabase.listInventoryNames());
+      this.lexiconAt = Date.now();
+      return this.lexicon;
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron leer nombres de inventario: ${error instanceof Error ? error.message : error}`,
+      );
+      return this.lexicon.brands.length > 0 ? this.lexicon : emptyLexicon();
+    }
+  }
 
   async fetchAgentPrompts(names: string[]) {
     if (!this.supabase) {
@@ -101,13 +128,15 @@ export class CatalogService {
     includePrice?: boolean;
   }): Promise<string> {
     const includePrice = input.includePrice === true;
+    const lexicon = await this.getLexicon();
     const plan = inventorySearchPlan(
       input.query,
       input.tipo ?? null,
       input.marca ?? null,
+      lexicon,
     );
     const topK = plan.named ? INVENTORY_NAMED_TOP_K : INVENTORY_TOP_K;
-    const family = detectNamedModelAsk(input.query)?.family ?? '';
+    const family = detectNamedModelAsk(input.query, lexicon)?.family ?? '';
 
     const first = await this.searchInventory(
       input.embedding,

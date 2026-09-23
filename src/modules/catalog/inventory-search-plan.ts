@@ -1,4 +1,5 @@
 import { detectNamedModelAsk } from '../conversation/vehicle-brand';
+import { emptyLexicon, type VehicleLexicon } from '../conversation/fuzzy-vehicle-name';
 import { textMentionsModel, type StockCar } from './clasificar-filas';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 
@@ -9,10 +10,11 @@ export function inventorySearchPlan(
   query: string,
   tipo: VehicleKind | null,
   marca: string | null,
+  lexicon: VehicleLexicon = emptyLexicon(),
 ): { tipo: VehicleKind | null; marca: string | null; named: boolean } {
-  const asked = detectNamedModelAsk(query);
+  const asked = detectNamedModelAsk(query, lexicon);
   if (asked) {
-    return { tipo: null, marca: asked.brand || marca, named: true };
+    return { tipo: null, marca: asked.brand || null, named: true };
   }
   return { tipo, marca, named: false };
 }

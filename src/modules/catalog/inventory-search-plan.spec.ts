@@ -4,10 +4,38 @@ import {
   inventorySearchPlan,
   matchRowsMentionFamily,
 } from './inventory-search-plan';
+import { TEST_LEXICON } from '../conversation/test-lexicon';
 
 describe('inventory search plan', () => {
+  it('Chevrolet Grand Vitara busca Chevrolet, no Suzuki', () => {
+    expect(
+      inventorySearchPlan(
+        'Chevrolet Grand Vitara 3P Sport 2008',
+        'suv',
+        'suzuki',
+        TEST_LEXICON,
+      ),
+    ).toEqual({
+      tipo: null,
+      marca: 'chevrolet',
+      named: true,
+    });
+  });
+
+  it('Vitara sin marca no se clava en Suzuki', () => {
+    expect(
+      inventorySearchPlan('Grand Vitara 2008', 'suv', 'suzuki', TEST_LEXICON),
+    ).toEqual({
+      tipo: null,
+      marca: null,
+      named: true,
+    });
+  });
+
   it('si nombra Hilux no filtra por SUV viejo', () => {
-    expect(inventorySearchPlan('Hilux Manuel', 'suv', 'volkswagen')).toEqual({
+    expect(
+      inventorySearchPlan('Hilux Manuel', 'suv', 'volkswagen', TEST_LEXICON),
+    ).toEqual({
       tipo: null,
       marca: 'toyota',
       named: true,

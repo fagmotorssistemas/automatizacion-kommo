@@ -37,9 +37,15 @@ import {
   VehicleKind,
 } from '../conversation/vehicle-kind';
 import {
+  colorMatches,
   detectBrand,
+  detectColorInText,
   detectNamedModelAsk,
+  detectTrimInText,
+  detectYearInText,
+  modelHasTrim,
   resolveBrand,
+  type VehicleLexicon,
 } from '../conversation/vehicle-brand';
 import {
   bodyGroupOf,
@@ -191,6 +197,7 @@ export class AgentService {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
 
+    const lexicon = await this.catalog.getLexicon();
     const history = await this.recentDialogue(input.contactId);
     const interested = await this.persistence.latestInterestedCar(
       input.contactId,
@@ -205,6 +212,7 @@ export class AgentService {
       input.contactId,
       history,
       input.customerText,
+      lexicon,
     );
     const concreteAsk = await this.rememberConcreteAsk(
       input.contactId,
@@ -215,6 +223,7 @@ export class AgentService {
       input.contactId,
       history,
       input.customerText,
+      lexicon,
     );
     const showPrice = asksForPrice(input.customerText);
     const handoffBrief = await this.attachHandoffBrief(
@@ -245,6 +254,7 @@ export class AgentService {
       resumen,
       history,
       car: interested,
+      lexicon,
     });
     const revision =
       selling && !buying
@@ -266,7 +276,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           : await this.reviewBrand(
               history,
               input.customerText,
-              selling ? detectBrand(input.customerText) : brand,
+              selling ? detectBrand(input.customerText, lexicon) : brand,
               concreteAsk,
               showPrice,
               vehicleKind,
@@ -277,6 +287,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                     family: modelFamily(interested.model),
                   }
                 : null,
+              lexicon,
             );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
     const shownOtherBox =
@@ -287,11 +298,11 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const interestedText =
       interested &&
       (stayOnShown ||
-        refersToInterestedCar(input.customerText, interested)) &&
+        refersToInterestedCar(input.customerText, interested, lexicon)) &&
       !shownOtherBox
         ? formatInterestedCar(interested, showPrice)
         : '';
-    const saidBoxNow = detectGearbox(input.customerText);
+    const saidBoxNow = detectGearbox(input.customerText, lexicon);
     if (revision.switchedModel) {
       if (!saidBoxNow) {
         await this.conversation.clearGearbox(input.contactId);
@@ -361,6 +372,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
           showPrice,
+          lexicon,
         ),
     });
 
@@ -477,9 +489,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     contactId: string,
     history: { role: string; content: string }[],
     customerText: string,
+    lexicon: VehicleLexicon,
   ): Promise<string | null> {
     const remembered = await this.conversation.loadVehicleBrand(contactId);
-    const brand = resolveBrand({ history, customerText, remembered });
+    const brand = resolveBrand({ history, customerText, remembered, lexicon });
     if (brand) {
       await this.conversation.saveVehicleBrand(contactId, brand);
     }
@@ -503,9 +516,15 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     contactId: string,
     history: { role: string; content: string }[],
     customerText: string,
+    lexicon: VehicleLexicon,
   ): Promise<Gearbox | null> {
     const remembered = await this.conversation.loadGearbox(contactId);
-    const gearbox = resolveGearbox({ history, customerText, remembered });
+    const gearbox = resolveGearbox({
+      history,
+      customerText,
+      remembered,
+      lexicon,
+    });
     if (gearbox && gearbox !== remembered) {
       await this.conversation.saveGearbox(contactId, gearbox);
     }
@@ -521,15 +540,16 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     vehicleKind: VehicleKind | null,
     gearbox: Gearbox | null,
     reference: { price: number | null; family: string | null } | null,
+    lexicon: VehicleLexicon,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
-    const asked = detectNamedModelAsk(customerText);
+    const asked = detectNamedModelAsk(customerText, lexicon);
     const targetBrand = asked?.brand || brand;
-    if (!targetBrand) {
+    if (!targetBrand && !asked) {
       return empty;
     }
 
-    const namesBrandNow = Boolean(detectBrand(customerText));
+    const namesBrandNow = Boolean(detectBrand(customerText, lexicon));
     const maybeAsk =
       isConcreteAsk(customerText) ||
       (Boolean(concreteAsk) && namesBrandNow);
@@ -537,8 +557,52 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       return empty;
     }
 
-    const listed = await this.catalog.listByBrand(targetBrand);
-    const saidBox = detectGearbox(customerText);
+    const listed = targetBrand
+      ? await this.catalog.listByBrand(targetBrand)
+      : await this.catalog.listAvailableExcept('_');
+    const yearAsk = asked?.year ?? detectYearInText(customerText);
+    const colorAsk = detectColorInText(customerText);
+    const trimAsk = detectTrimInText(customerText);
+    if (!asked && (yearAsk || colorAsk || trimAsk)) {
+      const byFacts = listed.filter((car) => {
+        if (yearAsk && car.year !== yearAsk) {
+          return false;
+        }
+        if (colorAsk && !colorMatches(car.color, colorAsk)) {
+          return false;
+        }
+        if (trimAsk && !modelHasTrim(car.model, trimAsk)) {
+          return false;
+        }
+        return true;
+      });
+      if (byFacts.length === 1) {
+        return this.namedModelFound(byFacts, includePrice, false);
+      }
+      if (byFacts.length > 1) {
+        return {
+          ...formatNamedUnits(byFacts, includePrice),
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(byFacts),
+        };
+      }
+      if (trimAsk || yearAsk) {
+        const close = listed.filter((car) =>
+          yearAsk ? car.year === yearAsk : true,
+        );
+        return {
+          ...formatMissingNamedModel(
+            trimAsk || targetBrand || 'unidad',
+            yearAsk,
+            close,
+            includePrice,
+          ),
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(close),
+        };
+      }
+    }
+    const saidBox = detectGearbox(customerText, lexicon);
     const lastAssistant = [...history]
       .reverse()
       .find((item) => item.role === 'assistant');
@@ -586,6 +650,14 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           if (yearFromEmbed.length > 0) {
             return this.namedModelFound(yearFromEmbed, includePrice, true);
           }
+          const yearElsewhere = await this.familyInOtherBrands(
+            asked.family,
+            asked.year,
+            targetBrand,
+          );
+          if (yearElsewhere.length > 0) {
+            return this.namedModelFound(yearElsewhere, includePrice, false);
+          }
           const missingYear = formatMissingNamedModel(
             asked.family,
             asked.year,
@@ -612,6 +684,14 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       if (fromEmbed.length > 0) {
         return this.namedModelFound(fromEmbed, includePrice, true);
       }
+      const elsewhere = await this.familyInOtherBrands(
+        asked.family,
+        asked.year,
+        targetBrand,
+      );
+      if (elsewhere.length > 0) {
+        return this.namedModelFound(elsewhere, includePrice, false);
+      }
       const missing = formatMissingNamedModel(
         asked.family,
         asked.year,
@@ -631,7 +711,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     const askingOther =
       Boolean(referenceFamily) &&
       !mentionsReference &&
-      Boolean(detectBrand(customerText));
+      Boolean(detectBrand(customerText, lexicon));
 
     const asksNow =
       isConcreteAsk(customerText) ||
@@ -662,7 +742,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       if (inBrand?.sameModel) {
         stock = inBrand.cars;
       } else {
-        const others = await this.catalog.listAvailableExcept(targetBrand);
+        const others = await this.catalog.listAvailableExcept(
+          targetBrand || '_',
+        );
         const pick = pickGearboxAlternatives({
           cars: [...listed, ...others],
           gearbox,
@@ -710,7 +792,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       if (namedNow.length > 0) {
         return formatNamedUnits(namedNow, includePrice);
       }
-      if (userNamedModel(userTexts, cars)) {
+      if (userNamedModel(userTexts, cars) || !targetBrand) {
         return empty;
       }
       return {
@@ -886,6 +968,23 @@ Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. N
     };
   }
 
+  /** El modelo/año puede estar en otra marca (Chevrolet Vitara vs Suzuki). */
+  private async familyInOtherBrands(
+    family: string,
+    year: number | null,
+    exceptBrand: string | null,
+  ): Promise<StockCar[]> {
+    if (!family) {
+      return [];
+    }
+    const others = await this.catalog.listAvailableExcept(exceptBrand || '_');
+    return others.filter(
+      (car) =>
+        textMentionsModel(car.model, family) &&
+        (year == null || car.year === year),
+    );
+  }
+
   private async lookupNamedByEmbedding(
     query: string,
     family: string,
@@ -924,6 +1023,7 @@ Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. N
     vehicleKind: VehicleKind | null,
     brand: string | null,
     includePrice: boolean,
+    lexicon: VehicleLexicon,
   ): Promise<string> {
     let args: Record<string, unknown> = {};
     try {
@@ -937,7 +1037,7 @@ Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. N
       const tipo = vehicleKind ?? parseVehicleKind(args.tipo);
       const fromTool = String(args.marca ?? '').trim();
       const marca = brand ?? (fromTool || null);
-      const plan = inventorySearchPlan(query, tipo, marca);
+      const plan = inventorySearchPlan(query, tipo, marca, lexicon);
       const embedding = await this.openai.embed(query);
       return this.catalog.searchByQuery({
         embedding: embedding ?? [],

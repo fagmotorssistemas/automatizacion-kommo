@@ -4,6 +4,7 @@ import {
   leftShownCar,
   refersToInterestedCar,
 } from './interested-car';
+import { TEST_LEXICON } from './test-lexicon';
 
 const explorer = {
   inventoryId: 'exp-1',
@@ -49,26 +50,65 @@ describe('vehículo de interés', () => {
   });
 
   it('se suelta si el mensaje o el resumen piden otro carro', () => {
-    expect(followsShownCar({ text: 'Hilux', car: sportage })).toBe(false);
-    expect(leftShownCar({ text: 'Hilux', car: sportage })).toBe(true);
+    expect(
+      followsShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),
+    ).toBe(false);
+    expect(
+      leftShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),
+    ).toBe(true);
     expect(
       followsShownCar({
         text: 'sí, esa',
         resumen: 'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.',
         car: sportage,
+        lexicon: TEST_LEXICON,
       }),
     ).toBe(false);
     expect(
-      refersToInterestedCar('Gran vitara 3 puertas', explorer),
+      refersToInterestedCar('Gran vitara 3 puertas', explorer, TEST_LEXICON),
     ).toBe(false);
   });
 
   it('otro año o otra caja no es la misma unidad', () => {
     expect(
-      followsShownCar({ text: 'el Sportage 2014 más barato', car: sportage }),
+      followsShownCar({
+        text: 'el Sportage 2014 más barato',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
     ).toBe(false);
     expect(followsShownCar({ text: 'y en manual?', car: sportage })).toBe(
       false,
+    );
+  });
+
+  it('premiere 2020 suelta la D-Max 2022 que ya mostramos', () => {
+    const dmax2022 = {
+      inventoryId: 'dmax-vino',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2022,
+      price: 28900,
+      color: 'vino',
+    };
+    expect(
+      followsShownCar({
+        text: 'estoy buscando la premiere 2020',
+        car: dmax2022,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
+    expect(
+      followsShownCar({
+        text: 'sí',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.',
+        car: dmax2022,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
+    expect(followsShownCar({ text: 'cuántos km tiene?', car: dmax2022 })).toBe(
+      true,
     );
   });
 
@@ -87,7 +127,7 @@ describe('vehículo de interés', () => {
     expect(formatInterestedCar(explorer)).not.toContain('$33990');
     expect(formatInterestedCar(explorer)).toContain('precio_interno=33990');
     expect(formatInterestedCar(explorer, true)).toContain('$33990');
-    expect(formatInterestedCar(explorer)).toContain('No reabras inventario');
+    expect(formatInterestedCar(explorer)).toMatch(/si pidió otro año/i);
   });
 
   it('el km está para responderlo si lo pide, no para soltar la placa', () => {
