@@ -2,6 +2,7 @@ import {
   fitsSaturdayHours,
   fitsWeekdayHours,
   formatVisitHourHint,
+  isMoneyNotVisit,
   looksLikeClock,
   parseCustomerClock,
 } from './visit-hours';
@@ -163,5 +164,16 @@ describe('formatVisitHourHint', () => {
   it('no inyecta hint en mensajes sin hora', () => {
     expect(formatVisitHourHint('quiero 7 pasajeros')).toBe('');
     expect(formatVisitHourHint('Foton Tunland 2023')).toBe('');
+    expect(formatVisitHourHint('En 18 ni lo deja')).toBe('');
+    expect(formatVisitHourHint('Y de contado')).toBe('');
+  });
+
+  it('en 18 ni lo deja es plata, no una hora, y el monto no está fijo', () => {
+    expect(isMoneyNotVisit('En 18 ni lo deja')).toBe(true);
+    expect(isMoneyNotVisit('por 15 ni lo dejan')).toBe(true);
+    expect(isMoneyNotVisit('hasta 20 mil')).toBe(true);
+    expect(isMoneyNotVisit('Y de contado')).toBe(true);
+    expect(isMoneyNotVisit('a las 18 paso')).toBe(false);
+    expect(isMoneyNotVisit('a qué hora abren')).toBe(false);
   });
 });

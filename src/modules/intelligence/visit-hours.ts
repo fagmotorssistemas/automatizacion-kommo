@@ -119,8 +119,42 @@ export function fitsSaturdayHours(hour: number, minute: number): boolean {
   return m >= 9 * 60 + 30 && m <= 13 * 60 + 30;
 }
 
-/** Hint duro para el agente cuando el cliente propone una hora. */
+const VISIT_OR_HOURS =
+  /\b(?:horarios?|a que hora|que hora|abren|cierran|atienden|agendar|agendemos|visita|paso|voy|llego|a las|am|pm)\b/;
+
+/** Pregunta el horario o propone una hora para ir. */
+export function asksVisitOrHours(text: string): boolean {
+  return VISIT_OR_HOURS.test(normalize(text));
+}
+
+/**
+ * Un monto ("en 15", "por 20", "ni lo deja") es plata, no hora de visita.
+ * El horario solo entra si pregunta la hora de atención o propone ir.
+ */
+export function isMoneyNotVisit(text: string): boolean {
+  if (asksVisitOrHours(text)) {
+    return false;
+  }
+  const n = normalize(text);
+  if (/\b(?:contado|precios?|dolares|mil|ni lo deja|ni lo dejan)\b/.test(n)) {
+    return true;
+  }
+  return (
+    /\b(?:en|por|a|hasta|maximo)\s+\$?\d{1,3}\b/.test(n) &&
+    /\b(?:deja|dejan|sale|cuesta|contado|precio|mil)\b/.test(n)
+  );
+}
+
+export const PRECIO_NO_HORARIO = `Este mensaje es de PRECIO, no de horario.
+El número que dijo el cliente, sin decir "dólares", es en miles: 15 = 15000, 18 = 18000, 20 = 20000. Nunca son 15 ni 18 dólares.
+Responde el precio o el contado con ese monto. Prohibido decir el horario o pedir hora de visita.
+No digas que no hay fotos.`;
+
+/** Hint duro para el agente cuando el cliente propone una hora de visita. */
 export function formatVisitHourHint(customerText: string): string {
+  if (isMoneyNotVisit(customerText)) {
+    return '';
+  }
   const clock = parseCustomerClock(customerText);
   if (!clock) {
     return '';

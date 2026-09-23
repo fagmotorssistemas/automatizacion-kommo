@@ -199,6 +199,40 @@ describe('AgentService', () => {
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('en 18 ni lo deja es precio y no horario', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      price: 22990,
+      typeBody: 'jeep',
+    });
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente habla de contado.')
+      .mockResolvedValueOnce('{"intenciones":["contado"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Después de las 18:00 no atendemos.',
+        meta: {
+          vehiculo: { inventory_id: 'b7d3649a-c700-4070-b4e2-21289a45b330' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'En 18 ni lo deja',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('15000'),
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('si nos vende su carro no ofrece uno parecido del inventario', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('kia');
     catalog.listByBrand.mockResolvedValue([

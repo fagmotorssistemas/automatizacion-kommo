@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock } from '../intelligence/dealership-hours';
-import { formatVisitHourHint } from '../intelligence/visit-hours';
+import { formatVisitHourHint, isMoneyNotVisit, PRECIO_NO_HORARIO } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
   calcularFinanciamientoBancario,
@@ -210,6 +210,7 @@ export class AgentService {
       revision.text,
       interestedText,
       isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+      isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
       formatVisitHourHint(input.customerText),
       selling ? SU_CARRO_NO_SE_OFRECE : '',
       showPrice || (selling && !buying)
@@ -249,7 +250,7 @@ export class AgentService {
         inventory_id: revision.sendId,
       };
       parsed.img_prefix = '';
-    } else if (revision.holdVehicle) {
+    } else if (revision.holdVehicle || isMoneyNotVisit(input.customerText)) {
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
     } else {
