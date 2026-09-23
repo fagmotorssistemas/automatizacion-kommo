@@ -42,6 +42,7 @@ export type SupabaseGateway = {
   updateHandoffResumen(leadId: string, resumen: string): Promise<void>;
   matchCtwaClick(phone: string): Promise<unknown>;
   fetchAgentPrompts(names: string[]): Promise<AgentPromptRow[]>;
+  listAgentPromptNames(): Promise<string[]>;
   matchInventory(
     embedding: number[],
     topK: number,

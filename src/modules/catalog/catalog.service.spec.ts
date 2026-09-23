@@ -5,6 +5,7 @@ describe('CatalogService.searchByQuery', () => {
   const supabase = {
     matchInventory: jest.fn(),
     listInventoryNames: jest.fn(),
+    listAgentPromptNames: jest.fn(),
   };
   const service = new CatalogService(supabase as never);
 

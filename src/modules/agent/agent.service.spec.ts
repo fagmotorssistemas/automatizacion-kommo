@@ -12,6 +12,7 @@ describe('AgentService', () => {
   };
   const catalog = {
     fetchAgentPrompts: jest.fn(),
+    listAgentPromptNames: jest.fn(),
     searchInventory: jest.fn(),
     searchByQuery: jest.fn(),
     listByBrand: jest.fn(),
@@ -60,6 +61,8 @@ describe('AgentService', () => {
     openai.embed.mockReset();
     openai.runSalesAgent.mockReset();
     catalog.fetchAgentPrompts.mockReset();
+    catalog.listAgentPromptNames.mockReset();
+    catalog.listAgentPromptNames.mockResolvedValue([]);
     catalog.searchInventory.mockReset();
     catalog.searchByQuery.mockReset();
     catalog.searchByQuery.mockResolvedValue('[]');
@@ -168,6 +171,35 @@ describe('AgentService', () => {
       expect.any(String),
       'MENSAJE ACTUAL:\nme interesa una hilux',
     );
+  });
+
+  it('intención no carga filas inventadas de agent_prompts', async () => {
+    catalog.listAgentPromptNames.mockResolvedValue([
+      'rol',
+      'compra',
+      'manejocaro',
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente quiere una hilux.')
+      .mockResolvedValueOnce(
+        '{"intenciones":["compra","consulta_modelo"]}',
+      );
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos una Hilux disponible.',
+        meta: { vehiculo: { inventory_id: 'inv-1' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'me interesa una hilux',
+    });
+
+    expect(openai.complete.mock.calls[1][0]).toMatch(/Filas REALES de agent_prompts/);
+    expect(openai.complete.mock.calls[1][0]).toMatch(/- compra/);
+    expect(openai.complete.mock.calls[1][0]).not.toMatch(/consulta_modelo/);
+    expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(['rol', 'compra']);
   });
 
   it('si hay varias del modelo las nombra y no manda una sola', async () => {
@@ -707,7 +739,8 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/10900/);
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('$10900');
-    expect(system).toMatch(/PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/YA SE DIO LA FICHA/i);
+    expect(system).toMatch(/justifica el valor/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
   });
 
@@ -750,7 +783,7 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/placa/i);
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('$10900');
-    expect(system).toMatch(/PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/YA SE DIO LA FICHA/i);
   });
 
   it('Valor del Seltos pide el precio y no cédula ni placa', async () => {
@@ -788,7 +821,7 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/placa/i);
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('$19990');
-    expect(system).toMatch(/PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/YA SE DIO LA FICHA/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
   });
 
@@ -3057,6 +3090,137 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/\$28990/);
     expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
     expect(result?.reply.mensaje).not.toMatch(/carro cuidado/i);
+  });
+
+  it('si ya dio la ficha el precio se justifica y no se vuelve a listar', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Hola. Me interesa el Foton Tunland 2023',
+      },
+      {
+        role: 'assistant',
+        content: 'Buen dia te saluda Felipe Cabrera, seré su asesor.',
+      },
+      {
+        role: 'user',
+        content: 'Precio 4x4 diésel',
+      },
+      {
+        role: 'user',
+        content: 'Dé contado',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Foton Tunland TM 2023 color plateado, con 113692 km, transmisión manual y tracción 4x4. Aquí tiene también las fotos del vehículo.',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Le envié fotos de la Foton Tunland 2023, ¿le gustó o hay algo que le detiene?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'tunland-1',
+      brand: 'foton',
+      model: 'tunland tm',
+      year: 2023,
+      price: 21800,
+      typeBody: 'camioneta',
+      color: 'plateado',
+      mileage: 113692,
+      transmission: 'manual',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide el precio de la unidad que ya vio.\nPide precio: sí\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El precio es $21800. Es un carro cuidado, con garantía en documentos y traspaso.',
+        meta: { vehiculo: { inventory_id: 'tunland-1', precio: 21800 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Que precio tiene',
+    });
+
+    expect(openai.complete).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      expect.stringMatching(/Ficha ya presentada: sí[\s\S]*Pide el precio: sí/i),
+    );
+    expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(
+      expect.arrayContaining(['rol', 'manejocaro']),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA SE DIO LA FICHA/i);
+    expect(system).toContain('$21800');
+    expect(system).toMatch(/justifica el valor/i);
+    expect(system).toMatch(/ficha YA se presentó/i);
+    expect(system).not.toMatch(/color=plateado/i);
+    expect(system).not.toMatch(/caja=manual/i);
+    expect(system).not.toMatch(/AL CLIENTE:.*mecánico/i);
+    expect(result?.reply.mensaje).toMatch(/21800/);
+    expect(result?.reply.mensaje).not.toMatch(/tenemos disponible/i);
+  });
+
+  it('objeción de precio no vuelve a mandar la ficha y carga agent_prompts', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Johnny, ¿qué le pareció el Kia Picanto LX 2023? El precio es $15990.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto-1',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'blanco',
+      mileage: 64127,
+      transmission: 'automática',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente dice que el precio es alto.\nPide precio: sí\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El valor se sostiene por el estado y los 64127 km, con garantía en documentos y traspaso. ¿Le interesa verlo en el patio?',
+        meta: { vehiculo: { inventory_id: 'picanto-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'El precio muy alto',
+    });
+
+    expect(openai.complete).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      expect.stringMatching(/Objeta el valor: sí/i),
+    );
+    expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(
+      expect.arrayContaining(['rol', 'objeciones', 'manejocaro']),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/OBJECIÓN/i);
+    expect(system).toMatch(/No vuelvas a mandar la ficha/i);
+    expect(system).toMatch(/garantía en documentos/i);
+    expect(system).not.toMatch(/AL CLIENTE:.*mecánico/i);
+    expect(result?.reply.mensaje).not.toMatch(/tenemos disponible/i);
   });
 
   it('La 2022 elige la de la lista y no dice que no hay', async () => {

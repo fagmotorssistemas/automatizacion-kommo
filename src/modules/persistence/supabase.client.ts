@@ -230,9 +230,29 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     }
 
     return (data ?? []).map((row) => ({
-      name: String(row.name ?? ''),
+      name: String(row.name ?? '').trim(),
       content: String(row.content ?? ''),
     }));
+  }
+
+  async listAgentPromptNames(): Promise<string[]> {
+    const client = this.requireClient();
+    if (!client) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('agent_prompts')
+      .select('name');
+
+    if (error) {
+      this.logger.warn(`GET agent_prompts names: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? [])
+      .map((row) => String(row.name ?? ''))
+      .filter((name) => name.trim().length > 0);
   }
 
   async listAvailableExcept(brand: string) {

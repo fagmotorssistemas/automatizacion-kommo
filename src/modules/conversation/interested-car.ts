@@ -181,10 +181,40 @@ export function followsShownCar(input: ShownCarContext): boolean {
   return !leftShownCar(input);
 }
 
+/** El bot ya mandó la ficha de ESA unidad (historial o resumen). */
+export function historyPresentedFicha(
+  history: { role: string; content: string }[] | undefined,
+  model: string | undefined,
+  resumen?: string | null,
+): boolean {
+  if (
+    resumen &&
+    /fotos (?:enviadas|ya)|ficha (?:ya )?(?:enviada|mostrada)|ya (?:le )?(?:mostr|envi)/i.test(
+      resumen,
+    )
+  ) {
+    return true;
+  }
+  if (!history?.length || !model) {
+    return false;
+  }
+  return history.some((item) => {
+    if (item.role !== 'assistant' || !textMentionsModel(item.content, model)) {
+      return false;
+    }
+    return (
+      /\b\d{3,6}\s*km\b/i.test(item.content) ||
+      /tenemos disponible|aqu[ií] (?:tiene(?: tambi[eé]n)? )?las fotos|le envi[eé] fotos|fotos del veh[ií]culo/i.test(
+        item.content,
+      )
+    );
+  });
+}
+
 export function formatInterestedCar(
   car: InterestedCarSnapshot,
   includePrice = false,
-  options?: { skipMileageCare?: boolean },
+  options?: { skipMileageCare?: boolean; slimAfterFicha?: boolean },
 ): string {
   const year = car.year ? ` ${car.year}` : '';
   const shown =
@@ -195,6 +225,16 @@ export function formatInterestedCar(
     !includePrice && car.price && car.price > 0
       ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
       : '';
+  if (options?.slimAfterFicha) {
+    const km =
+      car.mileage && car.mileage > 0
+        ? `\nkm=${Math.round(car.mileage)} (para justificar el valor, no para repetir la ficha)`
+        : '';
+    return `VEHÍCULO DE INTERÉS (la ficha YA se presentó en el hilo)
+${car.brand} ${car.model}${year}${shown}
+inventory_id=${car.inventoryId}${interno}${km}
+YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.`;
+  }
   const tipo = kindFromTypeBody(car.typeBody);
   const tipoLine = tipo
     ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`

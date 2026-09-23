@@ -47,6 +47,8 @@ export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
   private lexicon: VehicleLexicon = emptyLexicon();
   private lexiconAt = 0;
+  private promptNames: string[] = [];
+  private promptNamesAt = 0;
 
   constructor(
     @Inject(SUPABASE_GATEWAY) private readonly supabase: SupabaseGateway | null,
@@ -69,6 +71,26 @@ export class CatalogService {
         `No se pudieron leer nombres de inventario: ${error instanceof Error ? error.message : error}`,
       );
       return this.lexicon.brands.length > 0 ? this.lexicon : emptyLexicon();
+    }
+  }
+
+  /** Nombres reales de agent_prompts. El clasificador no inventa filas. */
+  async listAgentPromptNames(): Promise<string[]> {
+    if (this.promptNames.length > 0 && Date.now() - this.promptNamesAt < 300_000) {
+      return this.promptNames;
+    }
+    if (!this.supabase) {
+      return this.promptNames;
+    }
+    try {
+      this.promptNames = await this.supabase.listAgentPromptNames();
+      this.promptNamesAt = Date.now();
+      return this.promptNames;
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron leer nombres de agent_prompts: ${error instanceof Error ? error.message : error}`,
+      );
+      return this.promptNames;
     }
   }
 

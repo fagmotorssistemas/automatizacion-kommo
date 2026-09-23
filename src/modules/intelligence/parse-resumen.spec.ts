@@ -1,13 +1,16 @@
 import {
+  historyHasListedPrice,
   parseResumen,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
   resumenIsFarewell,
+  resumenIsPriceObjection,
   textAsksForCredit,
   textAsksForListedPrice,
   textAsksForOtherColor,
+  textIsPriceObjection,
 } from './parse-resumen';
 
 describe('resumenAsksForListedPrice', () => {
@@ -97,6 +100,34 @@ describe('textAsksForListedPrice', () => {
     expect(textAsksForListedPrice('Si iel valor')).toBe(true);
     expect(textAsksForListedPrice('me puede alludar cotisando')).toBe(true);
     expect(textAsksForListedPrice('Dispongo de 10.000$')).toBe(false);
+    expect(textAsksForListedPrice('El precio muy alto')).toBe(false);
+    expect(textIsPriceObjection('El precio muy alto')).toBe(true);
+    expect(textIsPriceObjection('Si iel valor')).toBe(false);
+    expect(
+      resumenIsPriceObjection(
+        'SOLICITUD ACTUAL:\nCliente objeta el precio.\nPide precio: no\nObjeción de precio: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenIsPriceObjection(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nObjeción de precio: no',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('historyHasListedPrice', () => {
+  it('detecta un $ ya dicho por el bot', () => {
+    expect(
+      historyHasListedPrice([
+        { role: 'assistant', content: 'El precio es $15990.' },
+      ]),
+    ).toBe(true);
+    expect(
+      historyHasListedPrice([
+        { role: 'user', content: 'El precio muy alto' },
+      ]),
+    ).toBe(false);
   });
 });
 

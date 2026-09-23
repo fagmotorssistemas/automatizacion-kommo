@@ -1,6 +1,7 @@
 import {
   followsShownCar,
   formatInterestedCar,
+  historyPresentedFicha,
   leftShownCar,
   refersToInterestedCar,
 } from './interested-car';
@@ -249,6 +250,57 @@ describe('vehículo de interés', () => {
         car: { ...sportage, color: 'plateado' },
       }),
     ).toBe(false);
+  });
+
+  it('detecta si la ficha ya salió en el hilo o el resumen', () => {
+    expect(
+      historyPresentedFicha(
+        [
+          {
+            role: 'assistant',
+            content:
+              'Estimado, tenemos disponible un Foton Tunland TM 2023 color plateado, con 113692 km, transmisión manual y tracción 4x4. Aquí tiene también las fotos del vehículo.',
+          },
+        ],
+        'tunland tm',
+      ),
+    ).toBe(true);
+    expect(
+      historyPresentedFicha(
+        [
+          {
+            role: 'assistant',
+            content:
+              'Le envié fotos de la Foton Tunland 2023, ¿le gustó o hay algo que le detiene?',
+          },
+        ],
+        'tunland tm',
+      ),
+    ).toBe(true);
+    expect(
+      historyPresentedFicha(
+        [{ role: 'assistant', content: 'Buen día, seré su asesor.' }],
+        'tunland tm',
+      ),
+    ).toBe(false);
+    expect(
+      historyPresentedFicha([], 'tunland tm', 'Fotos enviadas. Cliente pide precio.'),
+    ).toBe(true);
+  });
+
+  it('si ya se dio la ficha el precio va justificado, no se vuelve a listar', () => {
+    const text = formatInterestedCar(
+      { ...explorer, mileage: 113692, color: 'plateado', transmission: 'manual' },
+      true,
+      { slimAfterFicha: true, skipMileageCare: true },
+    );
+    expect(text).toMatch(/ficha YA se presentó/i);
+    expect(text).toContain('$33990');
+    expect(text).toContain('km=113692');
+    expect(text).toMatch(/justifica el valor/i);
+    expect(text).not.toContain('color=plateado');
+    expect(text).not.toContain('caja=manual');
+    expect(text).not.toMatch(/AL CLIENTE:.*mecánico/i);
   });
 
   it('si pide furgoneta suelta el carro chico', () => {

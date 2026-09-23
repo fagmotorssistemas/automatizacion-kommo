@@ -49,7 +49,8 @@ Cliente quiere ...
 REGLA DE PRECIO (OBLIGATORIA):
 Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
 En la primera presentación (Hola me interesa X, o “sí/ok” al saludo para ver esa unidad), Pide precio: no. Todavía no preguntó el valor.
-Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km.
+Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km. Objeción de precio: no.
+Si objeta el valor de una unidad YA mostrada (caro, alto, mucho, descuento, rebaja), SOLICITUD: objeta el precio de ESA unidad. No lo conviertas en “quiere el precio” ni en ficha. Pide precio: no. Objeción de precio: sí.
 Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
 Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
@@ -58,7 +59,7 @@ Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”
 Si pide precio de contado Y a crédito (o financiamiento), SOLICITUD debe decir las dos cosas. Pide precio: sí. Pide crédito: sí.
 Si pide otro color del mismo modelo (sin nombrar otro carro), SOLICITUD: quiere otro color de ESA línea. Pide otro color: sí. Pide precio: no, salvo que también pida el valor. No lo dejes en la misma unidad.
 Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envió la cédula para que un asesor revise si califica. No pidas la cédula otra vez. Pide precio: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
@@ -87,6 +88,7 @@ Cliente quiere [acción].
 Pide precio: sí|no
 Pide crédito: sí|no
 Pide otro color: sí|no
+Objeción de precio: sí|no
 Tiene duda: sí|no
 Es despedida: sí|no
 

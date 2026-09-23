@@ -60,14 +60,34 @@ function flagSiNo(resumen: string, name: string): boolean | null {
 function stripResumenFlags(text: string): string {
   return text
     .replace(/pide\s+(?:precio|cr[eé]dito|otro\s+color):\s*(s[ií]|no)/gi, '')
+    .replace(/objeci[oó]n\s+de\s+precio:\s*(s[ií]|no)/gi, '')
     .replace(/tiene\s+duda:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '');
+}
+
+/** Objeta el valor que ya vio; no está pidiendo oír el número. */
+export function textIsPriceObjection(text: string): boolean {
+  const n = fold(stripResumenFlags(text));
+  if (
+    /\b(?:cuanto|cual|cotiz|cotis|iel\s+valor|el\s+valor)\b/.test(n) &&
+    !/\b(alto|cara?|mucho)\b/.test(n)
+  ) {
+    return false;
+  }
+  return (
+    (/\bprecios?\b/.test(n) &&
+      /\b(alto|cara?|mucho|descuent|rebaja|negociable)\b/.test(n)) ||
+    /\b(?:muy\s+)?caro\b/.test(n)
+  );
 }
 
 /** El cliente pide el valor de la unidad (precio / cotizar / “el valor”). */
 export function textAsksForListedPrice(text: string): boolean {
   const n = fold(stripResumenFlags(text));
   if (/\bprecio\s+menor\b/.test(n) || /\bpresupuesto\b/.test(n)) {
+    return false;
+  }
+  if (textIsPriceObjection(text)) {
     return false;
   }
   if (/\b(?:precios?|cotiz|cotis)/.test(n)) {
@@ -121,6 +141,37 @@ export function resumenHasPendingDoubt(resumen: string): boolean {
   }
   const solicitud = parseResumen(resumen).solicitudActual ?? '';
   return /\bduda\b|\bmalentendido\b|\bincognita\b/i.test(fold(solicitud));
+}
+
+/** El bot ya dijo un $ de inventario en el hilo. Hablar otra vez de precio no es pedir la ficha. */
+export function historyHasListedPrice(
+  history?: { role: string; content: string }[],
+): boolean {
+  return (history ?? []).some(
+    (item) =>
+      item.role === 'assistant' &&
+      /\$\s*\d{3,6}\b/i.test(item.content),
+  );
+}
+
+/** El analizador leyó que objeta el valor, no que pide oír el número. */
+export function resumenIsPriceObjection(resumen: string): boolean {
+  const flag = flagSiNo(resumen, 'objeci[oó]n\\s+de\\s+precio');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  if (!solicitud) {
+    return false;
+  }
+  if (/\b(?:quiere|pide|solicita)\b/.test(solicitud) && /\b(?:precio|valor)\b/.test(solicitud)) {
+    return false;
+  }
+  return /\b(alto|cara?|mucho|descuent|rebaja|negociable|no le alcanza)\b/.test(
+    solicitud,
+  );
 }
 
 /** El analizador marcó que de verdad se va, sin duda pendiente. */

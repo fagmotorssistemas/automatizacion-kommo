@@ -16,8 +16,11 @@ import {
 } from '../intelligence/extract-cedula';
 import {
   assembleDynamicContext,
+  buildIntentsInput,
+  OBJECTION_PROMPT_NAMES,
   parseIntentsPayload,
   promptNamesFromIntents,
+  toFetchPromptNames,
 } from './assemble-dynamic-context';
 import { OpenAiAgentClient } from './openai-agent.client';
 import {
@@ -30,7 +33,7 @@ import { PersistenceService } from '../persistence/persistence.service';
 import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
-import { INTENTS_SYSTEM_PROMPT } from './prompts/intents.prompt';
+import { intentsSystemPrompt } from './prompts/intents.prompt';
 import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
@@ -80,9 +83,11 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
+  resumenIsPriceObjection,
   textAsksForCredit,
   textAsksForListedPrice,
   textAsksForOtherColor,
+  textIsPriceObjection,
 } from '../intelligence/parse-resumen';
 import {
   historySaidMileageCare,
@@ -91,6 +96,7 @@ import {
 import {
   followsShownCar,
   formatInterestedCar,
+  historyPresentedFicha,
   refersToInterestedCar,
 } from '../conversation/interested-car';
 import {
@@ -324,9 +330,10 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
-    const askedPrice =
+    const mentionsPrice =
       resumenAsksForListedPrice(resumen) ||
       textAsksForListedPrice(input.customerText);
+    const askedPrice = mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
     const askedCredit = cashBudget
       ? false
@@ -340,19 +347,6 @@ export class AgentService {
         ? SEGUIR_VENTA
         : '';
 
-    const intentsRaw =
-      (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
-    const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
-    const selling = turnIsSellingTheirCar(
-      promptNames,
-      resumen,
-      input.customerText,
-    );
-    const buying = turnAlsoWantsToBuy(
-      promptNames,
-      resumen,
-      input.customerText,
-    );
     const spaceText = `${input.customerText}\n${resumen}\n${history
       .filter((item) => item.role === 'user')
       .map((item) => item.content)
@@ -365,6 +359,40 @@ export class AgentService {
       car: interested,
       lexicon,
     });
+    const fichaAlreadyGiven = historyPresentedFicha(
+      history,
+      interested?.model,
+      resumen,
+    );
+    const priceObjection =
+      resumenIsPriceObjection(resumen) ||
+      textIsPriceObjection(input.customerText);
+    const promptCatalog = await this.catalog.listAgentPromptNames();
+    const intentsRaw =
+      (await this.openai.complete(
+        intentsSystemPrompt(promptCatalog),
+        buildIntentsInput({
+          resumen,
+          stayOnShown,
+          fichaAlreadyGiven,
+          askedPrice,
+          priceObjection,
+        }),
+      )) ?? '{}';
+    let promptNames = promptNamesFromIntents(
+      parseIntentsPayload(intentsRaw),
+      promptCatalog,
+    );
+    const selling = turnIsSellingTheirCar(
+      promptNames,
+      resumen,
+      input.customerText,
+    );
+    const buying = turnAlsoWantsToBuy(
+      promptNames,
+      resumen,
+      input.customerText,
+    );
     const revision =
       selling && !buying
         ? { text: '', holdVehicle: true, sendId: null }
@@ -407,7 +435,33 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               askedOtherColor,
               resumen,
             );
-    const sections = await this.catalog.fetchAgentPrompts(promptNames);
+    const objectionOnShown =
+      stayOnShown &&
+      Boolean(interested) &&
+      (priceObjection ||
+        promptNames.some((name) =>
+          (OBJECTION_PROMPT_NAMES as readonly string[]).includes(name),
+        ));
+    const askingKmOnly =
+      /\bkm\b|kilometr/i.test(input.customerText) &&
+      !textAsksForListedPrice(input.customerText);
+    const justifyPriceAfterFicha =
+      stayOnShown &&
+      Boolean(interested) &&
+      askedPrice &&
+      !askingKmOnly &&
+      !objectionOnShown &&
+      fichaAlreadyGiven;
+    if (objectionOnShown) {
+      promptNames = [
+        ...new Set([...promptNames, 'objeciones', 'manejocaro']),
+      ];
+    } else if (justifyPriceAfterFicha) {
+      promptNames = [...new Set([...promptNames, 'manejocaro'])];
+    }
+    const sections = await this.catalog.fetchAgentPrompts(
+      toFetchPromptNames(promptNames, promptCatalog),
+    );
     const shownOtherBox =
       gearbox &&
       interested &&
@@ -425,8 +479,14 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !shownOtherBox
         ? formatInterestedCar(
             interested,
-            (askedPrice || askedCredit) && alreadyShown,
-            { skipMileageCare: historySaidMileageCare(history) },
+            (askedPrice || askedCredit) && alreadyShown && !objectionOnShown,
+            {
+              skipMileageCare:
+                historySaidMileageCare(history) ||
+                objectionOnShown ||
+                justifyPriceAfterFicha,
+              slimAfterFicha: justifyPriceAfterFicha,
+            },
           )
         : '';
     const saidBoxNow = detectGearbox(input.customerText, lexicon);
@@ -465,8 +525,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             !textMentionsModel(lastAssistantMsg.content, interested.model)),
       );
     const canQuotePrice =
-      (hasQuotedUnit && alreadyShown && (askedPrice || askedCredit)) ||
-      lastAssistantListedOther;
+      !objectionOnShown &&
+      ((hasQuotedUnit && alreadyShown && (askedPrice || askedCredit)) ||
+        lastAssistantListedOther);
     const creditoHint = askedCredit
       ? hasQuotedUnit && alreadyShown
         ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. Cédula solo después de una cuota.'
@@ -474,7 +535,14 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. En la primera ficha no digas el precio. Pregunta entrada y plazo. No inventes cuota.'
           : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
       : '';
-    const precioHint = canQuotePrice
+    const objecionHint = objectionOnShown
+      ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
+      : '';
+    const precioHint = objectionOnShown
+      ? ''
+      : justifyPriceAfterFicha
+        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
+      : canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
         : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
@@ -523,6 +591,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             colorHint,
             cedulaHint,
             mileageCareHint,
+            objecionHint,
             precioHint,
           ]
         : [
@@ -550,6 +619,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             colorHint,
             cedulaHint,
             mileageCareHint,
+            objecionHint,
             precioHint,
           ]
     )
