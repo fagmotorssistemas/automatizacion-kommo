@@ -178,6 +178,23 @@ describe('vehículo de interés', () => {
     expect(text).not.toMatch(/^km=0$/m);
   });
 
+  it('Peugeot 2008 no suelta la unidad 2022 de ese modelo', () => {
+    const peugeot2008 = {
+      inventoryId: 'p2008-2022',
+      brand: 'peugeot',
+      model: '2008 fin',
+      year: 2022,
+      price: 18900,
+    };
+    expect(
+      followsShownCar({
+        text: 'Hola. Me interesa el Peugeot 2008',
+        car: peugeot2008,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+  });
+
   it('otro color suelta la unidad mostrada', () => {
     expect(
       leftShownCar({

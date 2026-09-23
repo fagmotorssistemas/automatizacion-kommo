@@ -37,21 +37,33 @@ export function detectBrandFromModel(
   return lastModelHit(text, lexicon)?.brand ?? null;
 }
 
+function isYearLikeFamily(family: string): boolean {
+  return /^(?:19|20)\d{2}$/.test(family);
+}
+
 function lastModelHit(
   text: string,
   lexicon: VehicleLexicon,
 ): { brand: string; family: string; index: number } | null {
-  let winner: { brand: string; family: string; index: number } | null = null;
+  let named: { brand: string; family: string; index: number } | null = null;
+  let numeric: { brand: string; family: string; index: number } | null = null;
   for (const hit of fuzzyModelHits(text, lexicon)) {
     const family = modelFamily(hit.name);
     if (!family) {
       continue;
     }
-    if (!winner || hit.index >= winner.index) {
-      winner = { brand: hit.brand, family, index: hit.index };
+    const row = { brand: hit.brand, family, index: hit.index };
+    if (isYearLikeFamily(family)) {
+      if (!numeric || hit.index >= numeric.index) {
+        numeric = row;
+      }
+      continue;
+    }
+    if (!named || hit.index >= named.index) {
+      named = row;
     }
   }
-  return winner;
+  return named ?? numeric;
 }
 
 function lastBrandHit(
@@ -102,10 +114,11 @@ export function detectNamedModelAsk(
   }
   const near = brandBeforeModel(text, winner.index, lexicon);
   const brands = brandsOfFamily(lexicon, winner.family);
+  const year = detectYearInText(text);
   return {
     brand: near ?? (brands.length === 1 ? winner.brand : ''),
     family: winner.family,
-    year: detectYearInText(text),
+    year: year && String(year) === winner.family ? null : year,
   };
 }
 

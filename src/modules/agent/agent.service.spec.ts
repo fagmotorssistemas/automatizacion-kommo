@@ -2455,4 +2455,53 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/no hay yundad/i);
     expect(system).not.toMatch(/no tenemos yundad/i);
   });
+
+  it('Peugeot 2008 es el modelo, no un año que no existe', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'p2008-2022',
+        brand: 'peugeot',
+        model: '2008 fin',
+        year: 2022,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 95848,
+        transmission: 'manual',
+      },
+      {
+        id: 'p3008n',
+        brand: 'peugeot',
+        model: '3008n',
+        year: 2018,
+        price: 21900,
+        typeBody: 'jeep',
+        color: 'negro',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Peugeot 2008.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos el Peugeot 2008 FIN 2022 plomo, manual, 95848 km.',
+        meta: { vehiculo: { inventory_id: 'p2008-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hola. Me interesa el Peugeot 2008',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('peugeot');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2008 FIN 2022|p2008-2022/i);
+    expect(system).not.toMatch(/No hay 2008 2008/i);
+    expect(system).not.toMatch(/No hay 3008n 2008/i);
+    expect(system).not.toMatch(/no tenemos Peugeot 3008n 2008/i);
+  });
 });

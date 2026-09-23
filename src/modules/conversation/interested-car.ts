@@ -51,9 +51,16 @@ function namedOtherUnit(
 function askedOtherUnitFacts(
   text: string,
   car: InterestedCarSnapshot,
+  lexicon?: VehicleLexicon,
 ): boolean {
-  const year = detectYearInText(text);
-  if (year && car.year && year !== car.year) {
+  const asked = detectNamedModelAsk(text, lexicon);
+  const year = asked ? asked.year : detectYearInText(text);
+  if (
+    year &&
+    car.year &&
+    year !== car.year &&
+    String(year) !== modelFamily(car.model)
+  ) {
     return true;
   }
   const trim = detectTrimInText(text);
@@ -86,10 +93,10 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {
     return true;
   }
-  if (askedOtherUnitFacts(input.text, car)) {
+  if (askedOtherUnitFacts(input.text, car, lexicon)) {
     return true;
   }
-  if (input.resumen && askedOtherUnitFacts(input.resumen, car)) {
+  if (input.resumen && askedOtherUnitFacts(input.resumen, car, lexicon)) {
     return true;
   }
   const otherBrand = detectBrand(input.text, lexicon);

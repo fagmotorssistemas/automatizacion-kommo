@@ -33,6 +33,18 @@ describe('marca y tres filas', () => {
       family: 'vitara',
       year: 2008,
     });
+    expect(detectNamedModelAsk('Me interesa el Peugeot 2008', TEST_LEXICON)).toEqual({
+      brand: 'peugeot',
+      family: '2008',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk('Peugeot 2008 2022', TEST_LEXICON),
+    ).toEqual({
+      brand: 'peugeot',
+      family: '2008',
+      year: 2022,
+    });
   });
 
   it('premiere 2020 se lee como versión y año', () => {

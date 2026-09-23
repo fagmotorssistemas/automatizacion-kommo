@@ -74,6 +74,7 @@ Si de VERDAD no está (Tucson y no hay Tucson): PRIMERO "no tenemos Tucson" y DE
 No inventes transmisión: si el cliente no pidió automática/manual en ESTE mensaje, no filtres ni digas "el Prado automático no está".
 No pases a otra marca (Kia cuando pidió Toyota) hasta que el cliente lo pida.
 Si nombra un modelo (Hilux, Ranger, Prado), ESE modelo manda: suelta el tipo anterior (SUV/sedán). Hilux es camioneta, no busques Hilux en SUV ni ofrezcas un Prado. "Manuel" junto a un modelo = manual.
+Si el número ES el modelo en patio (está en inventario), no lo trates como año. No digas que no hay ese carro si la ficha de ESA línea está en la revisión.
 
 CAMIONETAS
 - TODAS son DOBLE CABINA por defecto

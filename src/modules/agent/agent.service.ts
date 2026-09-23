@@ -181,10 +181,14 @@ function matchUnitFacts(
   });
 }
 
-function lastYearInUserTexts(texts: string[]): number | null {
+function lastYearInUserTexts(
+  texts: string[],
+  lexicon: VehicleLexicon,
+): number | null {
   let year: number | null = null;
   for (const text of texts) {
-    const found = detectYearInText(text);
+    const asked = detectNamedModelAsk(text, lexicon);
+    const found = asked ? asked.year : detectYearInText(text);
     if (found) {
       year = found;
     }
@@ -776,7 +780,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
 PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distintos a la que ya vio${shown}). PROHIBIDO repetir la misma unidad. No sueltes precio si no lo pidió.`,
       };
     }
-    const yearAsk = asked?.year ?? detectYearInText(customerText);
+    const yearAsk = asked ? asked.year : detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
     const lastAssistant = [...history]
@@ -785,7 +789,7 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
-    const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts);
+    const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon);
     if (!asked && (yearAsk || colorAsk || trimAsk)) {
       const offered = lastAssistant
         ? listed.filter((car) =>
