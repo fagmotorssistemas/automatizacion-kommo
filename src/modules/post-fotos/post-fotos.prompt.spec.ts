@@ -9,6 +9,26 @@ describe('post-fotos prompt', () => {
     expect(postFotosSystemPrompt(1)).toMatch(/VALIDAR/i);
   });
 
+  it('todos los pasos exigen usted y prohíben tutear', () => {
+    for (const paso of [1, 2, 3] as const) {
+      expect(postFotosSystemPrompt(paso)).toMatch(/usted/i);
+      expect(postFotosSystemPrompt(paso)).toMatch(/Prohibido tutear/i);
+    }
+  });
+
+  it('pasa tuteo a usted en el mensaje saliente', () => {
+    expect(
+      flattenPostFotosMessage(
+        'Byron, qué tal la Chevrolet D-Max 2022 vino que te envié, te gustó o prefieres que te busque otra opción?',
+      ),
+    ).toBe(
+      'Byron, qué tal la Chevrolet D-Max 2022 vino que le envié, le gustó o prefiere que le busque otra opción?',
+    );
+    expect(flattenPostFotosMessage('Hola Juan\n¿Le gustó?')).toBe(
+      'Hola Juan ¿Le gustó?',
+    );
+  });
+
   it('paso 2 pregunta qué le pareció', () => {
     expect(postFotosSystemPrompt(2)).toMatch(/PARECIÓ|pareció/i);
   });
@@ -34,9 +54,4 @@ describe('post-fotos prompt', () => {
     expect(text).toContain('modelo: picanto');
   });
 
-  it('aplana saltos de línea', () => {
-    expect(flattenPostFotosMessage('Hola Juan\n¿Le gustó?')).toBe(
-      'Hola Juan ¿Le gustó?',
-    );
-  });
 });

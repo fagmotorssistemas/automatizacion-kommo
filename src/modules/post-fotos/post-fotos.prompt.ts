@@ -15,6 +15,9 @@ const SHARED_RULES = `
 REGLAS ESTRICTAS:
 - Máximo 2 líneas
 - Empieza con el nombre del cliente
+- SIEMPRE trato de "usted". Prohibido tutear: te, tú, tu, tus, prefieres, quieres, tienes, puedes, dime.
+- Correcto: "le envié", "le gustó", "prefiere que le busque otra opción"
+- Incorrecto: "te envié", "te gustó", "prefieres que te busque"
 - Tono WhatsApp Ecuador, natural, sin sonar a bot
 - Sin "estimado", sin "carrito", sin emojis
 - Sin saludos largos
@@ -28,7 +31,7 @@ export function postFotosSystemPrompt(paso: PostFotosPaso): string {
 
 TU TAREA: mensaje corto para VALIDAR el vehículo / saber qué le pasó.
 Pregunta con naturalidad si le gustó, si le pareció, o qué le detiene (sin presión agresiva).
-Invita a decirte si quiere otra opción o más detalle.
+Invita a que le escriba si quiere otra opción o más detalle.
 ${SHARED_RULES}`;
   }
 
@@ -65,6 +68,33 @@ export function postFotosUserPrompt(car: PostFotosCarInput): string {
   ].join('\n');
 }
 
+const TUTEO_TO_USTED: [RegExp, string][] = [
+  [/\bpara ti\b/gi, 'para usted'],
+  [/\ba ti\b/gi, 'a usted'],
+  [/\bcontigo\b/gi, 'con usted'],
+  [/\bavísame\b/gi, 'avíseme'],
+  [/\bescríbeme\b/gi, 'escríbame'],
+  [/\bcuéntame\b/gi, 'cuénteme'],
+  [/\bdime\b/gi, 'dígame'],
+  [/\bprefieres\b/gi, 'prefiere'],
+  [/\bquieres\b/gi, 'quiere'],
+  [/\btienes\b/gi, 'tiene'],
+  [/\bpuedes\b/gi, 'puede'],
+  [/\bestás\b/gi, 'está'],
+  [/\btus\b/gi, 'sus'],
+  [/\btú\b/gi, 'usted'],
+  [/\btu\b/gi, 'su'],
+  [/\bte\b/gi, 'le'],
+];
+
+/** Pasa tuteo a usted. No toca palabras como "este" o "Tucson". */
+export function rewritePostFotosUsted(text: string): string {
+  return TUTEO_TO_USTED.reduce(
+    (out, [pattern, replacement]) => out.replace(pattern, replacement),
+    text,
+  );
+}
+
 export function flattenPostFotosMessage(text: string): string {
-  return text.replace(/[\n\r]+/g, ' ').trim();
+  return rewritePostFotosUsted(text.replace(/[\n\r]+/g, ' ').trim());
 }
