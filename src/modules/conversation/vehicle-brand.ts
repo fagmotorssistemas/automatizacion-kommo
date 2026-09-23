@@ -122,8 +122,21 @@ export function detectNamedModelAsk(
   };
 }
 
+function looksLikeMoneyAmount(text: string, index: number, raw: string): boolean {
+  const around = text
+    .slice(Math.max(0, index - 16), index + raw.length + 20)
+    .toLowerCase();
+  return (
+    /\$/.test(around) ||
+    /\b(entrada|inicial|dolares|mil|cuota|contado|plazo)\b/.test(around)
+  );
+}
+
 export function detectYearInText(text: string): number | null {
-  const matches = [...foldAccents(text).matchAll(/\b((?:19|20)\d{2})\b/g)];
+  const folded = foldAccents(text);
+  const matches = [...folded.matchAll(/\b((?:19|20)\d{2})\b/g)].filter(
+    (match) => !looksLikeMoneyAmount(folded, match.index ?? 0, match[1]),
+  );
   if (matches.length === 0) {
     return null;
   }

@@ -65,6 +65,8 @@ describe('marca y tres filas', () => {
     expect(detectBrand('Al fin video del yunda', TEST_LEXICON)).toBe('hyundai');
     expect(detectNamedModelAsk('el yundad', TEST_LEXICON)).toBeNull();
     expect(detectYearInText('El jeptour Blanco 2023')).toBe(2023);
+    expect(detectYearInText('Cliente da 2000 de entrada a 6 años')).toBeNull();
+    expect(detectYearInText('Vitara 2008')).toBe(2008);
     expect(detectColorInText('El jeptour Blanco 2023')).toBe('blanco');
   });
 

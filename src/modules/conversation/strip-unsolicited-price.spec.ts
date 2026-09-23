@@ -42,6 +42,29 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/GTI rojo/i);
   });
 
+  it('no deja huecos “es de .” ni “por al contado”', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'La Chevrolet Dmax 2020 está disponible por $22900 al contado. El precio de contado es de $22900. Con una entrada de $2000 y un plazo de 6 años.',
+    );
+    expect(clean).not.toMatch(/22900|2000/);
+    expect(clean).not.toMatch(/\$/);
+    expect(clean).not.toMatch(/por al contado/i);
+    expect(clean).not.toMatch(/es de\s*\./i);
+    expect(clean).not.toMatch(/entrada de y/i);
+    expect(clean).toMatch(/Dmax 2020/i);
+  });
+
+  it('quita “precio de $13800” en la primera ficha', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km, transmisión 4x2 y precio de $13800. Aquí tiene también las fotos del vehículo.',
+    );
+    expect(clean).not.toMatch(/13800/);
+    expect(clean).not.toMatch(/\$/);
+    expect(clean).not.toMatch(/precio de/i);
+    expect(clean).toMatch(/Grand Vitara 2015/i);
+    expect(clean).toMatch(/fotos/i);
+  });
+
   it('detecta fuga de precio', () => {
     expect(messageLeaksPrice('precio de $21800')).toBe(true);
     expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(

@@ -80,6 +80,7 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
+  textAsksForCredit,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import {
@@ -308,7 +309,8 @@ export class AgentService {
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
     const askedPrice = resumenAsksForListedPrice(resumen);
-    const askedCredit = resumenAsksForCredit(resumen);
+    const askedCredit =
+      resumenAsksForCredit(resumen) || textAsksForCredit(input.customerText);
     const askedOtherColor =
       resumenAsksForOtherColor(resumen) ||
       textAsksForOtherColor(input.customerText);
@@ -354,9 +356,13 @@ Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ES
 No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
 No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
               holdVehicle:
-                isMoneyNotVisit(input.customerText) && !askedPrice,
+                isMoneyNotVisit(input.customerText) &&
+                !askedPrice &&
+                !askedCredit,
               sendId:
-                isMoneyNotVisit(input.customerText) && !askedPrice
+                isMoneyNotVisit(input.customerText) &&
+                !askedPrice &&
+                !askedCredit
                   ? null
                   : interested.inventoryId,
             }
@@ -365,7 +371,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               input.customerText,
               selling ? detectBrand(input.customerText, lexicon) : brand,
               concreteAsk,
-              askedPrice,
+              false,
               vehicleKind,
               gearbox,
               interested
@@ -386,12 +392,20 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       interested &&
       gearboxOf(interested) !== null &&
       gearboxOf(interested) !== gearbox;
+    const alreadyShown =
+      Boolean(interested?.inventoryId) &&
+      stayOnShown &&
+      (!revision.sendId || revision.sendId === interested?.inventoryId) &&
+      history.some((item) => item.role === 'assistant');
     const interestedText =
       interested &&
       (stayOnShown ||
         refersToInterestedCar(input.customerText, interested, lexicon)) &&
       !shownOtherBox
-        ? formatInterestedCar(interested, askedPrice)
+        ? formatInterestedCar(
+            interested,
+            (askedPrice || askedCredit) && alreadyShown,
+          )
         : '';
     const saidBoxNow = detectGearbox(input.customerText, lexicon);
     if (revision.switchedModel) {
@@ -418,21 +432,26 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           (stayOnShown ||
             refersToInterestedCar(input.customerText, interested, lexicon))),
     );
-    const canQuotePrice = askedPrice && hasQuotedUnit;
+    const canQuotePrice =
+      hasQuotedUnit && alreadyShown && (askedPrice || askedCredit);
     const creditoHint = askedCredit
-      ? hasQuotedUnit
-        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado si también lo pidió. Luego HABLA DE FINANCIAMIENTO: pregunta con cuánto de entrada y a qué plazo. No inventes una cuota si no hay entrada. No te quedes solo en el contado. Cédula solo después de una cuota.'
-        : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
+      ? hasQuotedUnit && alreadyShown
+        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. Cédula solo después de una cuota.'
+        : hasQuotedUnit
+          ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. En la primera ficha no digas el precio. Pregunta entrada y plazo. No inventes cuota.'
+          : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
       : '';
     const precioHint = canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
         : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
-      : askedPrice
+      : askedPrice && !hasQuotedUnit
         ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
-        : selling && !buying
-          ? ''
-          : 'Si el resumen no pide el precio, no lo digas. Placa solo en la primera presentación de ese carro o si la preguntó. Prohibido placa completa y chasis.';
+        : !alreadyShown
+          ? 'PRIMERA PRESENTACIÓN. PROHIBIDO decir el precio, aunque el resumen lo pida. Presenta unidad, km, color, caja y fotos si toca. El precio solo cuando ya se mostró y lo vuelva a pedir.'
+          : selling && !buying
+            ? ''
+            : 'Si el resumen no pide el precio, no lo digas. Placa solo en la primera presentación de ese carro o si la preguntó. Prohibido placa completa y chasis.';
     const colorHint = askedOtherColor
       ? 'PIDIÓ OTRO COLOR del mismo modelo. Presenta las otras unidades de patio. PROHIBIDO repetir la que ya mostraste. No inventes colores. No sueltes precio si no lo pidió.'
       : '';
@@ -459,7 +478,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             revision.text,
             interestedText,
             thanksHint,
-            isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
+            isMoneyNotVisit(input.customerText) && !askedCredit
+              ? PRECIO_NO_HORARIO
+              : '',
             formatVisitHourHint(input.customerText),
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
             creditoHint,
@@ -482,7 +503,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             revision.text,
             interestedText,
             thanksHint,
-            isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
+            isMoneyNotVisit(input.customerText) && !askedCredit
+              ? PRECIO_NO_HORARIO
+              : '',
             formatVisitHourHint(input.customerText),
             selling ? SU_CARRO_NO_SE_OFRECE : '',
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
@@ -533,7 +556,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     ) {
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
-    } else if (revision.holdVehicle || isMoneyNotVisit(input.customerText)) {
+    } else if (
+      revision.holdVehicle ||
+      (isMoneyNotVisit(input.customerText) && !askedCredit)
+    ) {
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
     } else {

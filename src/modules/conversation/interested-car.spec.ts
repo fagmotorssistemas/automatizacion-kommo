@@ -195,6 +195,17 @@ describe('vehículo de interés', () => {
     ).toBe(true);
   });
 
+  it('2000 de entrada no es otro año del carro', () => {
+    expect(
+      followsShownCar({
+        text: 'Para 6 años',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente da 2000 de entrada a 6 años.\nPide crédito: sí',
+        car: { ...sportage, year: 2020 },
+      }),
+    ).toBe(true);
+  });
+
   it('otro color suelta la unidad mostrada', () => {
     expect(
       leftShownCar({

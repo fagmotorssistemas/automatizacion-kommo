@@ -57,15 +57,33 @@ function flagSiNo(resumen: string, name: string): boolean | null {
   return /^s/i.test(match[1]);
 }
 
+function stripResumenFlags(text: string): string {
+  return text
+    .replace(/pide\s+(?:precio|cr[eé]dito|otro\s+color):\s*(s[ií]|no)/gi, '')
+    .replace(/tiene\s+duda:\s*(s[ií]|no)/gi, '')
+    .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '');
+}
+
+/** El mensaje da o pide entrada, plazo o crédito. */
+export function textAsksForCredit(text: string): boolean {
+  const n = fold(stripResumenFlags(text));
+  return (
+    /\b(credito|financiamiento|cuota|entrada|plazo|inicial)\b/.test(n) ||
+    /\b\d+\s*an[io]s\b/.test(n)
+  );
+}
+
 /** El analizador vio que quiere crédito / financiamiento, no solo el precio de contado. */
 export function resumenAsksForCredit(resumen: string): boolean {
+  const solicitud = parseResumen(resumen).solicitudActual ?? resumen;
+  if (textAsksForCredit(solicitud)) {
+    return true;
+  }
   const flag = flagSiNo(resumen, 'pide\\s+cr[eé]dito');
   if (flag != null) {
     return flag;
   }
-  const solicitud = parseResumen(resumen).solicitudActual ?? resumen;
-  const n = fold(solicitud);
-  return /\b(credito|financiamiento|cuota)\b/.test(n);
+  return false;
 }
 
 /** El analizador vio que quiere otro color del mismo modelo, no la misma unidad. */

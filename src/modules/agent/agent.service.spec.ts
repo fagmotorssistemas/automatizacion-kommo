@@ -552,6 +552,12 @@ describe('AgentService', () => {
   });
 
   it('Cuánto pide el precio de la unidad que ya mostramos', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Tenemos el Optra 2012 vino disponible. Aquí las fotos.',
+      },
+    ]);
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'optra-1',
       brand: 'chevrolet',
@@ -585,6 +591,12 @@ describe('AgentService', () => {
   });
 
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Tenemos el Optra 2012 disponible. Aquí las fotos.',
+      },
+    ]);
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'optra-1',
       brand: 'chevrolet',
@@ -621,6 +633,12 @@ describe('AgentService', () => {
   });
 
   it('Valor del Seltos pide el precio y no cédula ni placa', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Tenemos el Seltos 2020 disponible. Aquí las fotos.',
+      },
+    ]);
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'seltos-1',
       brand: 'kia',
@@ -1865,6 +1883,13 @@ describe('AgentService', () => {
   });
 
   it('si pide el precio sí se lo muestra', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos la Explorer 2018 disponible. Aquí tiene también las fotos.',
+      },
+    ]);
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'exp-1',
       brand: 'ford',
@@ -2046,6 +2071,13 @@ describe('AgentService', () => {
   });
 
   it('duda del km valida año, unidad y precio; no solo repite km', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos la Ranger XL 2024 plomo, con 11061 km. Aquí tiene las fotos.',
+      },
+    ]);
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'ranger-xl-2024',
       brand: 'ford',
@@ -2503,5 +2535,114 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/No hay 2008 2008/i);
     expect(system).not.toMatch(/No hay 3008n 2008/i);
     expect(system).not.toMatch(/no tenemos Peugeot 3008n 2008/i);
+  });
+
+  it('cuota con entrada y plazo no deja huecos de precio', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Me interesa la Dmax 2020',
+      },
+      {
+        role: 'assistant',
+        content:
+          'La Chevrolet Dmax 2020 está disponible. Para crédito, ¿con cuánto de entrada y a cuántos años desea financiar?',
+      },
+      { role: 'user', content: '2 mil de entrada' },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020',
+      brand: 'chevrolet',
+      model: 'dmax',
+      year: 2020,
+      price: 22900,
+      typeBody: 'camioneta',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente da 2000 de entrada a 6 años.\nPide precio: no\nPide crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El precio de contado es de $22900. Con una entrada de $2000 y un plazo de 6 años, la cuota estimada mensual sería alrededor de $590.21. ¿Me pasa su cédula?',
+        meta: {
+          precio_mostrado: true,
+          cuota_mostrada: true,
+          vehiculo: { inventory_id: 'dmax-2020', precio: 22900 },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Para 6 años',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/\$22900/);
+    expect(system).toMatch(/PIDIÓ CRÉDITO/i);
+    expect(result?.reply.mensaje).toMatch(/22900/);
+    expect(result?.reply.mensaje).toMatch(/2000/);
+    expect(result?.reply.mensaje).toMatch(/590/);
+    expect(result?.reply.mensaje).not.toMatch(/es de\s*\./);
+    expect(result?.reply.mensaje).not.toMatch(/entrada de y/i);
+  });
+
+  it('primera presentación del Vitara no dice el precio', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Hola. Me interesa el Suzuki Grand Vitara 2015',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('suzuki');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'vitara-2015',
+      brand: 'suzuki',
+      model: 'grand vitara sz',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 207051,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'vitara-2015',
+        brand: 'suzuki',
+        model: 'grand vitara sz',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 207051,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Grand Vitara 2015 y solicita fotos.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km, transmisión 4x2 y precio de $13800. Aquí tiene también las fotos del vehículo.',
+        meta: { vehiculo: { inventory_id: 'vitara-2015', precio: 13800 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Sí, por favor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PRIMERA PRESENTACIÓN/i);
+    expect(system).not.toMatch(/\$13800/);
+    expect(result?.reply.mensaje).not.toMatch(/13800/);
+    expect(result?.reply.mensaje).not.toMatch(/\$/);
+    expect(result?.reply.mensaje).toMatch(/Grand Vitara 2015/i);
   });
 });

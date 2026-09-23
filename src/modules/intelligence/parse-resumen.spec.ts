@@ -5,6 +5,7 @@ import {
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
   resumenIsFarewell,
+  textAsksForCredit,
   textAsksForOtherColor,
 } from './parse-resumen';
 
@@ -80,6 +81,13 @@ describe('contado y crédito', () => {
         'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nPide crédito: no',
       ),
     ).toBe(false);
+    expect(
+      resumenAsksForCredit(
+        'SOLICITUD ACTUAL:\nCliente da 2000 de entrada a 6 años.\nPide precio: no\nPide crédito: no',
+      ),
+    ).toBe(true);
+    expect(textAsksForCredit('2 mil de entrada')).toBe(true);
+    expect(textAsksForCredit('Para 6 años')).toBe(true);
   });
 });
 
