@@ -145,6 +145,7 @@ describe('clasificar filas', () => {
         price: 44590,
         typeBody: 'doble cabina',
         color: 'plomo',
+        mileage: 11061,
       },
     ];
     const varias = formatNamedUnits(rangers, false);
@@ -152,11 +153,19 @@ describe('clasificar filas', () => {
     expect(varias.sendId).toBeNull();
     expect(varias.text).toContain('Ranger XLT 2026');
     expect(varias.text).toContain('Ranger XL 2024');
+    expect(varias.text).toContain('11061 km');
     expect(varias.text).toContain('cuál le interesa');
     expect(varias.text).not.toContain('$');
 
     const una = formatNamedUnits([rangers[0]], false);
     expect(una.sendId).toBe('r2026');
     expect(una.holdVehicle).toBe(false);
+
+    const sinKm = formatNamedUnits(
+      [{ ...rangers[1], mileage: 0 }],
+      false,
+    );
+    expect(sinKm.text).toMatch(/aún no cargado/i);
+    expect(sinKm.text).not.toMatch(/, 0 km/);
   });
 });

@@ -48,14 +48,19 @@ Cliente quiere ...
 REGLA DE PRECIO (OBLIGATORIA):
 Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
 Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km.
-Si pregunta km, cuota, entrada o visita, dilo así; no pongas precio.
+Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
+Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
+Si pregunta cuota, entrada o visita, dilo así; no pongas precio.
 Después de SOLICITUD ACTUAL agrega una línea: Pide precio: sí   o   Pide precio: no
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
-- "gracias" o "muchas gracias", si ya se le mostró un vehículo, NO es despedida. SOLICITUD ACTUAL: Cliente quiere seguir con ese vehículo. Hay que preguntarle financiamiento o visita.
-- Solo es despedida si dice que no le interesa, que ya no, que ya compró o que no lo contacten.
+- "gracias" o "ahí nomás gracias", si ya se le mostró un vehículo, NO es despedida por sí solo.
+- Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito), NO es despedida. SOLICITUD ACTUAL debe decir ESA duda para que se conteste. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
+- Si dice que siguen en contacto o que aún no (visita, más info), no es despedida. Es despedida: no. Sigue interesado en ESA unidad, pero no ahora.
+- Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
+- Después de Pide precio agrega: Tiene duda: sí|no   y   Es despedida: sí|no
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas, la intención es ver otras opciones.
 - Respuestas vagas sin vehículo claro en conversación inicial:
@@ -72,7 +77,10 @@ Contexto: [texto corto]
 SOLICITUD ACTUAL:
 Cliente quiere [acción].
 Pide precio: sí|no
+Tiene duda: sí|no
+Es despedida: sí|no
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
-Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de su carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
+Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
+El km o el año de la unidad que YA le mostramos no es su carro.
 Si además nombra otro carro que quiere ver o comprar en la concesionaria, dilo en la misma oración: cuál es el suyo y cuál quiere ver.`

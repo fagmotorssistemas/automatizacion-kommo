@@ -52,6 +52,22 @@ describe('post-fotos prompt', () => {
     });
     expect(text).toContain('nombre: Juan');
     expect(text).toContain('modelo: picanto');
+    expect(text).toContain('kilometraje: 40000');
+  });
+
+  it('km 0 no se presenta como cero kilómetros', () => {
+    const text = postFotosUserPrompt({
+      name: 'Juan',
+      brand: 'ford',
+      model: 'ranger',
+      year: 2024,
+      price: 44590,
+      mileage: 0,
+      fuelType: 'diesel',
+      color: 'plomo',
+    });
+    expect(text).toMatch(/kilometraje: aún no cargado/i);
+    expect(text).not.toMatch(/kilometraje: 0\b/);
   });
 
 });

@@ -1,3 +1,4 @@
+import { formatMileageForPrompt } from '../catalog/mileage';
 import type { PostFotosPaso } from './post-fotos.constants';
 
 export type PostFotosCarInput = {
@@ -22,7 +23,7 @@ REGLAS ESTRICTAS:
 - Sin "estimado", sin "carrito", sin emojis
 - Sin saludos largos
 - No inventes datos del vehículo: usa solo los del contexto
-- No menciones kilometraje alto ni frases de justificación ("aunque", "a pesar de")
+- No menciones kilometraje alto ni frases de justificación ("aunque", "a pesar de"). Si hablas del carro, di DIRECTO que está cuidado.
 `.trim();
 
 export function postFotosSystemPrompt(paso: PostFotosPaso): string {
@@ -62,7 +63,7 @@ export function postFotosUserPrompt(car: PostFotosCarInput): string {
     `modelo: ${car.model ?? ''}`,
     `año: ${car.year ?? ''}`,
     `precio: ${car.price ?? ''}`,
-    `kilometraje: ${car.mileage ?? ''}`,
+    `kilometraje: ${formatMileageForPrompt(car.mileage)}`,
     `fuel_type: ${car.fuelType ?? ''}`,
     `color: ${car.color ?? ''}`,
   ].join('\n');

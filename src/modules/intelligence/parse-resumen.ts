@@ -29,7 +29,7 @@ function fold(text: string): string {
  * no las palabras sueltas del cliente.
  */
 export function resumenAsksForListedPrice(resumen: string): boolean {
-  const flag = resumen.match(/pide\s+precio:\s*(s[ií]|no)\b/i);
+  const flag = resumen.match(/pide\s+precio:\s*(s[ií]|no)(?:\s|$)/i);
   if (flag) {
     return /^s/i.test(flag[1]);
   }
@@ -45,4 +45,32 @@ export function resumenAsksForListedPrice(resumen: string): boolean {
     return false;
   }
   return /\bvalor(?:es)?\b/.test(n);
+}
+
+function flagSiNo(resumen: string, name: string): boolean | null {
+  const match = resumen.match(
+    new RegExp(`${name}:\\s*(s[ií]|no)(?:\\s|$)`, 'i'),
+  );
+  if (!match) {
+    return null;
+  }
+  return /^s/i.test(match[1]);
+}
+
+/** El analizador vio una duda o malentendido pendiente. No es cierre. */
+export function resumenHasPendingDoubt(resumen: string): boolean {
+  const flag = flagSiNo(resumen, 'tiene\\s+duda');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = parseResumen(resumen).solicitudActual ?? '';
+  return /\bduda\b|\bmalentendido\b|\bincognita\b/i.test(fold(solicitud));
+}
+
+/** El analizador marcó que de verdad se va, sin duda pendiente. */
+export function resumenIsFarewell(resumen: string): boolean {
+  if (resumenHasPendingDoubt(resumen)) {
+    return false;
+  }
+  return flagSiNo(resumen, 'es\\s+despedida') === true;
 }

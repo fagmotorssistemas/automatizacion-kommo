@@ -1,3 +1,5 @@
+import { formatUnitMileage } from './mileage';
+
 export type FilaClase = 'tres_filas' | 'posible' | 'no' | 'no_consta';
 
 export type StockCar = {
@@ -164,8 +166,9 @@ export function describeUnit(car: StockCar, includePrice = false): string {
     includePrice && car.price && car.price > 0
       ? `, $${Math.round(car.price)}`
       : '';
+  const km = formatUnitMileage(car.mileage);
   const version = trim ? ` ${trim.toUpperCase()}` : '';
-  return `${prettyFamily(car.model)}${version}${year}${color}${box}${drive}${price} (inventory_id=${car.id})`;
+  return `${prettyFamily(car.model)}${version}${year}${color}${box}${drive}${km}${price} (inventory_id=${car.id})`;
 }
 
 /** Una unidad se manda. Varias se nombran para que elija. */

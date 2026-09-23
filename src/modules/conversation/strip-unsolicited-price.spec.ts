@@ -23,6 +23,15 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/\bP7\b/);
   });
 
+  it('quita placa inventada con guion', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Estimado, tenemos un Toyota 4Runner 2004. La placa es JYQ-3454. Aquí tiene también las fotos.',
+    );
+    expect(clean).not.toMatch(/JYQ/i);
+    expect(clean).not.toMatch(/3454/);
+    expect(clean.toLowerCase()).toContain('4runner');
+  });
+
   it('detecta fuga de precio', () => {
     expect(messageLeaksPrice('precio de $21800')).toBe(true);
     expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(

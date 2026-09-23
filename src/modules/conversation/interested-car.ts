@@ -1,4 +1,5 @@
 import { modelFamily } from '../catalog/clasificar-filas';
+import { formatMileageFact } from '../catalog/mileage';
 import { detectVehicleKind, kindFromTypeBody } from './vehicle-kind';
 import {
   colorMatches,
@@ -136,7 +137,7 @@ export function formatInterestedCar(
     ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`
     : '';
   const facts = [
-    car.mileage != null && car.mileage >= 0 ? `km=${Math.round(car.mileage)}` : '',
+    formatMileageFact(car.mileage, car.year),
     car.color ? `color=${car.color}` : '',
     car.transmission ? `caja=${car.transmission}` : '',
     car.plateShort ? `plate_short=${car.plateShort}` : '',
@@ -145,7 +146,7 @@ export function formatInterestedCar(
     .join('\n');
   const factsLine = facts
     ? `\n${facts}
-Estos datos son para responder si el resumen o el mensaje los piden. Placa solo en la primera presentación o si la preguntó.`
+Estos datos son para responder si el resumen o el mensaje los piden. Placa: solo plate_short (nunca inventes una placa larga).`
     : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}

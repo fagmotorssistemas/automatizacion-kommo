@@ -5,6 +5,7 @@ import {
   refersToInterestedCar,
 } from './interested-car';
 import { TEST_LEXICON } from './test-lexicon';
+import { KM_PER_YEAR, yearsOfUse } from '../catalog/mileage';
 
 const explorer = {
   inventoryId: 'exp-1',
@@ -137,8 +138,34 @@ describe('vehículo de interés', () => {
       plateShort: 'L5',
     });
     expect(text).toContain('km=144904');
+    expect(text).toMatch(/km vs año/i);
     expect(text).toContain('plate_short=L5');
     expect(text).toMatch(/si el resumen o el mensaje los piden/i);
     expect(text).not.toMatch(/La placa es/i);
+  });
+
+  it('Ranger 2024 con 11061 km queda en el mínimo de 15.000 km/año', () => {
+    const text = formatInterestedCar({
+      inventoryId: 'ranger-xl-2024',
+      brand: 'ford',
+      model: 'ranger xl',
+      year: 2024,
+      price: 44590,
+      typeBody: 'doble cabina',
+      mileage: 11061,
+    });
+    expect(text).toContain('km=11061');
+    expect(text).toMatch(/mínimo/i);
+    expect(text).toContain(String(yearsOfUse(2024) * KM_PER_YEAR));
+    expect(text).toMatch(/20.?000/);
+  });
+
+  it('km 0 es dato no cargado, no cero kilómetros', () => {
+    const text = formatInterestedCar({
+      ...sportage,
+      mileage: 0,
+    });
+    expect(text).toMatch(/aún no cargado/i);
+    expect(text).not.toMatch(/^km=0$/m);
   });
 });

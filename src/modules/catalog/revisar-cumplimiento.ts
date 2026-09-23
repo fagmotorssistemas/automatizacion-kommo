@@ -1,4 +1,5 @@
 import { modelFamily, StockCar } from './clasificar-filas';
+import { hasLoadedMileage } from './mileage';
 
 export const COMPLIANCE_SYSTEM_PROMPT = `Eres el revisor de inventario de una concesionaria. Decides qué vehículos CUMPLEN el pedido del cliente.
 
@@ -41,7 +42,9 @@ export function carsForReview(cars: StockCar[]): Record<string, unknown>[] {
     add('version', car.version);
     add('color', car.color);
     add('precio', car.price);
-    add('km', car.mileage);
+    if (hasLoadedMileage(car.mileage)) {
+      add('km', car.mileage);
+    }
     add('carroceria', car.typeBody);
     add('pasajeros', car.passengerCapacity);
     add('puertas', car.doorsCount);

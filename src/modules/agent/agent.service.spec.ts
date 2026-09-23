@@ -487,6 +487,28 @@ describe('AgentService', () => {
     expect(system).toMatch(/HILO SIGUE/i);
   });
 
+  it('quita una placa larga inventada aunque la presente por primera vez', async () => {
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente quiere la 4Runner.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos un Toyota 4Runner 2004. La placa es JYQ-3454. Aquí tiene las fotos.',
+        meta: { vehiculo: { inventory_id: 'f5526c6e-4500-4aaf-af0e-be667203e0a0' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/JYQ/i);
+    expect(result?.reply.mensaje).not.toMatch(/3454/);
+    expect(result?.reply.mensaje).toMatch(/4Runner/i);
+  });
+
   it('si pregunta km se queda en ese carro y no suelta la placa', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'xtrail-2016',
@@ -782,6 +804,123 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=plata-ta');
     expect(system).toMatch(/YA le mostramos/i);
+  });
+
+  it('La 2018 elige la Explorer que ya listamos, no la Lariat', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('ford');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'escape-1',
+      brand: 'ford',
+      model: 'escape titanium',
+      year: 2023,
+      price: 28900,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Quiero un explorer +/- 2017' },
+      {
+        role: 'assistant',
+        content:
+          'No tenemos una Explorer 2017. Pero puedo ofrecerle una Explorer XLT 1998 blanca 4x4 o una Explorer XLT 2018 blanca automática 4x4.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4',
+        year: 1998,
+        price: 8900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'exp-2018',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+        price: 23900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'lariat-2018',
+        brand: 'ford',
+        model: 'f-150 lariat 5.0 4x4',
+        year: 2018,
+        price: 32900,
+        typeBody: 'doble cabina',
+        color: 'cafe',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la Explorer 2018.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Explorer 2018 blanca.',
+        meta: { vehiculo: { inventory_id: 'exp-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'La 2018',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'exp-2018',
+    });
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=exp-2018');
+    expect(system).not.toMatch(/lariat|f-150|F150/i);
+    expect(system).toMatch(/YA le mostramos/i);
+  });
+
+  it('Explorer después de elegir 2018 no reabre la 1998', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'exp-2018',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4 ta',
+      year: 2018,
+      price: 23900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'La 2018' },
+      {
+        role: 'assistant',
+        content: 'La Explorer XLT 2018 blanca automática 4x4.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente sigue con la Explorer 2018.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Le paso la ubicación para ver la Explorer 2018.',
+        meta: { vehiculo: { inventory_id: 'exp-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Explorer',
+    });
+
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'exp-2018',
+      precio: 23900,
+    });
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS/i);
+    expect(system).not.toMatch(/1998/);
   });
 
   it('Sportage en el mismo texto que Hyundai no se declara agotado', async () => {
@@ -1868,5 +2007,110 @@ describe('AgentService', () => {
         user: expect.stringContaining('financiamiento o visita'),
       }),
     );
+  });
+
+  it('gracias con duda no cierra: contesta el malentendido', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-2016',
+      brand: 'nissan',
+      model: 'x-trail sense cvt ac 2.5',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente cree que no son de segunda.\nPide precio: no\nTiene duda: sí\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí son seminuevos, de segunda.',
+        meta: { vehiculo: { inventory_id: 'xtrail-2016' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Ahí nomás grasias pence q eran de segunda',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL CLIENTE DEJÓ UNA DUDA/i);
+    expect(system).not.toMatch(/EL CLIENTE AGRADECIÓ\. NO ES DESPEDIDA/i);
+  });
+
+  it('duda del km valida año, unidad y precio; no solo repite km', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'ranger-xl-2024',
+      brand: 'ford',
+      model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+      year: 2024,
+      price: 44590,
+      typeBody: 'doble cabina',
+      mileage: 11061,
+      color: 'plomo',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente duda si 11000 km cuadra con el 2024; confirmar unidad y precio.\nPide precio: sí\nTiene duda: sí\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Sí, el Ranger XL 2024 tiene 11061 km, coherente para un seminuevo de ese año, y está en $44590.',
+        meta: { vehiculo: { inventory_id: 'ranger-xl-2024', precio: 44590 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Tiene 11000 km...',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL CLIENTE DEJÓ UNA DUDA/i);
+    expect(system).toMatch(/km REAL/i);
+    expect(system).toMatch(/PIDIÓ EL PRECIO/i);
+    expect(system).toContain('km=11061');
+    expect(system).toMatch(/km vs año/i);
+    expect(system).toMatch(/15\.?000/i);
+    expect(result?.reply.mensaje).toMatch(/44590/);
+    expect(result?.reply.mensaje).toMatch(/11061/);
+  });
+
+  it('seguir en contacto no cierra la venta', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'ranger-xl-2024',
+      brand: 'ford',
+      model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+      year: 2024,
+      price: 44590,
+      typeBody: 'doble cabina',
+      mileage: 11061,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente sigue interesado pero no ahora.\nPide precio: no\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'De acuerdo, seguimos con el Ford Ranger XL 2024 cuando le quede bien.',
+        meta: { vehiculo: { inventory_id: 'ranger-xl-2024' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Ok. Seguimos en contacto',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/aún no quiere visita/i);
+    expect(system).not.toMatch(/EL CLIENTE AGRADECIÓ\. NO ES DESPEDIDA/i);
+    expect(system).not.toMatch(/EL CLIENTE DEJÓ UNA DUDA/i);
   });
 });

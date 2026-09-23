@@ -370,6 +370,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       .from('inventoryoracle')
       .select('bot_id')
       .eq('id', rawId)
+      .eq('status', 'disponible')
       .maybeSingle();
 
     if (error) {
@@ -427,36 +428,43 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       .select('inventory_id')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
     if (error) {
       this.logger.warn(`GET interested_cars último: ${error.message}`);
       throw error;
     }
 
-    const inventoryId = data?.inventory_id ? String(data.inventory_id) : '';
-    if (!inventoryId || !isUuid(inventoryId)) {
+    const ids = (data ?? [])
+      .map((row) => String(row.inventory_id ?? ''))
+      .filter((id) => isUuid(id));
+    if (ids.length === 0) {
       return null;
     }
 
-    const { data: car, error: carError } = await client
+    const { data: cars, error: carError } = await client
       .from('inventoryoracle')
-      .select('brand, model, year, price, type_body, mileage, color, plate_short, transmission')
-      .eq('id', inventoryId)
-      .maybeSingle();
+      .select(
+        'id, brand, model, year, price, type_body, mileage, color, plate_short, transmission',
+      )
+      .in('id', ids)
+      .eq('status', 'disponible');
 
     if (carError) {
       this.logger.warn(`GET inventoryoracle interés: ${carError.message}`);
       throw carError;
     }
 
+    const available = new Map(
+      (cars ?? []).map((car) => [String(car.id), car]),
+    );
+    const car = ids.map((id) => available.get(id)).find(Boolean);
     if (!car) {
       return null;
     }
 
     return {
-      inventoryId,
+      inventoryId: String(car.id),
       brand: String(car.brand ?? ''),
       model: String(car.model ?? ''),
       year: car.year == null ? null : Number(car.year),
@@ -536,6 +544,23 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     if (!inventoryId) {
       this.logger.warn(
         `interested_cars omitido: inventory_id inválido (${row.inventoryId})`,
+      );
+      return;
+    }
+
+    const { data: stock, error: stockError } = await client
+      .from('inventoryoracle')
+      .select('id')
+      .eq('id', inventoryId)
+      .eq('status', 'disponible')
+      .maybeSingle();
+    if (stockError) {
+      this.logger.warn(`GET inventoryoracle alta interés: ${stockError.message}`);
+      throw stockError;
+    }
+    if (!stock) {
+      this.logger.warn(
+        `interested_cars omitido: ${inventoryId} no está disponible`,
       );
       return;
     }

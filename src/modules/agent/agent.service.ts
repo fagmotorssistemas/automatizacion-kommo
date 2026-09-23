@@ -59,13 +59,20 @@ import {
   resolveGearbox,
 } from '../conversation/gearbox';
 import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
-import { resumenAsksForListedPrice } from '../intelligence/parse-resumen';
 import {
   asksForPlate,
   messageLeaksPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
-import { isPoliteThanks, SEGUIR_VENTA } from '../conversation/polite-thanks';
+import {
+  CONTESTA_DUDA,
+  isPoliteThanks,
+  SEGUIR_VENTA,
+} from '../conversation/polite-thanks';
+import {
+  resumenAsksForListedPrice,
+  resumenHasPendingDoubt,
+} from '../intelligence/parse-resumen';
 import {
   followsShownCar,
   formatInterestedCar,
@@ -137,6 +144,45 @@ function kindOfNamedUnits(cars: StockCar[]): VehicleKind | null {
     ),
   ];
   return kinds.length === 1 ? kinds[0] : null;
+}
+
+function matchUnitFacts(
+  cars: StockCar[],
+  yearAsk: number | null,
+  colorAsk: string | null,
+  trimAsk: string | null,
+): StockCar[] {
+  return cars.filter((car) => {
+    if (yearAsk && car.year !== yearAsk) {
+      return false;
+    }
+    if (colorAsk && car.color && !colorMatches(car.color, colorAsk)) {
+      return false;
+    }
+    if (trimAsk && !modelHasTrim(car.model, trimAsk)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function lastYearInUserTexts(texts: string[]): number | null {
+  let year: number | null = null;
+  for (const text of texts) {
+    const found = detectYearInText(text);
+    if (found) {
+      year = found;
+    }
+  }
+  return year;
+}
+
+/** Si pidió un año y no está, no ofrezcas uno 20 años más viejo. */
+function carsNearYear(cars: StockCar[], year: number, delta = 3): StockCar[] {
+  const near = cars.filter(
+    (car) => car.year != null && Math.abs(car.year - year) <= delta,
+  );
+  return near.length > 0 ? near : cars;
 }
 
 const MODEL_STOP = new Set([
@@ -243,6 +289,11 @@ export class AgentService {
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
     const showPrice = resumenAsksForListedPrice(resumen);
+    const thanksHint = resumenHasPendingDoubt(resumen)
+      ? CONTESTA_DUDA
+      : isPoliteThanks(input.customerText)
+        ? SEGUIR_VENTA
+        : '';
 
     const intentsRaw =
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
@@ -329,7 +380,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         ? [
             revision.text,
             interestedText,
-            isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+            thanksHint,
             isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
             formatVisitHourHint(input.customerText),
             precioHint,
@@ -346,7 +397,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             cambioModelo,
             revision.text,
             interestedText,
-            isPoliteThanks(input.customerText) ? SEGUIR_VENTA : '',
+            thanksHint,
             isMoneyNotVisit(input.customerText) ? PRECIO_NO_HORARIO : '',
             formatVisitHourHint(input.customerText),
             selling ? SU_CARRO_NO_SE_OFRECE : '',
@@ -563,19 +614,73 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const yearAsk = asked?.year ?? detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
+    const lastAssistant = [...history]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+    const priorUserTexts = history
+      .filter((item) => item.role === 'user')
+      .map((item) => item.content);
+    const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts);
     if (!asked && (yearAsk || colorAsk || trimAsk)) {
-      const byFacts = listed.filter((car) => {
-        if (yearAsk && car.year !== yearAsk) {
-          return false;
+      const offered = lastAssistant
+        ? listed.filter((car) =>
+            textMentionsModel(lastAssistant.content, car.model),
+          )
+        : [];
+      const fromOffer = matchUnitFacts(offered, yearAsk, colorAsk, trimAsk);
+      if (fromOffer.length === 1) {
+        const named = formatNamedUnits(fromOffer, includePrice);
+        return {
+          ...named,
+          text: `${named.text}
+El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido meter otra línea ni reabrir el año que ya descartó.`,
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(fromOffer),
+        };
+      }
+      if (fromOffer.length > 1) {
+        return {
+          ...formatNamedUnits(fromOffer, includePrice),
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(fromOffer),
+        };
+      }
+      const threadFamily =
+        detectNamedModelAsk(lastAssistant?.content ?? '', lexicon)?.family ||
+        [...priorUserTexts]
+          .reverse()
+          .map((text) => detectNamedModelAsk(text, lexicon)?.family)
+          .find(Boolean) ||
+        '';
+      if (threadFamily && !trimAsk) {
+        const inFamily = listed.filter((car) =>
+          textMentionsModel(car.model, threadFamily),
+        );
+        const picked = matchUnitFacts(inFamily, yearAsk, colorAsk, null);
+        if (picked.length === 1) {
+          return this.namedModelFound(picked, includePrice, false);
         }
-        if (colorAsk && !colorMatches(car.color, colorAsk)) {
-          return false;
+        if (picked.length > 1) {
+          return {
+            ...formatNamedUnits(picked, includePrice),
+            switchedModel: true,
+            vehicleKind: kindOfNamedUnits(picked),
+          };
         }
-        if (trimAsk && !modelHasTrim(car.model, trimAsk)) {
-          return false;
+        if (yearAsk) {
+          return {
+            ...formatMissingNamedModel(
+              threadFamily,
+              yearAsk,
+              carsNearYear(inFamily, yearAsk),
+              includePrice,
+            ),
+            switchedModel: true,
+            vehicleKind: kindOfNamedUnits(inFamily),
+          };
         }
-        return true;
-      });
+      }
+      const byFacts = matchUnitFacts(listed, yearAsk, colorAsk, trimAsk);
       if (byFacts.length === 1) {
         return this.namedModelFound(byFacts, includePrice, false);
       }
@@ -603,9 +708,6 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       }
     }
     const saidBox = detectGearbox(customerText, lexicon);
-    const lastAssistant = [...history]
-      .reverse()
-      .find((item) => item.role === 'assistant');
     if (saidBox && lastAssistant && !asked) {
       const offered = listed.filter((car) =>
         textMentionsModel(lastAssistant.content, car.model),
@@ -633,35 +735,45 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         ? namedNow.filter((car) => gearboxOf(car) === saidBox)
         : namedNow;
       let offer = boxed.length > 0 ? boxed : namedNow;
-      if (asked?.year) {
-        const exactYear = offer.filter((car) => car.year === asked.year);
+      if (yearFromThread) {
+        const exactYear = offer.filter((car) => car.year === yearFromThread);
         if (exactYear.length > 0) {
           offer = exactYear;
         } else {
-          const yearFromEmbed = (
-            await this.lookupNamedByEmbedding(
-              customerText,
-              asked.family,
-              asked.brand,
-              listed,
-              includePrice,
-            )
-          ).filter((car) => car.year === asked.year);
+          const family =
+            asked?.family || modelFamily(offer[0]?.model ?? '') || '';
+          const yearFromEmbed = family
+            ? (
+                await this.lookupNamedByEmbedding(
+                  customerText,
+                  family,
+                  asked?.brand || targetBrand || '',
+                  listed,
+                  includePrice,
+                )
+              ).filter((car) => car.year === yearFromThread)
+            : [];
           if (yearFromEmbed.length > 0) {
             return this.namedModelFound(yearFromEmbed, includePrice, true);
           }
-          const yearElsewhere = await this.familyInOtherBrands(
-            asked.family,
-            asked.year,
-            targetBrand,
-          );
+          const yearElsewhere = family
+            ? await this.familyInOtherBrands(
+                family,
+                yearFromThread,
+                targetBrand,
+              )
+            : [];
           if (yearElsewhere.length > 0) {
-            return this.namedModelFound(yearElsewhere, includePrice, false);
+            return this.namedModelFound(
+              carsNearYear(yearElsewhere, yearFromThread),
+              includePrice,
+              false,
+            );
           }
           const missingYear = formatMissingNamedModel(
-            asked.family,
-            asked.year,
-            offer,
+            family || 'unidad',
+            yearFromThread,
+            carsNearYear(offer, yearFromThread),
             includePrice,
           );
           return {
@@ -695,7 +807,12 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       const missing = formatMissingNamedModel(
         asked.family,
         asked.year,
-        listed,
+        asked.year
+          ? carsNearYear(
+              listed.filter((car) => textMentionsModel(car.model, asked.family)),
+              asked.year,
+            )
+          : listed,
         includePrice,
       );
       return {
