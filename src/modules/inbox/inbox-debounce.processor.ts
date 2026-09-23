@@ -14,6 +14,7 @@ import {
   INBOX_DEBOUNCE_QUEUE,
   InboxDebounceJobData,
 } from './inbox-debounce.queue';
+import { isBareConfirmation, isFacebookMoreInfoOpener } from './first-touch';
 import { routeByOrigin } from './inbox.routing';
 import { OtherChannelService } from './other-channel.service';
 
@@ -171,11 +172,67 @@ export class InboxDebounceProcessor extends WorkerHost {
       return;
     }
 
+    if (isFacebookMoreInfoOpener(inbound.message)) {
+      await this.conversationService.appendMessage(data.contactId, {
+        role: 'user',
+        content: inbound.message,
+      });
+      await this.runLog.record({
+        ...ctx,
+        step: 'outbound',
+        status: 'skipped',
+        reason: 'opener_facebook',
+        detail: { texto: inbound.message.slice(0, 500) },
+      });
+      return;
+    }
+
+    const locked = await this.inboxService.claimTurn(data.contactId);
+    if (!locked) {
+      await this.runLog.record({
+        ...ctx,
+        step: 'outbound',
+        status: 'skipped',
+        reason: 'turno_ocupado',
+      });
+      return;
+    }
+
+    try {
+      await this.runLockedTurn(data, ctx, inbound.message, synced);
+    } finally {
+      await this.inboxService.releaseTurn(data.contactId);
+    }
+  }
+
+  private async runLockedTurn(
+    data: InboxDebounceJobData,
+    ctx: { contactId: string; leadId: string; messageId: string },
+    customerText: string,
+    synced: Awaited<ReturnType<PersistenceService['syncInboundLead']>>,
+  ): Promise<void> {
+    if (
+      isBareConfirmation(customerText) &&
+      (await this.inboxService.hasRecentOutbound(data.contactId))
+    ) {
+      await this.conversationService.appendMessage(data.contactId, {
+        role: 'user',
+        content: customerText,
+      });
+      await this.runLog.record({
+        ...ctx,
+        step: 'outbound',
+        status: 'skipped',
+        reason: 'confirmacion_ya_respondida',
+      });
+      return;
+    }
+
     let turn;
     try {
       turn = await this.agentService.handleTurn({
         contactId: data.contactId,
-        customerText: inbound.message,
+        customerText,
       });
     } catch (error) {
       await this.runLog.record({
@@ -183,7 +240,7 @@ export class InboxDebounceProcessor extends WorkerHost {
         step: 'agent',
         status: 'error',
         reason: 'openai_o_agente',
-        detail: { texto: inbound.message.slice(0, 500) },
+        detail: { texto: customerText.slice(0, 500) },
         error: error instanceof Error ? error.message : String(error),
       });
       return;
@@ -195,7 +252,7 @@ export class InboxDebounceProcessor extends WorkerHost {
         step: 'agent',
         status: 'error',
         reason: 'sin_respuesta',
-        detail: { texto: inbound.message.slice(0, 500) },
+        detail: { texto: customerText.slice(0, 500) },
         error: 'El agente no generó texto (API key vacía o modelo vacío)',
       });
       return;
@@ -230,11 +287,11 @@ export class InboxDebounceProcessor extends WorkerHost {
       turn.reply,
       {
         alreadyShown,
-        wantsPhotos: asksForPhotos(inbound.message),
+        wantsPhotos: asksForPhotos(customerText),
         skipFirstShot:
           Boolean(latestShown) &&
           resumenAsksForListedPrice(turn.resumen) &&
-          !asksForPhotos(inbound.message),
+          !asksForPhotos(customerText),
       },
     );
     if (!outbound.shadow) {
@@ -242,6 +299,9 @@ export class InboxDebounceProcessor extends WorkerHost {
         data.contactId,
         data.messageId,
       );
+    }
+    if (outbound.delivered && !outbound.shadow) {
+      await this.inboxService.markRecentOutbound(data.contactId);
     }
 
     await this.runLog.record({
@@ -275,7 +335,7 @@ export class InboxDebounceProcessor extends WorkerHost {
         contactId: data.contactId,
         leadId: data.leadId,
         lead: storedLead,
-        customerText: inbound.message,
+        customerText,
         resumen: turn.resumen,
         reply: turn.reply,
         photoBotsSent: outbound.photoBots.length,

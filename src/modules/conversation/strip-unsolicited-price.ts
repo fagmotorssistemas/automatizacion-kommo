@@ -37,11 +37,15 @@ export function stripUnsolicitedPriceAndPlate(
   }
 
   return out
+    .replace(/\s+a\s*;/gi, ';')
+    .replace(/\s+a\s*,/gi, ',')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\s+,/g, ',')
+    .replace(/\s+;/g, ';')
     .replace(/,\s*\./g, '.')
+    .replace(/;\s*\./g, '.')
     .replace(/\.\s*,/g, '.')
     .replace(/\.\s*\./g, '.')
     .trim();

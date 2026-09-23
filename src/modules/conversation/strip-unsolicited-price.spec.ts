@@ -32,6 +32,16 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean.toLowerCase()).toContain('4runner');
   });
 
+  it('no deja “a ;” cuando quita el precio', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Sportage SL negro, manual, con 103736 km a $22200; GTI rojo, manual, con 91096 km a $22900.',
+    );
+    expect(clean).not.toMatch(/\$/);
+    expect(clean).not.toMatch(/\ba\s*;/);
+    expect(clean).toMatch(/103736 km/i);
+    expect(clean).toMatch(/GTI rojo/i);
+  });
+
   it('detecta fuga de precio', () => {
     expect(messageLeaksPrice('precio de $21800')).toBe(true);
     expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(

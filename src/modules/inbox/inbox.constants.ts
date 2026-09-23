@@ -20,3 +20,12 @@ export const flushDoneKey = (contactId: string, messageId: string) =>
 
 export const flushJobId = (contactId: string, messageId: string) =>
   `inbox-flush:${contactId}:${messageId}`;
+
+/** Un turno a la vez por contacto (evita dos listados del mismo clic). */
+export const TURN_LOCK_TTL_SECONDS = 180;
+export const turnLockKey = (contactId: string) => `inbox:turn:${contactId}`;
+
+/** Ya se mandó una respuesta de arranque; un “sí” no vuelve a listar. */
+export const RECENT_OUTBOUND_TTL_SECONDS = 120;
+export const recentOutboundKey = (contactId: string) =>
+  `inbox:recent:${contactId}`;

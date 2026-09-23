@@ -13,11 +13,15 @@ import {
   BUFFER_TTL_SECONDS,
   DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
+  RECENT_OUTBOUND_TTL_SECONDS,
+  TURN_LOCK_TTL_SECONDS,
   bufferKey,
   flushDoneKey,
   flushJobId,
   messageIdKey,
   outboundSentKey,
+  recentOutboundKey,
+  turnLockKey,
 } from './inbox.constants';
 import {
   INBOX_DEBOUNCE_QUEUE_CLIENT,
@@ -38,6 +42,7 @@ export type DebounceFlushResult =
 @Injectable()
 export class InboxService {
   private readonly logger = new Logger(InboxService.name);
+  private readonly localFlushTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -139,13 +144,19 @@ export class InboxService {
   }
 
   private scheduleLocalFlush(data: InboxDebounceJobData): void {
+    const previous = this.localFlushTimers.get(data.contactId);
+    if (previous) {
+      clearTimeout(previous);
+    }
     this.logger.log(
       `Debounce local en ${DEBOUNCE_DELAY_MS / 1000}s contactId=${data.contactId} messageId=${data.messageId}`,
     );
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      this.localFlushTimers.delete(data.contactId);
       void this.runLocalFlush(data);
     }, DEBOUNCE_DELAY_MS);
+    this.localFlushTimers.set(data.contactId, timer);
   }
 
   private async runLocalFlush(data: InboxDebounceJobData): Promise<void> {
@@ -228,6 +239,76 @@ export class InboxService {
         error instanceof Error ? error.stack : undefined,
       );
       return false;
+    }
+  }
+
+  async claimTurn(contactId: string): Promise<boolean> {
+    if (!contactId) {
+      return true;
+    }
+    try {
+      const created = await this.redis.set(
+        turnLockKey(contactId),
+        '1',
+        'EX',
+        TURN_LOCK_TTL_SECONDS,
+        'NX',
+      );
+      return created === 'OK';
+    } catch (error) {
+      this.logger.error(
+        `No se pudo tomar turno contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return true;
+    }
+  }
+
+  async releaseTurn(contactId: string): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+    try {
+      await this.redis.del(turnLockKey(contactId));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo soltar turno contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async hasRecentOutbound(contactId: string): Promise<boolean> {
+    if (!contactId) {
+      return false;
+    }
+    try {
+      return (await this.redis.exists(recentOutboundKey(contactId))) === 1;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer outbound reciente contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  async markRecentOutbound(contactId: string): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+    try {
+      await this.redis.set(
+        recentOutboundKey(contactId),
+        '1',
+        'EX',
+        RECENT_OUTBOUND_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo marcar outbound reciente contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
