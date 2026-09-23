@@ -60,6 +60,7 @@ import {
 } from '../conversation/interested-car';
 import {
   formatRevisionMarca,
+  formatNamedUnits,
   modelFamily,
   StockCar,
   textMentionsModel,
@@ -447,6 +448,12 @@ export class AgentService {
     ];
 
     if (!asksNow) {
+      const namedNow = cars.filter((car) =>
+        textMentionsModel(customerText, car.model),
+      );
+      if (namedNow.length > 0) {
+        return formatNamedUnits(namedNow, includePrice);
+      }
       if (userNamedModel(userTexts, cars)) {
         return empty;
       }

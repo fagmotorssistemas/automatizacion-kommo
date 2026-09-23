@@ -118,6 +118,75 @@ function etiqueta(car: StockCar, includePrice = false): string {
   return `${prettyFamily(car.model)}${year}${price}`;
 }
 
+const TRIM_SKIP = new Set([
+  'new',
+  'ac',
+  'all',
+  'gran',
+  'next',
+  'cd',
+  'sc',
+  'cs',
+  'diesel',
+  'gasolina',
+]);
+
+/** Año, versión, color y caja para distinguir unidades del mismo modelo. */
+export function describeUnit(car: StockCar, includePrice = false): string {
+  const familyKey = modelFamily(car.model);
+  const trim = car.model
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .find(
+      (part) =>
+        part.length >= 2 &&
+        part !== familyKey &&
+        !TRIM_SKIP.has(part) &&
+        !/^\d/.test(part),
+    );
+  const year = car.year ? ` ${car.year}` : '';
+  const color = car.color ? `, ${car.color}` : '';
+  const box = /\btm\b/i.test(car.model)
+    ? ', manual'
+    : /\bta\b/i.test(car.model)
+      ? ', automática'
+      : '';
+  const drive = /\b4x4\b/i.test(car.model)
+    ? ', 4x4'
+    : /\b4x2\b/i.test(car.model)
+      ? ', 4x2'
+      : '';
+  const price =
+    includePrice && car.price && car.price > 0
+      ? `, $${Math.round(car.price)}`
+      : '';
+  const version = trim ? ` ${trim.toUpperCase()}` : '';
+  return `${prettyFamily(car.model)}${version}${year}${color}${box}${drive}${price} (inventory_id=${car.id})`;
+}
+
+/** Una unidad se manda. Varias se nombran para que elija. */
+export function formatNamedUnits(
+  cars: StockCar[],
+  includePrice = false,
+): { text: string; holdVehicle: boolean; sendId: string | null } {
+  if (cars.length === 1) {
+    const car = cars[0];
+    return {
+      text: `De este modelo hay una sola unidad y hay que mandarla: ${describeUnit(car, includePrice)}.
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
+      holdVehicle: false,
+      sendId: car.id,
+    };
+  }
+
+  return {
+    text: `De este modelo hay ${cars.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
+${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+    holdVehicle: true,
+    sendId: null,
+  };
+}
+
 export function formatRevisionMarca(input: {
   marca: string;
   cars: StockCar[];

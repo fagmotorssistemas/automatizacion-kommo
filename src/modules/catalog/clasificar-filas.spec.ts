@@ -1,5 +1,6 @@
 import {
   clasificarFilas,
+  formatNamedUnits,
   formatRevisionMarca,
   textMentionsModel,
   userNamedModel,
@@ -87,5 +88,39 @@ describe('clasificar filas', () => {
     expect(text).not.toContain('$');
     expect(text).toContain('No ofrezcas otra marca');
     expect(text).toContain('vehiculo null');
+  });
+
+  it('varias unidades del mismo modelo se nombran y una sola se manda', () => {
+    const rangers: StockCar[] = [
+      {
+        id: 'r2026',
+        brand: 'ford',
+        model: 'ranger xlt ac 2.0 cd 4x4 ta diesel',
+        year: 2026,
+        price: 65990,
+        typeBody: 'doble cabina',
+        color: 'plomo',
+      },
+      {
+        id: 'r2024',
+        brand: 'ford',
+        model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+        year: 2024,
+        price: 44590,
+        typeBody: 'doble cabina',
+        color: 'plomo',
+      },
+    ];
+    const varias = formatNamedUnits(rangers, false);
+    expect(varias.holdVehicle).toBe(true);
+    expect(varias.sendId).toBeNull();
+    expect(varias.text).toContain('Ranger XLT 2026');
+    expect(varias.text).toContain('Ranger XL 2024');
+    expect(varias.text).toContain('cuál le interesa');
+    expect(varias.text).not.toContain('$');
+
+    const una = formatNamedUnits([rangers[0]], false);
+    expect(una.sendId).toBe('r2026');
+    expect(una.holdVehicle).toBe(false);
   });
 });

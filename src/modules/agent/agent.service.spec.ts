@@ -154,6 +154,51 @@ describe('AgentService', () => {
     );
   });
 
+  it('si hay varias del modelo las nombra y no manda una sola', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'r2026',
+        brand: 'ford',
+        model: 'ranger xlt ac 2.0 cd 4x4 ta diesel',
+        year: 2026,
+        price: 65990,
+        typeBody: 'doble cabina',
+        color: 'plomo',
+      },
+      {
+        id: 'r2024',
+        brand: 'ford',
+        model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+        year: 2024,
+        price: 44590,
+        typeBody: 'doble cabina',
+        color: 'plomo',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos dos Ranger. ¿Cuál le interesa?',
+        meta: { vehiculo: { inventory_id: 'r2026' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Ford ranger',
+    });
+
+    expect(openai.completeJson).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Ranger XLT 2026'),
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('si nos vende su carro no ofrece uno parecido del inventario', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('kia');
     catalog.listByBrand.mockResolvedValue([
