@@ -100,12 +100,16 @@ import {
   pickLargePassengerCars,
 } from '../conversation/large-passenger';
 import {
+  carsShownInHistory,
   formatRevisionMarca,
   formatMissingNamedModel,
   formatNamedUnits,
+  hasUsableFicha,
   isCityLetterCode,
   modelFamily,
   pickClosestToMissingModel,
+  pickShownByYear,
+  shownThreadText,
   StockCar,
   textMentionsModel,
   userNamedModel,
@@ -401,6 +405,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               lexicon,
               spaceAsk,
               askedOtherColor,
+              resumen,
             );
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
     const shownOtherBox =
@@ -763,11 +768,14 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     lexicon: VehicleLexicon,
     spaceAsk = false,
     askedOtherColor = false,
+    resumen = '',
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const asked = detectNamedModelAsk(customerText, lexicon);
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
+    const yearPick = asked?.year ?? detectYearInText(customerText);
+    const colorPick = detectColorInText(customerText);
     const targetBrand = asked?.brand || brand;
     if (
       !targetBrand &&
@@ -775,7 +783,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !spaceAsk &&
       !askedOtherColor &&
       !cashBudgetEarly &&
-      !wantsListedPrices
+      !wantsListedPrices &&
+      !yearPick &&
+      !colorPick
     ) {
       return empty;
     }
@@ -876,126 +886,129 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const yearAsk = asked ? asked.year : detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
-    const lastAssistant = [...history]
-      .reverse()
-      .find((item) => item.role === 'assistant');
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
     const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon);
-    if (!asked && wantsListedPrices && lastAssistant) {
-      const patio = await this.catalog.listAvailableExcept('_');
-      const offered = patio.filter((car) =>
-        textMentionsModel(lastAssistant.content, car.model),
-      );
-      if (offered.length > 0) {
-        const named = formatNamedUnits(offered, true);
-        return {
-          ...named,
-          holdVehicle: offered.length !== 1,
-          sendId: offered.length === 1 ? offered[0].id : null,
-          switchedModel: true,
-          vehicleKind: kindOfNamedUnits(offered),
-          text: `${named.text}
+    const threadText = shownThreadText(history, resumen);
+    const alreadyOffered = carsShownInHistory(history, listed, resumen);
+    if (!asked && wantsListedPrices && alreadyOffered.length > 0) {
+      const named = formatNamedUnits(alreadyOffered, true);
+      return {
+        ...named,
+        holdVehicle: alreadyOffered.length !== 1,
+        sendId: alreadyOffered.length === 1 ? alreadyOffered[0].id : null,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(alreadyOffered),
+        text: `${named.text}
 PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
-        };
-      }
+      };
     }
-    if (!asked && (yearAsk || colorAsk || trimAsk)) {
-      const offered = lastAssistant
-        ? listed.filter((car) =>
-            textMentionsModel(lastAssistant.content, car.model),
+    if (yearAsk || colorAsk || trimAsk) {
+      const offered = asked
+        ? alreadyOffered.filter((car) =>
+            textMentionsModel(car.model, asked.family),
           )
-        : [];
-      const fromOffer = matchUnitFacts(offered, yearAsk, colorAsk, trimAsk);
-      if (fromOffer.length === 1) {
-        const named = formatNamedUnits(fromOffer, includePrice);
+        : alreadyOffered;
+      const fromOffer = yearAsk
+        ? pickShownByYear(
+            matchUnitFacts(offered, null, colorAsk, trimAsk),
+            threadText,
+            yearAsk,
+          )
+        : matchUnitFacts(offered, yearAsk, colorAsk, trimAsk);
+      const known = fromOffer.filter((car) => hasUsableFicha(car));
+      if (known.length === 1) {
+        const named = formatNamedUnits(known, includePrice);
         return {
           ...named,
           text: `${named.text}
-El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido meter otra línea ni reabrir el año que ya descartó.`,
+El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay ficha: no busques de nuevo ni la presentes como otra. PROHIBIDO decir que no hay, que no tenemos o “lo más cercano”. Prohibido pedir entrada, plazo o cuota si el hilo no lo pidió. Prohibido meter otra línea.`,
           switchedModel: true,
-          vehicleKind: kindOfNamedUnits(fromOffer),
+          vehicleKind: kindOfNamedUnits(known),
         };
       }
-      if (fromOffer.length > 1) {
+      if (known.length > 1) {
+        const named = formatNamedUnits(known, includePrice);
         return {
-          ...formatNamedUnits(fromOffer, includePrice),
+          ...named,
+          text: `${named.text}
+El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA selección. Prohibido decir que no hay ni reabrir patio.`,
           switchedModel: true,
-          vehicleKind: kindOfNamedUnits(fromOffer),
+          vehicleKind: kindOfNamedUnits(known),
         };
       }
-      const threadFamily =
-        detectNamedModelAsk(lastAssistant?.content ?? '', lexicon)?.family ||
-        [...priorUserTexts]
-          .reverse()
-          .map((text) => detectNamedModelAsk(text, lexicon)?.family)
-          .find(Boolean) ||
-        reference?.family ||
-        '';
-      if (threadFamily && !trimAsk) {
-        const inFamily = listed.filter((car) =>
-          textMentionsModel(car.model, threadFamily),
-        );
-        const picked = matchUnitFacts(inFamily, yearAsk, colorAsk, null);
-        if (picked.length === 1) {
-          return this.namedModelFound(picked, includePrice, false);
+      if (!asked) {
+        const threadFamily =
+          detectNamedModelAsk(threadText, lexicon)?.family ||
+          [...priorUserTexts]
+            .reverse()
+            .map((text) => detectNamedModelAsk(text, lexicon)?.family)
+            .find(Boolean) ||
+          reference?.family ||
+          '';
+        if (threadFamily && !trimAsk) {
+          const inFamily = listed.filter((car) =>
+            textMentionsModel(car.model, threadFamily),
+          );
+          const picked = matchUnitFacts(inFamily, yearAsk, colorAsk, null);
+          if (picked.length === 1) {
+            return this.namedModelFound(picked, includePrice, false);
+          }
+          if (picked.length > 1) {
+            return {
+              ...formatNamedUnits(picked, includePrice),
+              switchedModel: true,
+              vehicleKind: kindOfNamedUnits(picked),
+            };
+          }
+          if (yearAsk) {
+            const missingYear = formatMissingNamedModel(
+              threadFamily,
+              yearAsk,
+              carsNearYear(inFamily, yearAsk),
+              includePrice,
+            );
+            return {
+              ...missingYear,
+              text: `${missingYear.text}
+Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de la marca.`,
+              switchedModel: true,
+              vehicleKind: kindOfNamedUnits(inFamily),
+            };
+          }
         }
-        if (picked.length > 1) {
+        const byFacts = matchUnitFacts(listed, yearAsk, colorAsk, trimAsk);
+        if (byFacts.length === 1) {
+          return this.namedModelFound(byFacts, includePrice, false);
+        }
+        if (byFacts.length > 1) {
           return {
-            ...formatNamedUnits(picked, includePrice),
+            ...formatNamedUnits(byFacts, includePrice),
             switchedModel: true,
-            vehicleKind: kindOfNamedUnits(picked),
+            vehicleKind: kindOfNamedUnits(byFacts),
           };
         }
-        if (yearAsk) {
-          const missingYear = formatMissingNamedModel(
-            threadFamily,
-            yearAsk,
-            carsNearYear(inFamily, yearAsk),
-            includePrice,
+        if (trimAsk || yearAsk) {
+          const close = listed.filter((car) =>
+            yearAsk ? car.year === yearAsk : true,
           );
           return {
-            ...missingYear,
-            text: `${missingYear.text}
-Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de la marca.`,
+            ...formatMissingNamedModel(
+              trimAsk || targetBrand || 'unidad',
+              yearAsk,
+              close,
+              includePrice,
+            ),
             switchedModel: true,
-            vehicleKind: kindOfNamedUnits(inFamily),
+            vehicleKind: kindOfNamedUnits(close),
           };
         }
-      }
-      const byFacts = matchUnitFacts(listed, yearAsk, colorAsk, trimAsk);
-      if (byFacts.length === 1) {
-        return this.namedModelFound(byFacts, includePrice, false);
-      }
-      if (byFacts.length > 1) {
-        return {
-          ...formatNamedUnits(byFacts, includePrice),
-          switchedModel: true,
-          vehicleKind: kindOfNamedUnits(byFacts),
-        };
-      }
-      if (trimAsk || yearAsk) {
-        const close = listed.filter((car) =>
-          yearAsk ? car.year === yearAsk : true,
-        );
-        return {
-          ...formatMissingNamedModel(
-            trimAsk || targetBrand || 'unidad',
-            yearAsk,
-            close,
-            includePrice,
-          ),
-          switchedModel: true,
-          vehicleKind: kindOfNamedUnits(close),
-        };
       }
     }
     const saidBox = detectGearbox(customerText, lexicon);
-    if (saidBox && lastAssistant && !asked) {
-      const offered = listed.filter((car) =>
-        textMentionsModel(lastAssistant.content, car.model),
-      );
+    if (saidBox && alreadyOffered.length > 0 && !asked) {
+      const offered = alreadyOffered;
       const boxed = offered.filter((car) => gearboxOf(car) === saidBox);
       if (boxed.length > 0) {
         const named = formatNamedUnits(boxed, includePrice);

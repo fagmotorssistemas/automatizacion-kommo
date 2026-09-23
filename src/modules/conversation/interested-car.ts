@@ -1,4 +1,10 @@
-import { modelFamily, textMentionsModel } from '../catalog/clasificar-filas';
+import {
+  modelFamily,
+  textMentionsModel,
+  unitCaja,
+  unitDoors,
+  unitDrive,
+} from '../catalog/clasificar-filas';
 import { formatMileageFact } from '../catalog/mileage';
 import { detectVehicleKind, kindFromTypeBody } from './vehicle-kind';
 import {
@@ -194,19 +200,24 @@ export function formatInterestedCar(
     ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`
     : '';
   const plate = sanitizePlateShort(car.plateShort);
+  const caja = unitCaja(car);
+  const puertas = unitDoors(car);
+  const traccion = unitDrive(car);
   const facts = [
     formatMileageFact(car.mileage, car.year, new Date().getFullYear(), {
       skipClientCare: options?.skipMileageCare === true,
     }),
     car.color ? `color=${car.color}` : '',
-    car.transmission ? `caja=${car.transmission}` : '',
+    `caja=${caja ?? 'sin dato'}`,
+    puertas != null ? `puertas=${puertas}` : '',
+    `tracción=${traccion ?? 'sin dato'}`,
     plate ? `plate_short=${plate}` : '',
   ]
     .filter(Boolean)
     .join('\n');
   const factsLine = facts
     ? `\n${facts}
-Estos datos son para responder si el resumen o el mensaje los piden. Placa: solo plate_short (nunca inventes una placa; el km no es placa).`
+Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es sin dato, no la menciones). 4p/5p = puertas, no transmisión. 4x2/4x4 = tracción, no transmisión. Placa: solo plate_short (nunca inventes una placa; el km no es placa).`
     : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}

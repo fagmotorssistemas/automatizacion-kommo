@@ -3059,6 +3059,81 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/carro cuidado/i);
   });
 
+  it('La 2022 elige la de la lista y no dice que no hay', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Tienen D-max 4x4?' },
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Chevrolet D-Max 4x4 manual 2022 color vino con 87687 km, y una Chevrolet Luv D-Max 4x4 manual 2006 color blanco con el kilometraje todavía no cargado.',
+      },
+      { role: 'user', content: 'ok' },
+      {
+        role: 'assistant',
+        content: '¿Le interesa financiamiento o prefiere venir a verla?',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 26900,
+        typeBody: 'camioneta',
+        color: 'vino',
+        mileage: 87687,
+      },
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28900,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 77613,
+      },
+      {
+        id: 'luv-2006',
+        brand: 'chevrolet',
+        model: 'luv d-max 4x4 tm',
+        year: 2006,
+        price: 8900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente elige la D-Max 2022 de las que le mostraron.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, la Chevrolet D-Max CRDi 2.5 CD 4x4 2022 color vino tiene 87687 km. Aquí tiene las fotos.',
+        meta: { vehiculo: { inventory_id: 'dmax-2022' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'y la 2022',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=dmax-2022');
+    expect(system).toMatch(/ELIGIÓ esta unidad/i);
+    expect(system).toMatch(/Ya hay ficha|no busques de nuevo/i);
+    expect(system).not.toMatch(/PRIMERO dilo claro: no tenemos/i);
+    expect(system).not.toMatch(/No hay Dmax 2022/i);
+    expect(system).not.toMatch(/dmax-2023|luv-2006/);
+    expect(system).toMatch(/PROHIBIDO pedir entrada/i);
+    expect(result?.reply.mensaje).not.toMatch(/no tenemos/i);
+  });
+
   it('si ya dijo D-max CRDI 2023 no lista otras ni una Luv', async () => {
     catalog.listByBrand.mockResolvedValue([
       {

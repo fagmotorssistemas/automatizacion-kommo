@@ -1,10 +1,17 @@
 import {
+  carsShownInHistory,
+  carsShownInText,
   clasificarFilas,
+  describeUnit,
   formatMissingNamedModel,
   formatNamedUnits,
   formatRevisionMarca,
   pickClosestToMissingModel,
+  pickShownByYear,
   textMentionsModel,
+  unitCaja,
+  unitDoors,
+  unitDrive,
   userNamedModel,
 } from './clasificar-filas';
 import type { StockCar } from './clasificar-filas';
@@ -210,7 +217,7 @@ describe('clasificar filas', () => {
     expect(varias.text).toMatch(/2026/);
     expect(varias.text).toMatch(/ranger xl/i);
     expect(varias.text).toMatch(/2024/);
-    expect(varias.text).toContain('11061 km');
+    expect(varias.text).toContain('km=11061');
     expect(varias.text).toContain('cuál le interesa');
     expect(varias.text).not.toContain('$');
 
@@ -224,5 +231,132 @@ describe('clasificar filas', () => {
     );
     expect(sinKm.text).toMatch(/aún no cargado/i);
     expect(sinKm.text).not.toMatch(/, 0 km/);
+  });
+
+  it('4p es puertas y no se pasa como transmisión', () => {
+    const golf: StockCar = {
+      id: 'golf-p8',
+      brand: 'volkswagen',
+      model: 'golf comfortline 4p',
+      year: 2005,
+      price: 9800,
+      typeBody: 'hatchback',
+      color: 'azul',
+      mileage: 276968,
+      transmission: '4p',
+      plateShort: 'P8',
+    };
+    expect(unitCaja(golf)).toBeNull();
+    expect(unitDoors(golf)).toBe(4);
+    expect(unitDrive(golf)).toBeNull();
+    const text = describeUnit(golf, false);
+    expect(text).toContain('modelo=golf comfortline 4p');
+    expect(text).toContain('caja=sin dato');
+    expect(text).toContain('puertas=4');
+    expect(text).toContain('plate_short=P8');
+    expect(text).toContain('km=276968');
+    expect(text).not.toMatch(/caja=4p/i);
+    expect(text).toMatch(/NUNCA "transmisión 4p"/i);
+  });
+
+  it('tm/ta y 4x2 salen como caja y tracción, no como 4p', () => {
+    const sentra: StockCar = {
+      id: 'sentra-1',
+      brand: 'nissan',
+      model: 'sentra exclusive ac 1.8 4p 4x2 ta',
+      year: 2014,
+      price: 13800,
+      typeBody: 'sedan',
+      transmission: '4x2',
+    };
+    expect(unitCaja(sentra)).toBe('automática');
+    expect(unitDoors(sentra)).toBe(4);
+    expect(unitDrive(sentra)).toBe('4x2');
+    const text = describeUnit(sentra, false);
+    expect(text).toContain('caja=automática');
+    expect(text).toContain('tracción=4x2');
+    expect(text).toContain('puertas=4');
+    expect(text).not.toMatch(/caja=4x2/i);
+  });
+
+  it('la lista del bot se recorta a las unidades que nombró, no a toda la línea', () => {
+    const dmax2022: StockCar = {
+      id: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2022,
+      price: 26900,
+      typeBody: 'camioneta',
+      color: 'vino',
+      mileage: 87687,
+    };
+    const dmax2023: StockCar = {
+      id: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28900,
+      typeBody: 'camioneta',
+      color: 'plateado',
+      mileage: 77613,
+    };
+    const luv2006: StockCar = {
+      id: 'luv-2006',
+      brand: 'chevrolet',
+      model: 'luv d-max 4x4 tm',
+      year: 2006,
+      price: 8900,
+      typeBody: 'camioneta',
+      color: 'blanco',
+    };
+    const listing =
+      'Estimado, tenemos disponible un Chevrolet D-Max 4x4 manual 2022 color vino con 87687 km, y una Chevrolet Luv D-Max 4x4 manual 2006 color blanco con el kilometraje todavía no cargado.';
+    const shown = carsShownInText(listing, [dmax2022, dmax2023, luv2006]);
+    expect(shown.map((car) => car.id)).toEqual(['dmax-2022', 'luv-2006']);
+    expect(pickShownByYear(shown, listing, 2022).map((car) => car.id)).toEqual([
+      'dmax-2022',
+    ]);
+    const later = carsShownInHistory(
+      [
+        { role: 'user', content: 'Tienen D-max 4x4?' },
+        { role: 'assistant', content: listing },
+        { role: 'user', content: 'ok' },
+        {
+          role: 'assistant',
+          content: '¿Le interesa ver financiamiento o prefiere ir a verla?',
+        },
+      ],
+      [dmax2022, dmax2023, luv2006],
+      'Vehículo: D-Max 2022 vino y Luv 2006',
+    );
+    expect(later.map((car) => car.id)).toEqual(['dmax-2022', 'luv-2006']);
+    expect(
+      pickShownByYear(later, `${listing}\nVehículo: D-Max 2022 vino`, 2022).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['dmax-2022']);
+  });
+
+  it('si el patio sí tiene ese año no dice que no hay', () => {
+    const missing = formatMissingNamedModel(
+      'dmax',
+      2022,
+      [
+        {
+          id: 'dmax-2022',
+          brand: 'chevrolet',
+          model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+          year: 2022,
+          price: 26900,
+          typeBody: 'camioneta',
+          color: 'vino',
+          mileage: 87687,
+        },
+      ],
+      false,
+    );
+    expect(missing.text).not.toMatch(/no tenemos|No hay/i);
+    expect(missing.sendId).toBe('dmax-2022');
+    expect(missing.text).toMatch(/d-max crdi/i);
   });
 });

@@ -1,5 +1,5 @@
 import { kindFromTypeBody } from '../conversation/vehicle-kind';
-import { formatUnitMileage } from './mileage';
+import { hasLoadedMileage } from './mileage';
 import { sanitizePlateShort } from './plate-short';
 
 export type FilaClase = 'tres_filas' | 'posible' | 'no' | 'no_consta';
@@ -71,6 +71,111 @@ export function modelFamily(model: string): string {
   return token ?? '';
 }
 
+/** Unidades que el último mensaje del bot realmente nombró (año/km/color), no toda la línea. */
+export function carsShownInText(text: string, cars: StockCar[]): StockCar[] {
+  const mentioned = cars.filter((car) => textMentionsModel(text, car.model));
+  if (mentioned.length === 0) {
+    return [];
+  }
+  const folded = text.toLowerCase();
+  const tight = mentioned.filter((car) => {
+    const yearHit =
+      car.year != null && new RegExp(`\\b${car.year}\\b`).test(text);
+    const kmHit =
+      typeof car.mileage === 'number' &&
+      car.mileage > 0 &&
+      text.includes(String(Math.round(car.mileage)));
+    const colorHit = Boolean(
+      car.color && folded.includes(car.color.trim().toLowerCase()),
+    );
+    return (yearHit && (kmHit || colorHit)) || kmHit;
+  });
+  if (tight.length > 0) {
+    return tight;
+  }
+  const byYear = mentioned.filter(
+    (car) => car.year != null && new RegExp(`\\b${car.year}\\b`).test(text),
+  );
+  return byYear.length > 0 ? byYear : mentioned;
+}
+
+/** Todas las unidades que el bot ya nombró en el hilo, no solo el último turno. */
+export function carsShownInHistory(
+  history: { role: string; content: string }[],
+  cars: StockCar[],
+  extraText = '',
+): StockCar[] {
+  const byId = new Map<string, StockCar>();
+  for (const item of history) {
+    if (item.role !== 'assistant' || !item.content) {
+      continue;
+    }
+    for (const car of carsShownInText(item.content, cars)) {
+      byId.set(car.id, car);
+    }
+  }
+  if (extraText.trim()) {
+    for (const car of carsShownInText(extraText, cars)) {
+      byId.set(car.id, car);
+    }
+  }
+  return [...byId.values()];
+}
+
+export function shownThreadText(
+  history: { role: string; content: string }[],
+  extraText = '',
+): string {
+  return [
+    ...history
+      .filter((item) => item.role === 'assistant' && item.content)
+      .map((item) => item.content),
+    extraText,
+  ]
+    .filter((part) => part.trim())
+    .join('\n');
+}
+
+/** Ya hay ficha de patio: no reabrir búsqueda. */
+export function hasUsableFicha(car: StockCar): boolean {
+  return Boolean(
+    car.id &&
+      car.model &&
+      (car.year != null ||
+        (typeof car.mileage === 'number' && car.mileage > 0) ||
+        (typeof car.price === 'number' && car.price > 0)),
+  );
+}
+
+/** Elige de las ya mostradas por el año que dijo, aunque el patio no traiga year. */
+export function pickShownByYear(
+  shown: StockCar[],
+  text: string,
+  year: number,
+): StockCar[] {
+  const exact = shown.filter((car) => car.year === year);
+  if (exact.length > 0) {
+    return exact;
+  }
+  if (!new RegExp(`\\b${year}\\b`).test(text)) {
+    return [];
+  }
+  const folded = text.toLowerCase();
+  return shown.filter((car) => {
+    if (car.year != null && car.year !== year) {
+      return false;
+    }
+    const kmHit =
+      typeof car.mileage === 'number' &&
+      car.mileage > 0 &&
+      text.includes(String(Math.round(car.mileage)));
+    const colorHit = Boolean(
+      car.color && folded.includes(car.color.trim().toLowerCase()),
+    );
+    return kmHit || colorHit || car.year == null;
+  });
+}
+
 export function textMentionsModel(text: string, model: string): boolean {
   const family = modelFamily(model);
   if (!family) {
@@ -117,6 +222,79 @@ function prettyFamily(model: string): string {
   return family.charAt(0).toUpperCase() + family.slice(1);
 }
 
+export type UnitFactSource = {
+  model: string;
+  year?: number | null;
+  color?: string | null;
+  transmission?: string | null;
+  driveType?: string | null;
+  doorsCount?: number | null;
+  mileage?: number | null;
+  price?: number | null;
+  plateShort?: string | null;
+  id?: string;
+  inventoryId?: string;
+};
+
+const DOORS_CODE = /\b([3-5])\s*p\b/i;
+const DRIVE_CODE = /\b4\s*x\s*([24])\b/i;
+const LOOKS_LIKE_DOORS = /^\s*[3-5]\s*p\s*$/i;
+const LOOKS_LIKE_DRIVE = /^\s*4\s*x\s*[24]\s*$/i;
+
+/** Caja = manual/automática. 4p y 4x2 nunca son transmisión. */
+export function unitCaja(car: UnitFactSource): string | null {
+  const field = (car.transmission ?? '').trim();
+  const lower = field.toLowerCase();
+  if (field && !LOOKS_LIKE_DOORS.test(field) && !LOOKS_LIKE_DRIVE.test(field)) {
+    if (/manu|mec[aá]n/.test(lower) || /^t\/?m$/.test(lower)) {
+      return 'manual';
+    }
+    if (/autom/.test(lower) || /^cvt$/.test(lower) || /^t\/?a$/.test(lower)) {
+      return 'automática';
+    }
+  }
+  if (/\btm\b/i.test(car.model)) {
+    return 'manual';
+  }
+  if (/\bta\b/i.test(car.model) || /\bcvt\b/i.test(car.model)) {
+    return 'automática';
+  }
+  return null;
+}
+
+/** 3p/4p/5p en ficha o en el modelo son puertas. */
+export function unitDoors(car: UnitFactSource): number | null {
+  if (car.doorsCount && car.doorsCount > 0) {
+    return car.doorsCount;
+  }
+  const fromField = (car.transmission ?? '').match(/^\s*([3-5])\s*p\s*$/i);
+  if (fromField) {
+    return Number(fromField[1]);
+  }
+  const fromName = car.model.match(DOORS_CODE);
+  return fromName ? Number(fromName[1]) : null;
+}
+
+/** 4x2/4x4 es tracción, no caja. */
+export function unitDrive(car: UnitFactSource): string | null {
+  const field = (car.driveType ?? '').trim();
+  if (LOOKS_LIKE_DRIVE.test(field)) {
+    return field.replace(/\s+/g, '').toLowerCase();
+  }
+  if (field && !LOOKS_LIKE_DOORS.test(field)) {
+    return field;
+  }
+  const fromTx = (car.transmission ?? '').match(/^\s*(4\s*x\s*[24])\s*$/i);
+  if (fromTx) {
+    return fromTx[1].replace(/\s+/g, '').toLowerCase();
+  }
+  const fromName = car.model.match(DRIVE_CODE);
+  return fromName ? `4x${fromName[1]}` : null;
+}
+
+export const UNIT_FIELD_LEGEND =
+  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). tm=manual, ta/cvt=automática. plate_short="La placa es P8".';
+
 function etiqueta(car: StockCar, includePrice = false): string {
   const price =
     includePrice && car.price && car.price > 0
@@ -126,35 +304,34 @@ function etiqueta(car: StockCar, includePrice = false): string {
   return `${prettyFamily(car.model)}${year}${price}`;
 }
 
-/** Ficha de inventoryoracle: modelo tal cual, sin inventar MAX/TRAIL. */
+/** Ficha etiquetada: cada campo dice qué es. El robot arma la frase con eso. */
 export function describeUnit(car: StockCar, includePrice = false): string {
-  const extras = [
-    car.color,
-    car.transmission ||
-      (/\btm\b/i.test(car.model)
-        ? 'manual'
-        : /\bta\b/i.test(car.model)
-          ? 'automática'
-          : ''),
-    car.driveType ||
-      (/\b4x4\b/i.test(car.model)
-        ? '4x4'
-        : /\b4x2\b/i.test(car.model)
-          ? '4x2'
-          : ''),
-  ].filter(Boolean);
-  const extra = extras.length ? `, ${extras.join(', ')}` : '';
-  const year = car.year ? ` ${car.year}` : '';
-  const price =
-    includePrice && car.price && car.price > 0
-      ? `, $${Math.round(car.price)}`
-      : '';
-  const km = formatUnitMileage(car.mileage);
+  const caja = unitCaja(car);
+  const puertas = unitDoors(car);
+  const traccion = unitDrive(car);
   const plate = sanitizePlateShort(car.plateShort);
-  const plateBit = plate
-    ? `, plate_short=${plate}`
-    : ', sin plate_short (PROHIBIDO inventar placa; el km NO es placa)';
-  return `${car.model}${year}${extra}${km}${price}${plateBit} (inventory_id=${car.id})`;
+  const km = hasLoadedMileage(car.mileage)
+    ? `km=${Math.round(car.mileage as number)}`
+    : car.mileage != null && Number.isFinite(car.mileage)
+      ? 'km=aún no cargado (NO digas 0 km)'
+      : '';
+  const fields = [
+    `modelo=${car.model}`,
+    car.year ? `año=${car.year}` : '',
+    car.color ? `color=${car.color}` : '',
+    `caja=${caja ?? 'sin dato'}`,
+    puertas != null ? `puertas=${puertas}` : '',
+    `tracción=${traccion ?? 'sin dato'}`,
+    km,
+    includePrice && car.price && car.price > 0
+      ? `precio=$${Math.round(car.price)}`
+      : '',
+    plate
+      ? `plate_short=${plate}`
+      : 'sin plate_short (PROHIBIDO inventar placa; el km NO es placa)',
+    `inventory_id=${car.id}`,
+  ].filter(Boolean);
+  return `${UNIT_FIELD_LEGEND}\n${fields.join(' | ')}`;
 }
 
 /** Una unidad se manda. Varias se nombran para que elija. */
@@ -224,6 +401,20 @@ export function pickClosestToMissingModel(
   return [];
 }
 
+function sameAskedUnit(
+  car: StockCar,
+  family: string,
+  year: number | null,
+): boolean {
+  if (year != null && car.year !== year) {
+    return false;
+  }
+  return (
+    textMentionsModel(car.model, family) ||
+    modelFamily(car.model) === modelFamily(family)
+  );
+}
+
 /** No hay el modelo (o el año) pedido: primero dilo, después ofrece otra. */
 export function formatMissingNamedModel(
   family: string,
@@ -231,6 +422,10 @@ export function formatMissingNamedModel(
   alternatives: StockCar[],
   includePrice = false,
 ): { text: string; holdVehicle: boolean; sendId: string | null } {
+  const same = alternatives.filter((car) => sameAskedUnit(car, family, year));
+  if (same.length > 0) {
+    return formatNamedUnits(same, includePrice);
+  }
   const pretty = family.charAt(0).toUpperCase() + family.slice(1);
   const asked = year ? `${pretty} ${year}` : pretty;
   const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA (lo más cercano en tamaño). Prohibido presentarla como si fuera el ${pretty}. Prohibido volver al carro que el cliente ya dejó.`;

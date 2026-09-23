@@ -45,7 +45,29 @@ describe('revisión de cumplimiento', () => {
       chasis: 'VIN-SENTRA',
     });
     expect(payload[0]).not.toHaveProperty('pasajeros');
+    expect(payload[0]).toMatchObject({
+      puertas: 4,
+      transmision: 'automática',
+      traccion: '4x2',
+    });
     expect(payload[1]).toMatchObject({ transmision: 'automática' });
+  });
+
+  it('si el patio mandó 4p en transmission, va a puertas y no a caja', () => {
+    const payload = carsForReview([
+      {
+        id: 'golf-p8',
+        brand: 'volkswagen',
+        model: 'golf comfortline 4p',
+        year: 2005,
+        price: 9800,
+        typeBody: 'hatchback',
+        transmission: '4p',
+        plateShort: 'P8',
+      },
+    ]);
+    expect(payload[0]).toMatchObject({ puertas: 4 });
+    expect(payload[0]).not.toHaveProperty('transmision');
   });
 
   it('ignora ids que no están en el patio y el resto queda como no cumple', () => {

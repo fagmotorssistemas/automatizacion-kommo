@@ -1,4 +1,4 @@
-import { modelFamily, StockCar } from './clasificar-filas';
+import { modelFamily, StockCar, unitCaja, unitDoors, unitDrive } from './clasificar-filas';
 import { hasLoadedMileage } from './mileage';
 import { sanitizePlateShort } from './plate-short';
 
@@ -8,7 +8,7 @@ REGLAS:
 - Solo puedes usar los vehículos del JSON. No inventes carros ni ids.
 - cumple únicamente si los datos de ESA unidad, o el modelo, año y versión exactos, confirman el pedido.
 - Si no estás seguro, no cumple. No uses "tal vez".
-- "5p" o "4p" en el modelo son puertas, no pasajeros.
+- "3p", "4p" o "5p" en el modelo son puertas, no pasajeros ni transmisión.
 - Pasajeros, filas, transmisión, combustible, tracción, techo y color se juzgan con la ficha del patio y, si viene, con fichas_tecnicas.
 - Si fichas_tecnicas trae seguro=true, ese dato es un hecho de la ficha técnica de ese modelo y año. Si confirma el pedido, cumple. No lo trates como duda.
 - Si seguro=false o el dato es "no consta", y la ficha del patio tampoco lo trae, no cumple. No pongas en duda a los que sí tienen ficha confirmada.
@@ -48,10 +48,10 @@ export function carsForReview(cars: StockCar[]): Record<string, unknown>[] {
     }
     add('carroceria', car.typeBody);
     add('pasajeros', car.passengerCapacity);
-    add('puertas', car.doorsCount);
-    add('transmision', car.transmission);
+    add('puertas', unitDoors(car));
+    add('transmision', unitCaja(car));
     add('combustible', car.fuelType);
-    add('traccion', car.driveType);
+    add('traccion', unitDrive(car));
     add('plate_short', sanitizePlateShort(car.plateShort));
     add('chasis', car.vin);
     return row;

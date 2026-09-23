@@ -152,6 +152,15 @@ describe('vehículo de interés', () => {
     expect(refersToInterestedCar('el precio x favor', explorer)).toBe(true);
   });
 
+  it('5p y 4x4 no se etiquetan como caja', () => {
+    const text = formatInterestedCar(explorer);
+    expect(text).toContain('caja=sin dato');
+    expect(text).toContain('puertas=5');
+    expect(text).toContain('tracción=4x4');
+    expect(text).not.toMatch(/caja=4x4|caja=5p/i);
+    expect(text).toMatch(/4p\/5p = puertas/i);
+  });
+
   it('el precio queda interno hasta que el cliente lo pida', () => {
     expect(formatInterestedCar(explorer)).not.toContain('$33990');
     expect(formatInterestedCar(explorer)).toContain('precio_interno=33990');
@@ -168,7 +177,7 @@ describe('vehículo de interés', () => {
     expect(text).toContain('km=144904');
     expect(text).toMatch(/km vs año/i);
     expect(text).toContain('plate_short=L5');
-    expect(text).toMatch(/si el resumen o el mensaje los piden/i);
+    expect(text).toMatch(/estos datos van etiquetados/i);
     expect(text).not.toMatch(/La placa es/i);
   });
 
