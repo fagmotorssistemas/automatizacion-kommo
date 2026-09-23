@@ -1,4 +1,9 @@
-import { isConcreteAsk, resolveConcreteAsk } from './concrete-ask';
+import {
+  asksClosestByFacts,
+  asksYearOnward,
+  isConcreteAsk,
+  resolveConcreteAsk,
+} from './concrete-ask';
 
 describe('pedido concreto', () => {
   it('detecta pasajeros, techo, automático y diésel', () => {
@@ -9,6 +14,16 @@ describe('pedido concreto', () => {
     expect(isConcreteAsk('busco uno automático')).toBe(true);
     expect(isConcreteAsk('tiene que ser diésel')).toBe(true);
     expect(isConcreteAsk('transmisión manual')).toBe(true);
+  });
+
+  it('4x2, gasolina o 2023 en adelante piden lo más cercano, no el exacto', () => {
+    expect(
+      asksClosestByFacts(
+        'Toyota Hilux cabina doble a gasolina, 4x2 año 2023 en adelante',
+      ),
+    ).toBe(true);
+    expect(asksYearOnward('año 2023 en adelante')).toBe(true);
+    expect(asksClosestByFacts('tienen el Sportage?')).toBe(false);
   });
 
   it('no trata la marca ni un sí como pedido concreto', () => {

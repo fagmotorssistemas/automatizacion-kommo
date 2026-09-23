@@ -1227,6 +1227,83 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/no tenemos Sportage/i);
   });
 
+  it('Hilux 4x2 gasolina 2023+ va al embedding y presenta la más cercana', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'hilux-2023',
+        brand: 'toyota',
+        model: 'hilux sr 2.7 cd 4x4 tm',
+        year: 2023,
+        price: 48990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 13086,
+        fuelType: 'gas',
+        plateShort: 'P9',
+      },
+      {
+        id: 'hilux-2026',
+        brand: 'toyota',
+        model: 'hilux 2.4 cd 4x4 tm diesel',
+        year: 2026,
+        price: 0,
+        typeBody: 'doble cabina',
+        color: 'plomo',
+        fuelType: 'die',
+        plateShort: 'U9',
+      },
+    ]);
+    openai.embed.mockResolvedValue([0.2]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'hilux-2023',
+          metadata: {
+            brand: 'toyota',
+            model: 'hilux sr 2.7 cd 4x4 tm',
+            year: 2023,
+            type: 'doble cabina',
+            inventory_id: 'hilux-2023',
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca Hilux cabina doble gasolina 4x2 2023 en adelante.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos una Hilux SR 2023 cabina doble a gasolina, es 4x4. Aquí las fotos.',
+        meta: { vehiculo: { inventory_id: 'hilux-2023' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Toyota Hilux cabina doble a gasolina, 4x2 año 2023 en adelante',
+    });
+
+    expect(openai.embed).toHaveBeenCalled();
+    expect(catalog.searchByQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query:
+          'Toyota Hilux cabina doble a gasolina, 4x2 año 2023 en adelante',
+        marca: 'toyota',
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/más cercanas/i);
+    expect(system).toMatch(/hilux sr 2\.7 cd 4x4 tm/i);
+    expect(system).not.toMatch(/No hay Hilux/i);
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'hilux-2023',
+    });
+  });
+
   it('Hilux suelta el SUV anterior y no ofrece un Prado', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('volkswagen');
     conversation.loadVehicleKind.mockResolvedValue('suv');

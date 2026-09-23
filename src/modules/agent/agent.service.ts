@@ -67,7 +67,11 @@ import {
   pickGearboxAlternatives,
   resolveGearbox,
 } from '../conversation/gearbox';
-import { isConcreteAsk, resolveConcreteAsk } from '../conversation/concrete-ask';
+import {
+  asksClosestByFacts,
+  isConcreteAsk,
+  resolveConcreteAsk,
+} from '../conversation/concrete-ask';
 import {
   asksForPlate,
   messageLeaksPrice,
@@ -956,6 +960,7 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const yearAsk = asked ? asked.year : detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
+    const wantsClosest = Boolean(asked) && asksClosestByFacts(customerText);
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
@@ -974,7 +979,7 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
 PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }
-    if (yearAsk || colorAsk || trimAsk) {
+    if ((yearAsk || colorAsk || trimAsk) && !wantsClosest) {
       const offered = asked
         ? alreadyOffered.filter((car) =>
             textMentionsModel(car.model, asked.family),
@@ -1077,6 +1082,18 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
       }
     }
     const saidBox = detectGearbox(customerText, lexicon);
+    if (wantsClosest && asked) {
+      const fromEmbed = await this.lookupNamedByEmbedding(
+        customerText,
+        asked.family,
+        asked.brand || targetBrand || '',
+        listed,
+        includePrice,
+      );
+      if (fromEmbed.length > 0) {
+        return this.namedModelFound(fromEmbed, includePrice, true, true);
+      }
+    }
     if (saidBox && alreadyOffered.length > 0 && !asked) {
       const offered = alreadyOffered;
       const boxed = offered.filter((car) => gearboxOf(car) === saidBox);
@@ -1102,6 +1119,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         ? namedNow.filter((car) => gearboxOf(car) === saidBox)
         : namedNow;
       let offer = boxed.length > 0 ? boxed : namedNow;
+      if (wantsClosest) {
+        return this.namedModelFound(offer, includePrice, false, true);
+      }
       if (yearFromThread) {
         const exactYear = offer.filter((car) => car.year === yearFromThread);
         if (exactYear.length > 0) {
@@ -1455,13 +1475,17 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     cars: StockCar[],
     includePrice: boolean,
     fromEmbed: boolean,
+    closest = false,
   ): BrandReview {
     const named = formatNamedUnits(cars, includePrice);
     const via = fromEmbed ? ' (búsqueda por inventario)' : '';
+    const rule = closest
+      ? `Estas son las más cercanas del patio a lo que pidió${via}. Preséntalas. Dilo en qué se parecen y en qué no (tracción, combustible, año). PROHIBIDO decir que no hay, que no tienes unidad exacta o que no hay fotos si hay ficha. PROHIBIDO otra línea.`
+      : `Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca. PROHIBIDO nombrar otra línea (otra pickup u otro modelo). Solo las unidades de arriba. Si ya hay año, manda ESA unidad; no listes las demás.`;
     return {
       ...named,
       text: `${named.text}
-Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca. PROHIBIDO nombrar otra línea (otra pickup u otro modelo). Solo las unidades de arriba. Si ya hay año, manda ESA unidad; no listes las demás.`,
+${rule}`,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(cars),
     };

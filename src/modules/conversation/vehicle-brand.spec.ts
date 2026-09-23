@@ -107,6 +107,16 @@ describe('marca y tres filas', () => {
   });
 
   it('Río con tilde es el mismo Kia Rio', () => {
+    expect(
+      detectNamedModelAsk(
+        'Toyota Hilux cabina doble a gasolina, 4x2 año 2023 en adelante',
+        TEST_LEXICON,
+      ),
+    ).toEqual({
+      brand: 'toyota',
+      family: 'hilux',
+      year: 2023,
+    });
     expect(detectNamedModelAsk('Río ?', TEST_LEXICON)).toEqual({
       brand: 'kia',
       family: 'rio',

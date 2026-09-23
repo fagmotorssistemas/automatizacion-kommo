@@ -11,6 +11,16 @@ export function isConcreteAsk(text: string): boolean {
   return text.split(/[^\p{L}]+/u).some((word) => looksLikeCamioneta(word));
 }
 
+/** Año desde X, no “solo el 2023”. */
+export function asksYearOnward(text: string): boolean {
+  return /\b(?:en adelante|o m[aá]s|desde|a partir)\b/i.test(text);
+}
+
+/** Pedido con ficha (4x2, gasolina, cabina, desde un año): embedding, no filtro exacto. */
+export function asksClosestByFacts(text: string): boolean {
+  return isConcreteAsk(text) || asksYearOnward(text);
+}
+
 /**
  * El último requisito sigue vigente si el mensaje nuevo solo repite la marca.
  * `remembered` cubre lo que ya salió de la ventana del chat.
