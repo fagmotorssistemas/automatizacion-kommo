@@ -62,6 +62,15 @@ import {
   parseComplianceReview,
   vehicleToSend,
 } from '../catalog/revisar-cumplimiento';
+import {
+  carsForSpecLookup,
+  factsFromResearch,
+  formatSpecNotes,
+  specCacheKey,
+  SPEC_RESEARCH_PROMPT,
+  specTopic,
+  SpecFact,
+} from '../catalog/ficha-tecnica';
 
 function namedOfferId(
   cars: StockCar[],
@@ -362,11 +371,15 @@ export class AgentService {
       return empty;
     }
 
+    const facts = await this.collectSpecFacts(concreteAsk, cars);
+    const specNotes = formatSpecNotes(facts);
+
     const raw = await this.openai.completeJson(
       COMPLIANCE_SYSTEM_PROMPT,
       JSON.stringify({
         pedido: concreteAsk,
         vehiculos: carsForReview(cars),
+        ...(facts.length > 0 ? { fichas_tecnicas: facts } : {}),
       }),
     );
     const review = parseComplianceReview(
@@ -381,10 +394,13 @@ export class AgentService {
       };
     }
 
+    const reviewed = [formatComplianceForAgent(concreteAsk, cars, review, includePrice), specNotes]
+      .filter(Boolean)
+      .join('\n');
+
     if (idsToOffer(review).length === 0) {
-      // No saltar solo a otras marcas: primero similares de esta marca / ajustar pedido.
       return {
-        text: formatComplianceForAgent(concreteAsk, cars, review, includePrice),
+        text: reviewed,
         holdVehicle: true,
         sendId: null,
       };
@@ -392,10 +408,107 @@ export class AgentService {
 
     const namedId = namedOfferId(cars, idsToOffer(review), userTexts);
     return {
-      text: formatComplianceForAgent(concreteAsk, cars, review, includePrice),
+      text: reviewed,
       holdVehicle: vehicleToSend(review, null) === null,
       sendId: vehicleToSend(review, namedId),
     };
+  }
+
+  /**
+   * Primero las fichas ya guardadas. Lo que falta se investiga junto, se guarda,
+   * y recién después sigue el turno. Un solo mensaje al cliente.
+   */
+  private async collectSpecFacts(
+    ask: string,
+    cars: StockCar[],
+  ): Promise<SpecFact[]> {
+    const topic = specTopic(ask);
+    const targets = carsForSpecLookup(ask, cars);
+    if (!topic || targets.length === 0) {
+      return [];
+    }
+
+    const modelKeys = [
+      ...new Set(
+        targets.map((car) => car.model.toLowerCase().replace(/\s+/g, ' ').trim()),
+      ),
+    ];
+    const stored = await this.persistence.loadVehicleSpecs(topic, modelKeys);
+    const known = new Map(
+      stored.map((row) => [
+        `${row.modelKey}|${row.year}|${topic}`,
+        { seguro: row.seguro, dato: row.dato },
+      ]),
+    );
+
+    const pending: StockCar[] = [];
+    const seen = new Set<string>();
+    for (const car of targets) {
+      const key = specCacheKey(car.model, car.year, topic);
+      if (known.has(key) || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      pending.push(car);
+    }
+
+    if (pending.length > 0) {
+      const raw = await this.openai.researchSpecs(
+        SPEC_RESEARCH_PROMPT,
+        JSON.stringify({
+          pedido: ask,
+          vehiculos: carsForReview(pending).map((car) => ({
+            id: car.id,
+            marca: car.marca,
+            modelo: car.modelo,
+            anio: car.anio,
+          })),
+        }),
+      );
+      const found = factsFromResearch(
+        raw,
+        pending.map((car) => car.id),
+      );
+      if (found) {
+        await this.persistence.saveVehicleSpecs(
+          found.flatMap((fact) => {
+            const car = pending.find((item) => item.id === fact.id);
+            if (!car) {
+              return [];
+            }
+            return [
+              {
+                modelKey: car.model.toLowerCase().replace(/\s+/g, ' ').trim(),
+                year: car.year ?? 0,
+                topic,
+                seguro: fact.seguro,
+                dato: fact.dato,
+              },
+            ];
+          }),
+        );
+        for (const fact of found) {
+          const car = pending.find((item) => item.id === fact.id);
+          if (!car) {
+            continue;
+          }
+          known.set(specCacheKey(car.model, car.year, topic), {
+            seguro: fact.seguro,
+            dato: fact.dato,
+          });
+        }
+      }
+    }
+
+    const facts: SpecFact[] = [];
+    for (const car of targets) {
+      const hit = known.get(specCacheKey(car.model, car.year, topic));
+      if (!hit) {
+        continue;
+      }
+      facts.push({ id: car.id, seguro: hit.seguro, dato: hit.dato });
+    }
+    return facts;
   }
 
   private async executeTool(

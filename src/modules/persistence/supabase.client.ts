@@ -446,6 +446,63 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     };
   }
 
+  async loadVehicleSpecs(topic: string, modelKeys: string[]) {
+    const client = this.requireClient();
+    if (!client || !topic || modelKeys.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('vehicle_spec_facts')
+      .select('model_key, year, seguro, dato')
+      .eq('topic', topic)
+      .in('model_key', modelKeys);
+
+    if (error) {
+      this.logger.warn(`GET vehicle_spec_facts: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? []).map((row) => ({
+      modelKey: String(row.model_key ?? ''),
+      year: Number(row.year ?? 0),
+      seguro: row.seguro === true,
+      dato: String(row.dato ?? ''),
+    }));
+  }
+
+  async saveVehicleSpecs(
+    rows: {
+      modelKey: string;
+      year: number;
+      topic: string;
+      seguro: boolean;
+      dato: string;
+    }[],
+  ): Promise<void> {
+    const client = this.requireClient();
+    if (!client || rows.length === 0) {
+      return;
+    }
+
+    const { error } = await client.from('vehicle_spec_facts').upsert(
+      rows.map((row) => ({
+        model_key: row.modelKey,
+        year: row.year,
+        topic: row.topic,
+        seguro: row.seguro,
+        dato: row.dato,
+        checked_at: new Date().toISOString(),
+      })),
+      { onConflict: 'model_key,year,topic' },
+    );
+
+    if (error) {
+      this.logger.warn(`UPSERT vehicle_spec_facts: ${error.message}`);
+      throw error;
+    }
+  }
+
   async insertInterestedCar(row: InterestedCarInput): Promise<void> {
     const client = this.requireClient();
     if (!client) {

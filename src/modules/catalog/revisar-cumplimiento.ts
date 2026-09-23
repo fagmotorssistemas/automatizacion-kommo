@@ -7,7 +7,9 @@ REGLAS:
 - cumple únicamente si los datos de ESA unidad, o el modelo, año y versión exactos, confirman el pedido.
 - Si no estás seguro, no cumple. No uses "tal vez".
 - "5p" o "4p" en el modelo son puertas, no pasajeros.
-- Pasajeros, filas, transmisión, combustible, tracción, techo y color se juzgan con la ficha y con lo que corresponde a ese modelo y año.
+- Pasajeros, filas, transmisión, combustible, tracción, techo y color se juzgan con la ficha del patio y, si viene, con fichas_tecnicas.
+- Si fichas_tecnicas trae seguro=true, ese dato es un hecho de la ficha técnica de ese modelo y año. Si confirma el pedido, cumple. No lo trates como duda.
+- Si seguro=false o el dato es "no consta", y la ficha del patio tampoco lo trae, no cumple. No pongas en duda a los que sí tienen ficha confirmada.
 - El chasis es solo para distinguir la unidad. No lo repitas en la respuesta.
 - plate_short sí se puede usar con el cliente (ej. P7). No inventes ni completes la placa larga.
 - Devuelve JSON válido y nada más:

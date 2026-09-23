@@ -5,6 +5,7 @@ describe('AgentService', () => {
     isReady: jest.fn(),
     complete: jest.fn(),
     completeJson: jest.fn(),
+    researchSpecs: jest.fn(),
     embed: jest.fn(),
     runSalesAgent: jest.fn(),
   };
@@ -30,6 +31,8 @@ describe('AgentService', () => {
     appendChatHistory: jest.fn(),
     loadRecentChat: jest.fn(),
     latestInterestedCar: jest.fn(),
+    loadVehicleSpecs: jest.fn(),
+    saveVehicleSpecs: jest.fn(),
   };
   const service = new AgentService(
     openai as never,
@@ -43,6 +46,8 @@ describe('AgentService', () => {
     openai.complete.mockReset();
     openai.completeJson.mockReset();
     openai.completeJson.mockResolvedValue(null);
+    openai.researchSpecs.mockReset();
+    openai.researchSpecs.mockResolvedValue(null);
     openai.embed.mockReset();
     openai.runSalesAgent.mockReset();
     catalog.fetchAgentPrompts.mockReset();
@@ -71,6 +76,9 @@ describe('AgentService', () => {
     persistence.loadRecentChat.mockResolvedValue([]);
     persistence.latestInterestedCar.mockReset();
     persistence.latestInterestedCar.mockResolvedValue(null);
+    persistence.loadVehicleSpecs.mockReset();
+    persistence.loadVehicleSpecs.mockResolvedValue([]);
+    persistence.saveVehicleSpecs.mockReset();
     catalog.fetchAgentPrompts.mockResolvedValue([
       { name: 'rol', content: 'sé cordial' },
     ]);
@@ -352,6 +360,110 @@ describe('AgentService', () => {
     expect(openai.completeJson).not.toHaveBeenCalled();
     expect(result?.reply.meta.vehiculo).toBeNull();
     expect(result?.reply.img_prefix).toBe('');
+  });
+
+  it('la ficha técnica confirmada se dice como hecho', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('jetour');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'x70',
+        brand: 'jetour',
+        model: 'x70 plus ii ac 1.5 4x2 tm',
+        year: 2025,
+        price: 22800,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [{ id: 'x70', seguro: true, dato: '7 pasajeros, 3 filas' }],
+      }),
+    );
+    openai.completeJson.mockResolvedValue(
+      JSON.stringify({ cumplen: ['x70'] }),
+    );
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El X70 Plus 2025 tiene 3 filas.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'el Jetour tiene 3 filas?',
+    });
+
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    expect(openai.completeJson).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('7 pasajeros, 3 filas'),
+    );
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Dilo como hecho'),
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'x70' });
+    expect(persistence.saveVehicleSpecs).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          seguro: true,
+          dato: '7 pasajeros, 3 filas',
+          topic: 'filas',
+        }),
+      ]),
+    );
+  });
+
+  it('si la ficha ya está guardada no vuelve a investigar', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('jetour');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'x70',
+        brand: 'jetour',
+        model: 'x70 plus ii ac 1.5 4x2 tm',
+        year: 2025,
+        price: 22800,
+        typeBody: 'jeep',
+      },
+    ]);
+    persistence.loadVehicleSpecs.mockResolvedValue([
+      {
+        modelKey: 'x70 plus ii ac 1.5 4x2 tm',
+        year: 2025,
+        seguro: true,
+        dato: '7 pasajeros, 3 filas',
+      },
+    ]);
+    openai.completeJson.mockResolvedValue(
+      JSON.stringify({ cumplen: ['x70'] }),
+    );
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El X70 Plus 2025 tiene 3 filas.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'el Jetour tiene 3 filas?',
+    });
+
+    expect(openai.researchSpecs).not.toHaveBeenCalled();
+    expect(persistence.saveVehicleSpecs).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('7 pasajeros, 3 filas'),
+      }),
+    );
   });
 
   it('al pedir 7 pasajeros manda el único Nissan que cumple', async () => {

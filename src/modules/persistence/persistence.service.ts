@@ -398,6 +398,50 @@ export class PersistenceService {
     }
   }
 
+  async loadVehicleSpecs(
+    topic: string,
+    modelKeys: string[],
+  ): Promise<
+    { modelKey: string; year: number; seguro: boolean; dato: string }[]
+  > {
+    if (!this.supabase || !topic || modelKeys.length === 0) {
+      return [];
+    }
+
+    try {
+      return await this.supabase.loadVehicleSpecs(topic, modelKeys);
+    } catch (error) {
+      this.logger.error(
+        'No se pudieron leer las fichas guardadas',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
+    }
+  }
+
+  async saveVehicleSpecs(
+    rows: {
+      modelKey: string;
+      year: number;
+      topic: string;
+      seguro: boolean;
+      dato: string;
+    }[],
+  ): Promise<void> {
+    if (!this.supabase || rows.length === 0) {
+      return;
+    }
+
+    try {
+      await this.supabase.saveVehicleSpecs(rows);
+    } catch (error) {
+      this.logger.error(
+        'No se pudieron guardar las fichas técnicas',
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
   async latestInterestedCar(
     contactId: string,
   ): Promise<InterestedCarSnapshot | null> {

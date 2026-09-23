@@ -8,6 +8,10 @@ import {
 import { SALES_TOOL_DEFINITIONS } from './sales-tools';
 
 const MAX_TOOL_ROUNDS = 6;
+/** Solo el paso de ficha técnica. El resto del turno sigue en el modelo mini. */
+const SPEC_RESEARCH_MODEL = 'gpt-4.1';
+/** Si la web no contesta, el turno sigue con la ficha del patio. */
+const SPEC_RESEARCH_TIMEOUT_MS = 25_000;
 
 @Injectable()
 export class OpenAiAgentClient {
@@ -62,6 +66,52 @@ export class OpenAiAgentClient {
     } catch (error) {
       this.logger.error(
         'La revisión de inventario no respondió',
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  /** Busca en la web la ficha técnica. Null si la búsqueda no responde. */
+  async researchSpecs(system: string, user: string): Promise<string | null> {
+    if (!this.openai) {
+      return null;
+    }
+
+    try {
+      const result = await this.openai.responses.create({
+        model: SPEC_RESEARCH_MODEL,
+        tools: [
+          {
+            type: 'web_search',
+            search_context_size: 'medium',
+            user_location: {
+              type: 'approximate',
+              country: 'EC',
+            },
+          },
+        ],
+        input: `${system}\n\n${user}`,
+      }, { timeout: SPEC_RESEARCH_TIMEOUT_MS });
+      const direct = (result as { output_text?: string }).output_text?.trim();
+      if (direct) {
+        return direct;
+      }
+      const parts: string[] = [];
+      for (const item of result.output ?? []) {
+        if (item.type !== 'message') {
+          continue;
+        }
+        for (const block of item.content ?? []) {
+          if (block.type === 'output_text' && block.text) {
+            parts.push(block.text);
+          }
+        }
+      }
+      return parts.join('\n').trim() || null;
+    } catch (error) {
+      this.logger.error(
+        'La ficha técnica web no respondió',
         error instanceof Error ? error.stack : undefined,
       );
       return null;

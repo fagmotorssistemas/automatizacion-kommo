@@ -94,6 +94,21 @@ export type SupabaseGateway = {
   hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean>;
   insertInterestedCar(row: InterestedCarInput): Promise<void>;
   latestInterestedCar(leadId: string): Promise<InterestedCarSnapshot | null>;
+  loadVehicleSpecs(
+    topic: string,
+    modelKeys: string[],
+  ): Promise<
+    { modelKey: string; year: number; seguro: boolean; dato: string }[]
+  >;
+  saveVehicleSpecs(
+    rows: {
+      modelKey: string;
+      year: number;
+      topic: string;
+      seguro: boolean;
+      dato: string;
+    }[],
+  ): Promise<void>;
   updateLeadSignals(leadId: string, patch: LeadSignalPatch): Promise<void>;
   insertRequestedClientData(row: RequestedClientDataInput): Promise<void>;
   insertFinancingAdvice(row: RequestedClientDataInput): Promise<void>;
