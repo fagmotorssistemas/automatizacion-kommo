@@ -1,6 +1,7 @@
 import { detectNamedModelAsk } from '../conversation/vehicle-brand';
 import { emptyLexicon, type VehicleLexicon } from '../conversation/fuzzy-vehicle-name';
 import { textMentionsModel, type StockCar } from './clasificar-filas';
+import { sanitizePlateShort } from './plate-short';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 
 export const INVENTORY_TOP_K = 3;
@@ -90,8 +91,7 @@ export function carsFromMatchJson(raw: string): StockCar[] {
           price: price == null || price === '' ? null : Number(price),
           typeBody: typeBody == null ? null : String(typeBody),
           color: meta.color == null ? null : String(meta.color),
-          plateShort:
-            meta.plate_short == null ? null : String(meta.plate_short),
+          plateShort: sanitizePlateShort(meta.plate_short),
         },
       ];
     });

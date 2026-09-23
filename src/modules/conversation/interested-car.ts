@@ -23,6 +23,7 @@ import {
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
+import { sanitizePlateShort } from '../catalog/plate-short';
 
 export type ShownCarContext = {
   text: string;
@@ -170,11 +171,12 @@ export function formatInterestedCar(
   const tipoLine = tipo
     ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`
     : '';
+  const plate = sanitizePlateShort(car.plateShort);
   const facts = [
     formatMileageFact(car.mileage, car.year),
     car.color ? `color=${car.color}` : '',
     car.transmission ? `caja=${car.transmission}` : '',
-    car.plateShort ? `plate_short=${car.plateShort}` : '',
+    plate ? `plate_short=${plate}` : '',
   ]
     .filter(Boolean)
     .join('\n');

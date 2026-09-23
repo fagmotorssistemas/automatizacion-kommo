@@ -12,6 +12,7 @@ import {
   TradeInInput,
 } from './lead.types';
 import { isUuid } from './is-uuid';
+import { sanitizePlateShort } from '../catalog/plate-short';
 import { parseHandoffTurns } from './parse-handoff-turns';
 import {
   coerceTradeInYear,
@@ -63,7 +64,7 @@ function mapStockRow(row: {
     doorsCount: num(row.doors_count),
     driveType: text(row.drive_type),
     vin: text(row.vin),
-    plateShort: text(row.plate_short),
+    plateShort: sanitizePlateShort(row.plate_short),
     botId: botId && botId > 0 ? botId : null,
   };
 }
@@ -472,7 +473,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       typeBody: car.type_body == null ? null : String(car.type_body),
       mileage: car.mileage == null ? null : Number(car.mileage),
       color: car.color == null ? null : String(car.color),
-      plateShort: car.plate_short == null ? null : String(car.plate_short),
+      plateShort: sanitizePlateShort(car.plate_short),
       transmission: car.transmission == null ? null : String(car.transmission),
     };
   }

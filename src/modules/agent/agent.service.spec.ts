@@ -492,6 +492,48 @@ describe('AgentService', () => {
     expect(system).toMatch(/HILO SIGUE/i);
   });
 
+  it('no manda el inventory_id como si fuera la placa', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: '61d90585-7047-4db8-bb7f-1cf9f2ced204',
+        brand: 'toyota',
+        model: 'hilux sr 4x4',
+        year: 2023,
+        price: 33900,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 13086,
+        transmission: 'manual',
+        plateShort: '61d90585-7047-4db8-bb7f-1cf9f2ced204',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la Hilux 2023 4x4 y solicita fotos.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible una Toyota Hilux SR 2023 color plateado, con 13086 km, transmisión manual y 4x4. La placa es 61d90585-7047-4db8-bb7f-1cf9f2ced204.',
+        meta: {
+          vehiculo: { inventory_id: '61d90585-7047-4db8-bb7f-1cf9f2ced204' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hola, me interesa la Toyota Hillux 2023 4x4',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/Hilux SR 2023/i);
+    expect(result?.reply.mensaje).not.toMatch(/61d90585/i);
+    expect(result?.reply.mensaje).not.toMatch(/placa/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/plate_short=61d90585/i);
+  });
+
   it('quita una placa larga inventada aunque la presente por primera vez', async () => {
     openai.complete
       .mockResolvedValueOnce('RESUMEN\nCliente quiere la 4Runner.')

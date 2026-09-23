@@ -23,6 +23,17 @@ export function stripUnsolicitedPriceAndPlate(
     out = tidyStrippedPriceHoles(out);
   }
 
+  // inventory_id / UUID: nunca va al cliente (a veces lo pegan como “placa”).
+  out = out.replace(
+    /\b(?:la\s+)?placa\s*(?:es|:)?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.?/gi,
+    '',
+  );
+  out = out.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    '',
+  );
+  out = out.replace(/\b(?:la\s+)?placa\s*(?:es|:)?\s*[.,]/gi, '.');
+
   // Placa completa (PDW7157, JYQ-3454, PIM0072). Nunca la larga.
   out = out.replace(
     /\b(?:la\s+)?placa\s*(?:es|:)?\s*[A-Za-z]{2,3}-?\d{3,4}[A-Za-z0-9]?\b\.?/gi,

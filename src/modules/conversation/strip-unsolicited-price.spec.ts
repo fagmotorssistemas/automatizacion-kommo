@@ -23,6 +23,17 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/\bP7\b/);
   });
 
+  it('quita un UUID pegado como placa', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Estimado, tenemos disponible una Toyota Hilux SR 2023 color plateado, con 13086 km, transmisión manual y 4x4. La placa es 61d90585-7047-4db8-bb7f-1cf9f2ced204. Por ahora no tengo fotos de este vehículo para enviarle.',
+    );
+    expect(clean).not.toMatch(/61d90585/i);
+    expect(clean).not.toMatch(/7047-4db8/i);
+    expect(clean).not.toMatch(/placa/i);
+    expect(clean).toMatch(/Hilux SR 2023/i);
+    expect(clean).toMatch(/13086/i);
+  });
+
   it('quita placa inventada con guion', () => {
     const clean = stripUnsolicitedPriceAndPlate(
       'Estimado, tenemos un Toyota 4Runner 2004. La placa es JYQ-3454. Aquí tiene también las fotos.',

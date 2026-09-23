@@ -1,5 +1,6 @@
 import { modelFamily, StockCar } from './clasificar-filas';
 import { hasLoadedMileage } from './mileage';
+import { sanitizePlateShort } from './plate-short';
 
 export const COMPLIANCE_SYSTEM_PROMPT = `Eres el revisor de inventario de una concesionaria. Decides qué vehículos CUMPLEN el pedido del cliente.
 
@@ -51,7 +52,7 @@ export function carsForReview(cars: StockCar[]): Record<string, unknown>[] {
     add('transmision', car.transmission);
     add('combustible', car.fuelType);
     add('traccion', car.driveType);
-    add('plate_short', car.plateShort);
+    add('plate_short', sanitizePlateShort(car.plateShort));
     add('chasis', car.vin);
     return row;
   });
