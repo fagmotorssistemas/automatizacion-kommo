@@ -1,10 +1,56 @@
 import {
   detectVehicleKind,
   formatPedidoVigente,
+  kindFromTypeBody,
+  matchesVehicleKind,
   resolveVehicleKind,
 } from './vehicle-kind';
 
 describe('vehicle kind', () => {
+  it('la camioneta no cuenta un jeep como el mismo tipo', () => {
+    expect(matchesVehicleKind('doble cabina', 'camioneta')).toBe(true);
+    expect(matchesVehicleKind('jeep', 'camioneta')).toBe(false);
+    expect(matchesVehicleKind('jeep', 'suv')).toBe(true);
+  });
+
+  it('camionetita es camioneta, también si está mal escrita', () => {
+    expect(detectVehicleKind('una camionetita más económica')).toBe('camioneta');
+    expect(detectVehicleKind('una cmioneta')).toBe('camioneta');
+    expect(detectVehicleKind('busco una camioenta')).toBe('camioneta');
+    expect(detectVehicleKind('la camionetta')).toBe('camioneta');
+    expect(detectVehicleKind('una cmaioneta')).toBe('camioneta');
+    expect(detectVehicleKind('el camionero llegó')).toBeNull();
+  });
+
+  it('doble cabina y cabina simple son camioneta', () => {
+    expect(kindFromTypeBody('doble cabina')).toBe('camioneta');
+    expect(kindFromTypeBody('cabina doble')).toBe('camioneta');
+    expect(kindFromTypeBody('cabina simple')).toBe('camioneta');
+    expect(kindFromTypeBody('jeep')).toBe('suv');
+  });
+
+  it('el carro de interés manda aunque antes haya dicho suv', () => {
+    expect(
+      resolveVehicleKind({
+        history: [{ role: 'user', content: 'quiero una suv' }],
+        customerText: 'algo más económico, de menos año',
+        remembered: 'suv',
+        interestedKind: 'camioneta',
+      }),
+    ).toBe('camioneta');
+  });
+
+  it('si en este mensaje pide suv, ese dicho actualiza', () => {
+    expect(
+      resolveVehicleKind({
+        history: [],
+        customerText: 'mejor muéstrame una suv',
+        remembered: 'camioneta',
+        interestedKind: 'camioneta',
+      }),
+    ).toBe('suv');
+  });
+
   it('detecta camioneta, pickup y doble cabina', () => {
     expect(detectVehicleKind('quiero una camioneta para el trabajo')).toBe(
       'camioneta',
@@ -72,8 +118,8 @@ describe('vehicle kind', () => {
   it('el pedido vigente nombra el tipo y la poer cuando es camioneta', () => {
     const text = formatPedidoVigente('camioneta');
     expect(text).toContain('Tipo: camioneta');
-    expect(text).toContain('great wall poer');
-    expect(formatPedidoVigente('suv')).not.toContain('poer');
+    expect(text).toContain('Doble cabina');
+    expect(formatPedidoVigente('suv')).toContain('Tipo: suv');
     expect(formatPedidoVigente(null)).toBe('');
   });
 });

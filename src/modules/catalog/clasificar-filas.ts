@@ -50,7 +50,8 @@ function normalizeModelText(value: string): string {
     .replace(/\s+/g, ' ')
     .replace(/\bx[\s-]?trail\b/g, 'xtrail')
     .replace(/\b4[\s-]*runner\b/g, '4runner')
-    .replace(/\bgrand?\s*vitara\b/g, 'vitara');
+    .replace(/\bgrand?\s*vitara\b/g, 'vitara')
+    .replace(/-/g, '');
 }
 
 export function modelFamily(model: string): string {

@@ -1,4 +1,5 @@
 import { textMentionsModel } from '../catalog/clasificar-filas';
+import { kindFromTypeBody } from './vehicle-kind';
 import { detectBrand } from './vehicle-brand';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 
@@ -33,8 +34,12 @@ export function formatInterestedCar(
     !includePrice && car.price && car.price > 0
       ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
       : '';
+  const tipo = kindFromTypeBody(car.typeBody);
+  const tipoLine = tipo
+    ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`
+    : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}
-inventory_id=${car.inventoryId}${interno}
+inventory_id=${car.inventoryId}${interno}${tipoLine}
 Si habla de este vehículo, de la simulación, la cuota o el crédito, usa este inventario. No vuelvas a pedir marca ni modelo.`;
 }

@@ -30,6 +30,8 @@ import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
 import {
   formatPedidoVigente,
+  kindFromTypeBody,
+  matchesVehicleKind,
   parseVehicleKind,
   resolveVehicleKind,
   VehicleKind,
@@ -98,10 +100,14 @@ export class AgentService {
     }
 
     const history = await this.recentDialogue(input.contactId);
+    const interested = await this.persistence.latestInterestedCar(
+      input.contactId,
+    );
     const vehicleKind = await this.rememberVehicleKind(
       input.contactId,
       history,
       input.customerText,
+      kindFromTypeBody(interested?.typeBody),
     );
     const brand = await this.rememberBrand(
       input.contactId,
@@ -120,6 +126,7 @@ export class AgentService {
       brand,
       concreteAsk,
       showPrice,
+      vehicleKind,
     );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
@@ -143,9 +150,6 @@ export class AgentService {
       (await this.openai.complete(INTENTS_SYSTEM_PROMPT, resumen)) ?? '{}';
     const promptNames = promptNamesFromIntents(parseIntentsPayload(intentsRaw));
     const sections = await this.catalog.fetchAgentPrompts(promptNames);
-    const interested = await this.persistence.latestInterestedCar(
-      input.contactId,
-    );
     const interestedText =
       interested && refersToInterestedCar(input.customerText, interested)
         ? formatInterestedCar(interested, showPrice)
@@ -253,9 +257,15 @@ export class AgentService {
     contactId: string,
     history: { role: string; content: string }[],
     customerText: string,
+    interestedKind: VehicleKind | null,
   ): Promise<VehicleKind | null> {
     const remembered = await this.conversation.loadVehicleKind(contactId);
-    const kind = resolveVehicleKind({ history, customerText, remembered });
+    const kind = resolveVehicleKind({
+      history,
+      customerText,
+      remembered,
+      interestedKind,
+    });
     if (kind) {
       await this.conversation.saveVehicleKind(contactId, kind);
     }
@@ -294,6 +304,7 @@ export class AgentService {
     brand: string | null,
     concreteAsk: string | null,
     includePrice: boolean,
+    vehicleKind: VehicleKind | null,
   ): Promise<{ text: string; holdVehicle: boolean; sendId: string | null }> {
     const empty = { text: '', holdVehicle: false, sendId: null };
     if (!brand) {
@@ -308,7 +319,17 @@ export class AgentService {
       return empty;
     }
 
-    const cars = await this.catalog.listByBrand(brand);
+    const listed = await this.catalog.listByBrand(brand);
+    const cars = vehicleKind
+      ? listed.filter((car) => matchesVehicleKind(car.typeBody, vehicleKind))
+      : listed;
+    if (vehicleKind && listed.length > 0 && cars.length === 0) {
+      return {
+        text: `De ${brand} no hay ${vehicleKind} disponible. No ofrezcas otro tipo. vehiculo null.`,
+        holdVehicle: true,
+        sendId: null,
+      };
+    }
     if (cars.length === 0) {
       return empty;
     }

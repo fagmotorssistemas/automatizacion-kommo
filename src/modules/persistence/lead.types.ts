@@ -124,6 +124,7 @@ export type InterestedCarSnapshot = {
   model: string;
   year: number | null;
   price: number | null;
+  typeBody?: string | null;
 };
 
 export type CtwaMatch = {

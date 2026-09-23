@@ -685,6 +685,86 @@ describe('AgentService', () => {
     );
   });
 
+  it('una camioneta no manda el suv de esa marca', async () => {
+    conversation.loadVehicleKind.mockResolvedValue('camioneta');
+    conversation.loadVehicleBrand.mockResolvedValue('nissan');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'kicks',
+        brand: 'nissan',
+        model: 'kicks exclusive',
+        year: 2020,
+        price: 18900,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Le muestro la Kicks.',
+        meta: { vehiculo: { inventory_id: 'kicks' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'quiero una camioneta',
+    });
+
+    expect(openai.completeJson).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('no hay camioneta'),
+      }),
+    );
+  });
+
+  it('el carro de interés en doble cabina filtra la búsqueda como camioneta', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-1',
+      brand: 'chevrolet',
+      model: 'd-max crdi 3.0 cd',
+      year: 2016,
+      price: 22000,
+      typeBody: 'doble cabina',
+    });
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.embed.mockResolvedValue([0.2]);
+    catalog.searchInventory.mockResolvedValue('[]');
+    openai.runSalesAgent.mockImplementation(
+      async (input: {
+        executeTool: (name: string, argsJson: string) => Promise<string>;
+      }) => {
+        await input.executeTool(
+          'buscarvehiuclo',
+          JSON.stringify({ query: 'd-max 2014' }),
+        );
+        return JSON.stringify({
+          respuesta_cliente: 'Reviso las D-MAX.',
+          meta: { vehiculo: null },
+        });
+      },
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: '¿Una D-MAX del 2015 o 2014, algo más económico?',
+    });
+
+    expect(conversation.saveVehicleKind).toHaveBeenCalledWith('1', 'camioneta');
+    expect(catalog.searchInventory).toHaveBeenCalledWith(
+      [0.2],
+      'camioneta',
+      null,
+      false,
+    );
+  });
+
   it('un gracias no cierra y pide seguir con el vehículo', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
