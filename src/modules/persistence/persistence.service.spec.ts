@@ -395,6 +395,24 @@ describe('PersistenceService', () => {
     expect(supabase.insertChatHistory).not.toHaveBeenCalled();
   });
 
+  it('guarda y lee la cédula del lead', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+      cedula: '1102986013',
+    });
+
+    await expect(service.loadLeadCedula('59458509')).resolves.toBe(
+      '1102986013',
+    );
+
+    await service.saveLeadCedula('59458509', '1102986013');
+    expect(supabase.updateLeadSignals).toHaveBeenCalledWith('lead-row-1', {
+      cedula: '1102986013',
+      status: 'asesoria_financiamiento',
+    });
+  });
+
   it('sin gateway no toca Supabase', async () => {
     const dry = new PersistenceService(null);
 

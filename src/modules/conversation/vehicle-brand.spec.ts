@@ -47,6 +47,11 @@ describe('marca y tres filas', () => {
     expect(detectBrand('Chebrolec', TEST_LEXICON)).toBe('chevrolet');
     expect(detectBrand('Hilus Manuel', TEST_LEXICON)).toBe('toyota');
     expect(detectBrand('Ayúdeme con fotos', TEST_LEXICON)).toBeNull();
+    expect(detectBrand('Buenas tarde que precio el yundad', TEST_LEXICON)).toBe(
+      'hyundai',
+    );
+    expect(detectBrand('Al fin video del yunda', TEST_LEXICON)).toBe('hyundai');
+    expect(detectNamedModelAsk('el yundad', TEST_LEXICON)).toBeNull();
     expect(detectYearInText('El jeptour Blanco 2023')).toBe(2023);
     expect(detectColorInText('El jeptour Blanco 2023')).toBe('blanco');
   });

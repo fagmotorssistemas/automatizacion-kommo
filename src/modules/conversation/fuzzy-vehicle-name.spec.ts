@@ -28,6 +28,16 @@ describe('nombre de vehículo mal escrito', () => {
     });
   });
 
+  it('reconoce una marca del patio aunque la escriban como suena', () => {
+    expect(
+      fuzzyBrandHits('que precio el yundad', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['hyundai']);
+    expect(
+      fuzzyBrandHits('video del yunda', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['hyundai']);
+    expect(fuzzyModelHits('el yundad', TEST_LEXICON)).toEqual([]);
+  });
+
   it('no toma fotos por Foton si Foton no está o la palabra es fotos', () => {
     expect(fuzzyBrandHits('Ayúdeme con fotos', TEST_LEXICON)).toEqual([]);
   });

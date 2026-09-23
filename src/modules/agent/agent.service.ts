@@ -9,6 +9,12 @@ import {
   FinanciamientoInput,
 } from '../intelligence/financiamiento';
 import {
+  cedulaFromThread,
+  confirmCedulaReceived,
+  extractCedula,
+  replyAsksForCedula,
+} from '../intelligence/extract-cedula';
+import {
   assembleDynamicContext,
   parseIntentsPayload,
   promptNamesFromIntents,
@@ -426,6 +432,23 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const colorHint = askedOtherColor
       ? 'PIDIÓ OTRO COLOR del mismo modelo. Presenta las otras unidades de patio. PROHIBIDO repetir la que ya mostraste. No inventes colores. No sueltes precio si no lo pidió.'
       : '';
+    const sentCedulaNow = extractCedula(input.customerText);
+    if (sentCedulaNow) {
+      await this.persistence.saveLeadCedula(input.contactId, sentCedulaNow);
+    }
+    const storedCedula = sentCedulaNow
+      ? sentCedulaNow
+      : await this.persistence.loadLeadCedula(input.contactId);
+    const hasCedula = Boolean(
+      sentCedulaNow ||
+        storedCedula ||
+        cedulaFromThread(input.customerText, history),
+    );
+    const cedulaHint = sentCedulaNow
+      ? 'YA ENVIÓ LA CÉDULA EN ESTE MENSAJE. PROHIBIDO pedirla otra vez. Confirma que un asesor revisa si califica. No repitas el número.'
+      : hasCedula
+        ? 'YA TENEMOS LA CÉDULA. PROHIBIDO pedirla otra vez.'
+        : '';
     const pedidoVigente = (
       stayOnShown
         ? [
@@ -437,6 +460,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
             creditoHint,
             colorHint,
+            cedulaHint,
             precioHint,
           ]
         : [
@@ -460,6 +484,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
             creditoHint,
             colorHint,
+            cedulaHint,
             precioHint,
           ]
     )
@@ -543,6 +568,17 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         );
       }
       parsed.mensaje = cleaned;
+      if (hasCedula && replyAsksForCedula(parsed.mensaje)) {
+        const carLabel = interested
+          ? [interested.brand, interested.model, interested.year]
+              .filter(Boolean)
+              .join(' ')
+          : '';
+        parsed.mensaje = confirmCedulaReceived(carLabel);
+        this.logger.warn(
+          `Se evitó pedir cédula otra vez contactId=${input.contactId}`,
+        );
+      }
       if (!canQuotePrice) {
         parsed.meta.precioMostrado = false;
         if (parsed.meta.vehiculo && !parsed.meta.vehiculo.inventory_id) {

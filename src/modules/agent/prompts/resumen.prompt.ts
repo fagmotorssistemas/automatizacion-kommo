@@ -35,6 +35,7 @@ el formato o contenido de tus respuestas previas.
 
 IMPORTANTE (TEXTO LITERAL):
 No quites, corrijas ni sustituyas palabras del cliente cuando mencione vehículo/modelo/color. Mantén el texto tal cual aparece en el mensaje (ej: "dmax vino" debe quedar "dmax vino").
+Si escribe una marca como suena (mal escrita), SOLICITUD debe decir la marca del patio que corresponde, no un modelo inventado.
 
 RESUMEN PREVIO:
 Vehículo: SOLO si existe disponibilidad real o si el cliente lo menciona explícitamente en el historial.
@@ -53,6 +54,7 @@ Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km"
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
 Si pide precio de contado Y a crédito (o financiamiento), SOLICITUD debe decir las dos cosas. Pide precio: sí. Pide crédito: sí.
 Si pide otro color del mismo modelo (sin nombrar otro carro), SOLICITUD: quiere otro color de ESA línea. Pide otro color: sí. Pide precio: no, salvo que también pida el valor. No lo dejes en la misma unidad.
+Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envió la cédula para que un asesor revise si califica. No pidas la cédula otra vez. Pide precio: no.
 Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no
 
 REGLAS:

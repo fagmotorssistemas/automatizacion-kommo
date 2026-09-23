@@ -43,6 +43,7 @@ export type LeadRow = {
   handoffResumen?: string | null;
   /** ISO de cuándo se mandaron fotos; null = aún no. */
   fotosEnviadasAt?: string | null;
+  cedula?: string | null;
 };
 
 export type HandoffBrief = {

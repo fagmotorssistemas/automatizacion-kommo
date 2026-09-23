@@ -76,13 +76,20 @@ function fold(text: string): string {
 }
 
 function soften(value: string): string {
-  return value
+  let out = value
     .replace(/ph/g, 'f')
     .replace(/z/g, 's')
     .replace(/v/g, 'b')
     .replace(/qu/g, 'k')
     .replace(/nn+/g, 'n')
     .replace(/ll/g, 'l');
+  if (value.length >= 6) {
+    out = out.replace(/^h+/, '').replace(/^j/, 'y');
+  }
+  if (out.length > 4) {
+    out = out.replace(/a[iy]$/g, 'a');
+  }
+  return out;
 }
 
 function tokens(text: string): { token: string; index: number }[] {
@@ -144,14 +151,18 @@ function closeEnough(token: string, key: string): boolean {
   if (FUZZY_STOP.has(token)) {
     return false;
   }
+  const left = soften(token);
+  const right = soften(key);
+  if (left === right) {
+    return true;
+  }
   const allowed = maxDistance(Math.min(token.length, key.length));
   if (allowed === 0) {
     return false;
   }
-  if (soften(token) === soften(key)) {
-    return true;
-  }
-  return levenshtein(token, key) <= allowed;
+  return (
+    levenshtein(left, right) <= allowed || levenshtein(token, key) <= allowed
+  );
 }
 
 function bestKey(token: string, keys: string[]): string | null {

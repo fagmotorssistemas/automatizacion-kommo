@@ -38,6 +38,8 @@ describe('AgentService', () => {
     appendChatHistory: jest.fn(),
     loadRecentChat: jest.fn(),
     latestInterestedCar: jest.fn(),
+    loadLeadCedula: jest.fn(),
+    saveLeadCedula: jest.fn(),
     loadVehicleSpecs: jest.fn(),
     saveVehicleSpecs: jest.fn(),
   };
@@ -92,6 +94,9 @@ describe('AgentService', () => {
     persistence.loadRecentChat.mockResolvedValue([]);
     persistence.latestInterestedCar.mockReset();
     persistence.latestInterestedCar.mockResolvedValue(null);
+    persistence.loadLeadCedula.mockReset();
+    persistence.loadLeadCedula.mockResolvedValue(null);
+    persistence.saveLeadCedula.mockReset();
     persistence.loadVehicleSpecs.mockReset();
     persistence.loadVehicleSpecs.mockResolvedValue([]);
     persistence.saveVehicleSpecs.mockReset();
@@ -2333,5 +2338,121 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
     expect(system).not.toMatch(/inventory_id=sportage-1/);
     expect(system).not.toMatch(/\$22900/);
+  });
+
+  it('si ya envió la cédula no se la vuelve a pedir', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'eco-1',
+      brand: 'ford',
+      model: 'ecosport',
+      year: 2020,
+      price: 16000,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 128205,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente ya envió la cédula para financiamiento.\nPide precio: no\nPide crédito: no\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Por favor, páseme su número de cédula para que un asesor pueda revisar si califica para el financiamiento del Ford Ecosport 2020 blanco.',
+        meta: { vehiculo: { inventory_id: 'eco-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'mi numero de cedula es 1102986013',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(persistence.saveLeadCedula).toHaveBeenCalledWith('1', '1102986013');
+    expect(system).toMatch(/YA ENVIÓ LA CÉDULA/i);
+    expect(result?.reply.mensaje).toMatch(/Recibí su cédula/i);
+    expect(result?.reply.mensaje).toMatch(/asesor revisa si califica/i);
+    expect(result?.reply.mensaje).not.toMatch(/páseme su número de cédula/i);
+  });
+
+  it('si la cédula ya está guardada no la vuelve a pedir', async () => {
+    persistence.loadLeadCedula.mockResolvedValue('1102986013');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'eco-1',
+      brand: 'ford',
+      model: 'ecosport',
+      year: 2020,
+      price: 16000,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta por la visita.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["visita"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Por favor, páseme su número de cédula para el financiamiento.',
+        meta: { vehiculo: { inventory_id: 'eco-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'puedo ir el sábado?',
+    });
+
+    expect(persistence.saveLeadCedula).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA TENEMOS LA CÉDULA/i);
+    expect(result?.reply.mensaje).toMatch(/Recibí su cédula|asesor revisa/i);
+    expect(result?.reply.mensaje).not.toMatch(/páseme su número de cédula/i);
+  });
+
+  it('yundad se lee como Hyundai del patio y no como un modelo que no existe', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'tucson-1',
+        brand: 'hyundai',
+        model: 'tucson gl',
+        year: 2018,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'kona-1',
+        brand: 'hyundai',
+        model: 'kona gl',
+        year: 2022,
+        price: 21990,
+        typeBody: 'jeep',
+        color: 'rojo',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Hyundai.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos Tucson y Kona Hyundai. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Buenas tarde que precio el yundad',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('hyundai');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/tucson|kona/i);
+    expect(system).not.toMatch(/no hay yundad/i);
+    expect(system).not.toMatch(/no tenemos yundad/i);
   });
 });

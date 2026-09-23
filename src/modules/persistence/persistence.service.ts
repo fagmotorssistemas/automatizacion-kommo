@@ -488,6 +488,48 @@ export class PersistenceService {
     }
   }
 
+  async loadLeadCedula(contactId: string): Promise<string | null> {
+    if (!this.supabase || !contactId) {
+      return null;
+    }
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      const value = lead?.cedula?.trim() ?? '';
+      return value || null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer cédula contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveLeadCedula(contactId: string, cedula: string): Promise<void> {
+    const value = cedula.trim();
+    if (!this.supabase || !contactId || !value) {
+      return;
+    }
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (!lead?.id) {
+        this.logger.warn(
+          `Cédula no guardada: no hay lead contactId=${contactId}`,
+        );
+        return;
+      }
+      await this.supabase.updateLeadSignals(lead.id, {
+        cedula: value,
+        status: 'asesoria_financiamiento',
+      });
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar cédula contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
   async saveInterestedCar(row: InterestedCarInput): Promise<void> {
     if (!this.supabase) {
       return;
