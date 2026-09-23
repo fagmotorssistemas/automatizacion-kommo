@@ -198,7 +198,11 @@ export class FollowupService {
       mensaje,
     );
     if (!wrote) {
-      throw new Error('No se escribió campo 3039029');
+      this.logger.warn(
+        `Retoma id=${row.id}: Kommo no escribió campo 3039029; se cancela para no reintentar`,
+      );
+      await this.repository.markCancelled(row.id, 'kommo_campo_seguimiento');
+      return 'cancelled';
     }
 
     const ran = await this.crm.runSalesbot(FOLLOWUP_SALESBOT_ID, row.leadIdKommo);
