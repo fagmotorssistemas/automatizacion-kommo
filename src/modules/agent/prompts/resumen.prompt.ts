@@ -65,7 +65,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija), Acepta crédito: sí. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
@@ -80,7 +80,8 @@ REGLAS:
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
-- Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas (otro modelo, otro color), la intención es ver otras opciones.
+- Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas (otro modelo, otro color), la intención es ver otras opciones. Pide otras: sí.
+- Si ya no sigue con la unidad mostrada y quiere ver otras (otra línea, otras camionetas, que se las envíen), Pide otras: sí. SOLICITUD: quiere otras unidades, no esa. Si sigue con ESA, Pide otras: no. Lo interpreta el mensaje, no una palabra fija.
 - Respuestas vagas sin vehículo claro en conversación inicial:
   Si el cliente dice "sí por favor", "deseo información", "me interesa" o similar
   y no hay vehículo específico mencionado o confirmado,

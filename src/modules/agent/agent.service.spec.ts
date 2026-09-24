@@ -2185,6 +2185,66 @@ describe('AgentService', () => {
     );
   });
 
+  it('si el resumen pide otras no se queda en la unidad ya mostrada', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'lariat-2018',
+      brand: 'ford',
+      model: 'f150 lariat sc ecoboost',
+      year: 2018,
+      price: 36200,
+      typeBody: 'camioneta',
+    });
+    conversation.loadVehicleKind.mockResolvedValue('camioneta');
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'lariat-2018',
+        brand: 'ford',
+        model: 'f150 lariat sc ecoboost',
+        year: 2018,
+        price: 36200,
+        typeBody: 'camioneta',
+      },
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'camioneta',
+      },
+      {
+        id: 'ranger-2024',
+        brand: 'ford',
+        model: 'ranger xl',
+        year: 2024,
+        price: 32990,
+        typeBody: 'camioneta',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere otras camionetas similares y solicita fotos.\nPide otras: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos una D-max y una Ranger.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Q otras tienen porfabor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ OTRAS/i);
+    expect(system).toMatch(/dmax-2023|ranger-2024/i);
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('si ninguno cumple manda el parecido y no busca otra marca', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('nissan');
     catalog.listByBrand.mockResolvedValue([

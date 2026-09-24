@@ -26,6 +26,7 @@ import {
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import {
   resumenAsksForOtherColor,
+  resumenPideOtras,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
@@ -104,11 +105,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (budget && (!car.price || budget < car.price)) {
     return true;
   }
-  if (
-    /\botras opciones\b|\bdentro de (?:ese |su )?presupuesto\b/i.test(
-      input.resumen ?? '',
-    )
-  ) {
+  if (resumenPideOtras(input.resumen ?? '')) {
     return true;
   }
   if (/\bprecios?\b/i.test(input.text) && input.history?.length) {

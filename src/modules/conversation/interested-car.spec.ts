@@ -118,6 +118,22 @@ describe('vehículo de interés', () => {
       }),
     ).toBe(false);
     expect(
+      leftShownCar({
+        text: 'Q otras tienen porfabor',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere otras camionetas similares.\nPide otras: sí',
+        car: sportage,
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'Q otras tienen porfabor',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el precio de la Lariat.\nPide otras: no',
+        car: sportage,
+      }),
+    ).toBe(true);
+    expect(
       refersToInterestedCar('Gran vitara 3 puertas', explorer, TEST_LEXICON),
     ).toBe(false);
   });

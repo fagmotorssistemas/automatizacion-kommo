@@ -10,6 +10,7 @@ import {
   resumenIsThreadAck,
   resumenAceptaCredito,
   resumenPideNegociar,
+  resumenPideOtras,
   resumenPrefiereContado,
   resumenRechazaAplicar,
   resumenIsFarewell,
@@ -210,6 +211,22 @@ describe('otro color', () => {
     ).toBe(false);
     expect(textAsksForOtherColor('No tienen otro color?')).toBe(true);
     expect(textAsksForOtherColor('Cuál es el precio de contado')).toBe(false);
+  });
+});
+
+describe('resumenPideOtras', () => {
+  it('lee la bandera del analizador, no la frase del cliente', () => {
+    expect(
+      resumenPideOtras(
+        'SOLICITUD ACTUAL:\nCliente quiere otras camionetas similares.\nPide otras: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPideOtras(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la Lariat.\nPide otras: no',
+      ),
+    ).toBe(false);
+    expect(resumenPideOtras('Q otras tienen porfabor')).toBe(false);
   });
 });
 

@@ -70,6 +70,7 @@ function stripResumenFlags(text: string): string {
     .replace(/rechaza\s+aplicar:\s*(s[ií]|no)/gi, '')
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
+    .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+acuse:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+cortes[ií]a:\s*(s[ií]|no)/gi, '');
 }
@@ -280,6 +281,11 @@ export function resumenPrefiereContado(resumen: string): boolean {
 /** Quiere descuento, rebaja o negociar (o ofrece un monto). No es pedir oír el $. */
 export function resumenPideNegociar(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+negociar') === true;
+}
+
+/** Ya no sigue con la unidad mostrada: quiere otras. Lo marca el analizador. */
+export function resumenPideOtras(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+otras') === true;
 }
 
 /**

@@ -101,6 +101,7 @@ import {
   postponesBiggerDownPayment,
   resumenAceptaCredito,
   resumenPideNegociar,
+  resumenPideOtras,
   resumenPrefiereContado,
   resumenRechazaAplicar,
   resumenAsksForCredit,
@@ -1113,6 +1114,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parseResumen(resumen).solicitudActual ?? '',
         lexicon,
       );
+    const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
     const yearPick = asked?.year ?? detectYearInText(customerText);
@@ -1126,7 +1128,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !cashBudgetEarly &&
       !wantsListedPrices &&
       !yearPick &&
-      !colorPick
+      !colorPick &&
+      !pideOtras
     ) {
       return empty;
     }
@@ -1138,7 +1141,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       spaceAsk ||
       askedOtherColor ||
       Boolean(cashBudgetEarly) ||
-      wantsListedPrices;
+      wantsListedPrices ||
+      pideOtras;
     if (
       !asked &&
       !maybeAsk &&
@@ -1181,6 +1185,44 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         }),
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(hits),
+      };
+    }
+    if (pideOtras && !asked) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      const exceptId = reference?.inventoryId;
+      let pool = patio.filter((car) => car.id !== exceptId);
+      if (vehicleKind) {
+        const typed = pool.filter((car) =>
+          matchesVehicleKind(car.typeBody, vehicleKind),
+        );
+        if (typed.length > 0) {
+          pool = typed;
+        }
+      }
+      const refPrice = reference?.price ?? 0;
+      pool.sort(
+        (a, b) =>
+          Math.abs((a.price ?? 0) - refPrice) -
+          Math.abs((b.price ?? 0) - refPrice),
+      );
+      if (pool.length === 0) {
+        return {
+          text: 'PIDIÓ OTRAS unidades. No hay otra en patio de ese tipo. Dilo. vehiculo null. PROHIBIDO volver a la que ya vio.',
+          holdVehicle: true,
+          sendId: null,
+          switchedModel: true,
+        };
+      }
+      const named = formatNamedUnits(
+        pool.length > 6 ? pool.slice(0, 6) : pool,
+        includePrice,
+      );
+      return {
+        ...named,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(pool),
+        text: `${named.text}
+PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presentarla. No pidas permiso para mostrarlas.`,
       };
     }
     if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
