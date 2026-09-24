@@ -2923,7 +2923,7 @@ describe('AgentService', () => {
       }),
     );
 
-    await service.handleTurn({
+    const result = await service.handleTurn({
       contactId: '1',
       customerText: 'Dispongo de 10.000$',
     });
@@ -2935,6 +2935,45 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
     expect(system).not.toMatch(/inventory_id=kona-1/);
     expect(system).not.toMatch(/inventory_id=xtrail-1/);
+    expect(result?.reply.mensaje).toMatch(/disponemos de financiamiento/i);
+    expect(result?.reply.mensaje).not.toMatch(/cuota/i);
+  });
+
+  it('si prefiere contado, pregunta cuál de las unidades mostradas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-1',
+      brand: 'nissan',
+      model: 'x-trail sense cvt',
+      year: 2016,
+      price: 16890,
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'En ese presupuesto hay un Picanto y un Río. También disponemos de financiamiento. ¿Le gustaría que le ayudemos con crédito para llevarse el que más le guste, o prefiere de contado?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente prefiere de contado.\nPide crédito: no\nPrefiere contado: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'De acuerdo, seguimos de contado.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'No, de contado',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/cuál de las unidades/i);
+    expect(result?.reply.mensaje).not.toMatch(/cuota/i);
+    expect(result?.reply.mensaje).not.toMatch(/entrada/i);
   });
 
   it('qué vehículo por 10000 lista patio y no dice que no hay SUV si no toca', async () => {
@@ -3495,6 +3534,122 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/590/);
     expect(result?.reply.mensaje).not.toMatch(/es de\s*\./);
     expect(result?.reply.mensaje).not.toMatch(/entrada de y/i);
+    expect(result?.reply.mensaje).not.toMatch(/cédula/i);
+    expect(result?.reply.mensaje).not.toMatch(/gestionar/i);
+    expect(result?.reply.mensaje).toMatch(/ver si aplica al crédito/i);
+  });
+
+  it('si ya hubo cuota y acepta, pide los 3 datos una vez', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Con una entrada de $2000 la cuota estimada mensual sería alrededor de $590.21.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020',
+      brand: 'chevrolet',
+      model: 'dmax',
+      year: 2020,
+      price: 22900,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente acepta seguir con el crédito.\nPide crédito: no\nAcepta crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Perfecto, seguimos con el crédito.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Sí',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/Perfecto, seguimos/i);
+    expect(result?.reply.mensaje).toMatch(
+      /me ayuda con estos datos: su cédula, su nombre completo y de dónde es/i,
+    );
+    expect(result?.reply.mensaje).not.toMatch(/gestionar/i);
+  });
+
+  it('si no quiere ver si aplica, motiva a seguir con el carro', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'La cuota queda en $590.21. ¿Desea que le ayudemos a ver si aplica al crédito?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020',
+      brand: 'chevrolet',
+      model: 'dmax',
+      year: 2020,
+      price: 22900,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente no quiere ver si aplica.\nAcepta crédito: no\nRechaza aplicar: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sin problema.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'No',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/estamos aquí para ayudarle/i);
+    expect(result?.reply.mensaje).not.toMatch(/cédula/i);
+  });
+
+  it('en la cuota no pregunta si desea gestionar', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Para crédito, ¿con cuánto de entrada y a qué plazo?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020',
+      brand: 'chevrolet',
+      model: 'dmax',
+      year: 2020,
+      price: 22900,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente da entrada y plazo.\nPide crédito: sí\nAcepta crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'La cuota queda en $590.21. ¿Desea que le ayudemos para gestionar esto?',
+        meta: { cuota_mostrada: true, vehiculo: { inventory_id: 'dmax-2020' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: '2000 de entrada a 6 años',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/590/);
+    expect(result?.reply.mensaje).toMatch(/ver si aplica al crédito/i);
+    expect(result?.reply.mensaje).not.toMatch(/gestionar/i);
+    expect(result?.reply.mensaje).not.toMatch(/cédula/i);
   });
 
   it('primera presentación del Vitara no dice el precio', async () => {

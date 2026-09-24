@@ -62,7 +62,10 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+(?:precio|cr[eé]dito|otro\s+color):\s*(s[ií]|no)/gi, '')
     .replace(/objeci[oó]n\s+de\s+precio:\s*(s[ií]|no)/gi, '')
     .replace(/tiene\s+duda:\s*(s[ií]|no)/gi, '')
-    .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '');
+    .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '')
+    .replace(/acepta\s+cr[eé]dito:\s*(s[ií]|no)/gi, '')
+    .replace(/rechaza\s+aplicar:\s*(s[ií]|no)/gi, '')
+    .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '');
 }
 
 /** Objeta el valor que ya vio; no está pidiendo oír el número. */
@@ -172,6 +175,21 @@ export function resumenIsPriceObjection(resumen: string): boolean {
   return /\b(alto|cara?|mucho|descuent|rebaja|negociable|no le alcanza)\b/.test(
     solicitud,
   );
+}
+
+/** Ya hubo cuota y AHORA acepta ver si aplica. Lo lee el resumen, no una lista. */
+export function resumenAceptaCredito(resumen: string): boolean {
+  return flagSiNo(resumen, 'acepta\\s+cr[eé]dito') === true;
+}
+
+/** Dijo que no quiere que veamos si aplica. */
+export function resumenRechazaAplicar(resumen: string): boolean {
+  return flagSiNo(resumen, 'rechaza\\s+aplicar') === true;
+}
+
+/** Después de ofrecer crédito o contado, se queda de contado. */
+export function resumenPrefiereContado(resumen: string): boolean {
+  return flagSiNo(resumen, 'prefiere\\s+contado') === true;
 }
 
 /** El analizador marcó que de verdad se va, sin duda pendiente. */

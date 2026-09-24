@@ -83,6 +83,9 @@ import {
   SEGUIR_VENTA,
 } from '../conversation/polite-thanks';
 import {
+  resumenAceptaCredito,
+  resumenPrefiereContado,
+  resumenRechazaAplicar,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
@@ -125,10 +128,28 @@ import {
   userNamedModel,
 } from '../catalog/clasificar-filas';
 import {
+  appendBudgetFinancingAsk,
+  appendBudgetPickShown,
   carsInBudget,
   detectCashBudget,
   formatBudgetRevision,
+  shouldAskBudgetFinancing,
+  shouldAskWhichShown,
 } from '../conversation/budget';
+import {
+  appendApplyAsk,
+  appendFinancingDataAsk,
+  appendFinancingDecline,
+  historyAskedFinancingData,
+  historyHasShownCuota,
+  replyAsksFinancingData,
+  replyShowsCuota,
+  shouldAskFinancingData,
+  shouldAskIfApplies,
+  shouldEncourageAfterDecline,
+  stripGestionarOffer,
+  stripPrematureIdentityAsk,
+} from '../conversation/financing-data';
 import {
   carsForReview,
   COMPLIANCE_SYSTEM_PROMPT,
@@ -534,7 +555,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         lastAssistantListedOther);
     const creditoHint = askedCredit
       ? hasQuotedUnit && alreadyShown
-        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. Cédula solo después de una cuota.'
+        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. En el turno de la cuota NO pidas cédula. El sistema pregunta si ayudamos a ver si aplica.'
         : hasQuotedUnit
           ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. En la primera ficha no digas el precio. Pregunta entrada y plazo. No inventes cuota.'
           : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
@@ -579,7 +600,19 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       ? 'YA ENVIÓ LA CÉDULA EN ESTE MENSAJE. PROHIBIDO pedirla otra vez. Confirma que un asesor revisa si califica. No repitas el número.'
       : hasCedula
         ? 'YA TENEMOS LA CÉDULA. PROHIBIDO pedirla otra vez.'
-        : '';
+        : historyHasShownCuota(history) &&
+            resumenAceptaCredito(resumen) &&
+            !historyAskedFinancingData(history)
+          ? 'El RESUMEN dice que acepta ver si aplica. El sistema pegará cédula, nombre y de dónde es. No adelantes esas preguntas. PROHIBIDO “gestionar esto”.'
+          : resumenRechazaAplicar(resumen)
+            ? 'El RESUMEN dice que no quiere ver si aplica. El sistema pega un mensaje para que no se vaya. Sigue con el carro. PROHIBIDO insistir con cédula.'
+          : historyHasShownCuota(history)
+            ? 'YA hubo cuota. Lee el RESUMEN: qué pide AHORA. No pidas cédula si no aceptó ver si aplica.'
+            : resumenPrefiereContado(resumen)
+              ? 'El RESUMEN dice que prefiere de contado. PROHIBIDO crédito, entrada o cuota. El sistema pregunta cuál de las unidades ya mostradas le gusta. Quédate en esas. No insistas con financiamiento.'
+              : cashBudget
+                ? 'PRESUPUESTO: lista las unidades que caben. El sistema pregunta si quieren crédito o contado. PROHIBIDO armar cuota. PROHIBIDO pregunta de visita en este turno.'
+                : '';
     const pedidoVigente = (
       stayOnShown
         ? [
@@ -713,7 +746,67 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       parsed.mensaje = historySaidMileageCare(history)
         ? stripRepeatedMileageCare(cleaned)
         : cleaned;
-      if (hasCedula && replyAsksForCedula(parsed.mensaje)) {
+      parsed.mensaje = stripGestionarOffer(parsed.mensaje);
+      const showedCuotaNow =
+        parsed.meta.cuotaMostrada || replyShowsCuota(parsed.mensaje);
+      if (showedCuotaNow) {
+        parsed.mensaje = stripPrematureIdentityAsk(parsed.mensaje);
+      }
+      if (
+        shouldAskIfApplies({
+          showedCuotaNow,
+          hasCedula,
+          history,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendApplyAsk(parsed.mensaje);
+      } else if (
+        shouldAskFinancingData({
+          history,
+          aceptaCredito: resumenAceptaCredito(resumen),
+          hasCedula,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendFinancingDataAsk(parsed.mensaje);
+      } else if (
+        shouldEncourageAfterDecline({
+          history,
+          rechazaAplicar: resumenRechazaAplicar(resumen),
+          hasCedula,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendFinancingDecline(parsed.mensaje);
+      }
+      const listedBudgetNow =
+        Boolean(cashBudget) && revision.text.includes('PRESUPUESTO DE CONTADO');
+      if (
+        shouldAskBudgetFinancing({
+          listedBudgetNow,
+          history,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendBudgetFinancingAsk(parsed.mensaje);
+      } else if (
+        shouldAskWhichShown({
+          prefiereContado: resumenPrefiereContado(resumen),
+          alreadyPicked: Boolean(
+            detectNamedModelAsk(input.customerText, lexicon),
+          ),
+          history,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendBudgetPickShown(parsed.mensaje);
+      }
+      if (
+        hasCedula &&
+        (replyAsksForCedula(parsed.mensaje) ||
+          replyAsksFinancingData(parsed.mensaje))
+      ) {
         const carLabel = interested
           ? [interested.brand, interested.model, interested.year]
               .filter(Boolean)

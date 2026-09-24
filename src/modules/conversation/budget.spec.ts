@@ -1,7 +1,13 @@
 import {
+  appendBudgetFinancingAsk,
+  appendBudgetPickShown,
+  BUDGET_FINANCING_ASK,
+  BUDGET_PICK_SHOWN,
   carsInBudget,
   detectCashBudget,
   formatBudgetRevision,
+  shouldAskBudgetFinancing,
+  shouldAskWhichShown,
 } from './budget';
 import type { StockCar } from '../catalog/clasificar-filas';
 
@@ -63,7 +69,36 @@ describe('presupuesto de contado', () => {
     expect(text.text).toMatch(/PRESUPUESTO DE CONTADO: \$10000/);
     expect(text.text).toMatch(/picanto|rio/i);
     expect(text.text).not.toMatch(/kona/i);
-    expect(text.text).toMatch(/no pidió crédito/i);
+    expect(text.text).toMatch(/crédito o contado/i);
+    expect(text.text).toMatch(/PROHIBIDO armar cuota/i);
     expect(text.sendId).toBeNull();
+  });
+
+  it('después de listar pregunta crédito o contado; si prefiere contado, cuál le gusta', () => {
+    expect(
+      shouldAskBudgetFinancing({ listedBudgetNow: true, history: [] }),
+    ).toBe(true);
+    expect(appendBudgetFinancingAsk('Hay un Río y un Picanto.')).toContain(
+      BUDGET_FINANCING_ASK,
+    );
+    expect(
+      shouldAskWhichShown({
+        prefiereContado: true,
+        alreadyPicked: false,
+        history: [
+          { role: 'assistant', content: `Hay un Río. ${BUDGET_FINANCING_ASK}` },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      shouldAskWhichShown({
+        prefiereContado: true,
+        alreadyPicked: true,
+        history: [
+          { role: 'assistant', content: `Hay un Río. ${BUDGET_FINANCING_ASK}` },
+        ],
+      }),
+    ).toBe(false);
+    expect(appendBudgetPickShown('De acuerdo.')).toContain(BUDGET_PICK_SHOWN);
   });
 });

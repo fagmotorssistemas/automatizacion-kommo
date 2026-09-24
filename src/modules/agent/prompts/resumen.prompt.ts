@@ -55,11 +55,16 @@ Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
 Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
-Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no.
+Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
+Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.
+Si el hilo YA ofreció crédito o contado y AHORA se queda de contado (lo interpreta el mensaje, no una palabra fija), Prefiere contado: sí. Pide crédito: no. SOLICITUD: prefiere de contado; elige de las unidades ya mostradas.
 Si pide precio de contado Y a crédito (o financiamiento), SOLICITUD debe decir las dos cosas. Pide precio: sí. Pide crédito: sí.
 Si pide otro color del mismo modelo (sin nombrar otro carro), SOLICITUD: quiere otro color de ESA línea. Pide otro color: sí. Pide precio: no, salvo que también pida el valor. No lo dejes en la misma unidad.
 Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envió la cédula para que un asesor revise si califica. No pidas la cédula otra vez. Pide precio: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no
+Si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija), Acepta crédito: sí. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
+Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
+Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
@@ -69,7 +74,7 @@ REGLAS:
 - Si pide furgoneta, van o muchos pasajeros (17, 20, varias personas), SOLICITUD debe decir que quiere un vehículo GRANDE de pasajeros. No lo conviertas en camioneta ni en un carro chico.
 - Si dice que siguen en contacto o que aún no (visita, más info), no es despedida. Es despedida: no. Sigue interesado en ESA unidad, pero no ahora.
 - Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
-- Después de Pide otro color agrega: Tiene duda: sí|no   y   Es despedida: sí|no
+- Después de Prefiere contado agrega: Tiene duda: sí|no   y   Es despedida: sí|no
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas, la intención es ver otras opciones.
 - Respuestas vagas sin vehículo claro en conversación inicial:
@@ -89,6 +94,9 @@ Pide precio: sí|no
 Pide crédito: sí|no
 Pide otro color: sí|no
 Objeción de precio: sí|no
+Acepta crédito: sí|no
+Rechaza aplicar: sí|no
+Prefiere contado: sí|no
 Tiene duda: sí|no
 Es despedida: sí|no
 

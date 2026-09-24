@@ -5,6 +5,9 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
+  resumenAceptaCredito,
+  resumenPrefiereContado,
+  resumenRechazaAplicar,
   resumenIsFarewell,
   resumenIsPriceObjection,
   textAsksForCredit,
@@ -111,6 +114,36 @@ describe('textAsksForListedPrice', () => {
     expect(
       resumenIsPriceObjection(
         'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nObjeción de precio: no',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('acepta crédito', () => {
+  it('lee si ya hubo cuota y ahora acepta seguir', () => {
+    expect(
+      resumenAceptaCredito(
+        'SOLICITUD ACTUAL:\nCliente acepta seguir con el crédito.\nAcepta crédito: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAceptaCredito(
+        'SOLICITUD ACTUAL:\nCliente da otra entrada.\nAcepta crédito: no',
+      ),
+    ).toBe(false);
+    expect(
+      resumenRechazaAplicar(
+        'SOLICITUD ACTUAL:\nCliente no quiere ver si aplica.\nRechaza aplicar: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPrefiereContado(
+        'SOLICITUD ACTUAL:\nCliente se queda de contado.\nPrefiere contado: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPrefiereContado(
+        'SOLICITUD ACTUAL:\nCliente dispone de 10000.\nPrefiere contado: no',
       ),
     ).toBe(false);
   });
