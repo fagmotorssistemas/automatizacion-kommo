@@ -185,6 +185,7 @@ type BrandReview = {
   text: string;
   holdVehicle: boolean;
   sendId: string | null;
+  unitPrice?: number | null;
   switchedModel?: boolean;
   vehicleKind?: VehicleKind | null;
 };
@@ -372,9 +373,9 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
+    const askedListedPrice = textAsksForListedPrice(input.customerText);
     const mentionsPrice =
-      resumenAsksForListedPrice(resumen) ||
-      textAsksForListedPrice(input.customerText);
+      resumenAsksForListedPrice(resumen) || askedListedPrice;
     const askedPrice = mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
     const askedCredit = cashBudget
@@ -573,8 +574,19 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         alreadyShown ||
         fichaAlreadyGiven ||
         historyHasListedPrice(history));
+    const unitPrice =
+      revision.unitPrice && revision.unitPrice > 0
+        ? Math.round(revision.unitPrice)
+        : interested?.price &&
+            interested.price > 0 &&
+            (!revision.sendId || revision.sendId === interested.inventoryId)
+          ? Math.round(interested.price)
+          : null;
+    const askedThisUnitPrice =
+      askedListedPrice && hasQuotedUnit && unitPrice != null && !objectionOnShown;
     const canQuotePrice =
       creditQuote ||
+      askedThisUnitPrice ||
       (!objectionOnShown &&
         ((hasQuotedUnit && alreadyShown && askedPrice) ||
           lastAssistantListedOther));
@@ -606,7 +618,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
-        : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
+        : !alreadyShown && unitPrice != null
+          ? `EL CLIENTE YA PIDIÓ EL PRECIO en este mensaje. Aunque sea la primera ficha, presenta la unidad y di el precio de inventario: $${unitPrice}. PROHIBIDO omitirlo y prohibido dejar la frase cortada en "y".`
+          : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
       : askedPrice && !hasQuotedUnit
         ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
         : !alreadyShown
@@ -763,13 +777,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         Boolean(replyId) &&
         (!interested || replyId !== interested.inventoryId) &&
         !askedPrice;
-      const askedListedPrice = textAsksForListedPrice(input.customerText);
       const listedPrice =
-        askedListedPrice &&
-        interested?.price &&
-        interested.price > 0 &&
-        (alreadyShown || fichaAlreadyGiven)
-          ? Math.round(interested.price)
+        askedListedPrice && unitPrice != null && !objectionOnShown
+          ? unitPrice
           : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
         keepPrice: canQuotePrice || listedPrice != null,

@@ -3735,4 +3735,46 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/\$/);
     expect(result?.reply.mensaje).toMatch(/Grand Vitara 2015/i);
   });
+
+  it('si el primer mensaje pide el precio, la ficha lo trae', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'vitara-2015',
+        brand: 'suzuki',
+        model: 'grand vitara sz',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 207051,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Grand Vitara.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Grand Vitara 2015 color blanco, con 207051 km, y',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Precio del grand vitara xfabor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/13800/);
+    expect(system).not.toMatch(/PROHIBIDO decir el precio, aunque el resumen/i);
+    expect(result?.reply.mensaje).toMatch(/13,800/);
+    expect(result?.reply.mensaje).toMatch(/Grand Vitara/i);
+    expect(result?.reply.mensaje).not.toMatch(/km, y/);
+    expect(result?.reply.meta.precioMostrado).toBe(true);
+  });
 });

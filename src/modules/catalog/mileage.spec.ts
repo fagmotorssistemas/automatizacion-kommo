@@ -59,4 +59,13 @@ describe('mileage', () => {
     expect(clean).not.toMatch(/mecánico/i);
     expect(clean).not.toMatch(/kilometraje es acorde/i);
   });
+
+  it('si el precio se cortó, no deja la y colgada', () => {
+    const raw =
+      'Estimado, tenemos disponible un Santa Fe 2018 color azul, con 124923 km, y';
+    const clean = ensureListedPrice(raw, 22990);
+    expect(clean).toMatch(/\$22,990/);
+    expect(clean).toMatch(/124923 km\./);
+    expect(clean).not.toMatch(/km, y/);
+  });
 });

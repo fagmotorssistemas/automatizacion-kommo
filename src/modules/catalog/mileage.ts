@@ -146,9 +146,17 @@ export function stripMileageCareOnPriceAsk(text: string): string {
  * Si preguntó el precio y el modelo no lo escribió, se pone el del patio.
  * La ciudad u otra frase del mismo mensaje se queda.
  */
+function dropDanglingAnd(text: string): string {
+  return text
+    .replace(/,\s*y\s*$/i, '.')
+    .replace(/\s+y\s*$/i, '.')
+    .replace(/\.\s*\./g, '.')
+    .trim();
+}
+
 export function ensureListedPrice(text: string, price: number): string {
   const amount = Math.round(price);
-  const body = stripMileageCareOnPriceAsk(text);
+  const body = dropDanglingAnd(stripMileageCareOnPriceAsk(text));
   if (!Number.isFinite(amount) || amount <= 0 || priceIsInText(body, amount)) {
     return body;
   }
