@@ -14,6 +14,22 @@ function fold(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Ya dijo un monto de entrada o un plazo: se puede armar la cuota. */
+export function gaveFinancingInputs(text: string, resumen = ''): boolean {
+  const solicitud = `${text}\n${resumen}`.toLowerCase();
+  const n = fold(solicitud);
+  if (/\b\d{1,2}\s*(?:anios|anos|meses)\b/.test(n)) {
+    return true;
+  }
+  if (/\$\s*\d{2,6}/.test(solicitud)) {
+    return true;
+  }
+  if (/\b\d+\s*mil\b/.test(n)) {
+    return true;
+  }
+  return /\bentrada\s+(?:de\s+)?\d/.test(n);
+}
+
 /** Este texto ya dice una cuota con $. */
 export function replyShowsCuota(text: string): boolean {
   const n = fold(text);

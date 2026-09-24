@@ -162,6 +162,7 @@ import {
   appendApplyAsk,
   appendFinancingDataAsk,
   appendFinancingDecline,
+  gaveFinancingInputs,
   historyAskedFinancingData,
   historyAskedIfApplies,
   historyHasShownCuota,
@@ -416,9 +417,12 @@ export class AgentService {
         ? false
         : mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
+    const aceptaVerSiAplica =
+      resumenAceptaCredito(resumen) &&
+      (historyAskedIfApplies(history) || historyHasShownCuota(history));
     const askedCredit =
       cashBudget ||
-      resumenAceptaCredito(resumen) ||
+      aceptaVerSiAplica ||
       resumenRechazaAplicar(resumen) ||
       resumenPrefiereContado(resumen)
         ? false
@@ -540,6 +544,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       stayOnShown &&
       Boolean(interested) &&
       askedPrice &&
+      !askedCredit &&
       !askingKmOnly &&
       !objectionOnShown &&
       fichaAlreadyGiven;
@@ -563,6 +568,11 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       stayOnShown &&
       (!revision.sendId || revision.sendId === interested?.inventoryId) &&
       history.some((item) => item.role === 'assistant');
+    const financingFollowUp =
+      askedCredit &&
+      alreadyShown &&
+      historyHasListedPrice(history) &&
+      !gaveFinancingInputs(input.customerText, resumen);
     const interestedText =
       interested &&
       (stayOnShown ||
@@ -570,14 +580,19 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !shownOtherBox
         ? formatInterestedCar(
             interested,
-            (askedPrice || askedCredit) && alreadyShown && !objectionOnShown,
+            (askedPrice || askedCredit) &&
+              alreadyShown &&
+              !objectionOnShown &&
+              !financingFollowUp,
             {
               skipMileageCare:
                 historySaidMileageCare(history) ||
                 objectionOnShown ||
                 justifyPriceAfterFicha ||
+                financingFollowUp ||
                 textAsksForListedPrice(input.customerText),
-              slimAfterFicha: justifyPriceAfterFicha,
+              slimAfterFicha: justifyPriceAfterFicha || financingFollowUp,
+              creditFollowUp: financingFollowUp,
             },
           )
         : '';
@@ -640,7 +655,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           lastAssistantListedOther));
     const cuotaYaDicha =
       historyAlreadyGaveCuota(history) &&
-      !resumenAceptaCredito(resumen) &&
+      !aceptaVerSiAplica &&
       !resumenRechazaAplicar(resumen) &&
       (postponesBiggerDownPayment(input.customerText) ||
         ((isThreadAck(input.customerText) ||
@@ -651,6 +666,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
 No repitas la ficha (modelo largo, color, km, caja) ni el precio, ni la entrada, ni la cuota.
 Si va a juntar más entrada, una frase: cuando tenga el monto se recalcula.
 Si cabe, UNA frase de garantía en documentos. Nada más.`
+      : financingFollowUp
+      ? 'YA hay ficha y precio de ESA unidad. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
       : askedCredit
       ? hasQuotedUnit && alreadyShown
         ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. En el turno de la cuota NO pidas cédula. El sistema pregunta si ayudamos a ver si aplica.'
@@ -673,7 +690,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       askedPrice && hasConfirmedUnit && unitPrice == null
         ? 'PIDIÓ EL PRECIO pero en patio está 0 o vacío: AÚN NO CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor.'
         : '';
-    const precioHint = cuotaYaDicha
+    const precioHint = cuotaYaDicha || financingFollowUp
       ? ''
       : objectionOnShown
       ? ''

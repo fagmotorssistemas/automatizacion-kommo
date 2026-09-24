@@ -5,6 +5,7 @@ import {
   FINANCING_APPLY_ASK,
   FINANCING_DATA_ASK,
   FINANCING_DECLINE,
+  gaveFinancingInputs,
   historyAskedFinancingData,
   historyHasShownCuota,
   replyShowsCuota,
@@ -18,6 +19,17 @@ import {
 describe('datos de financiamiento', () => {
   const cuotaMsg =
     'Con $2000 de entrada la cuota estimada mensual sería alrededor de $590.21.';
+
+  it('entrada o plazo dichos no son solo elegir el camino', () => {
+    expect(
+      gaveFinancingInputs(
+        'Quiero financiamiento con el del banco',
+        'SOLICITUD ACTUAL:\nCliente quiere financiamiento a través de banco.',
+      ),
+    ).toBe(false);
+    expect(gaveFinancingInputs('2 mil de entrada a 6 años')).toBe(true);
+    expect(gaveFinancingInputs('Para 5 años')).toBe(true);
+  });
 
   it('detecta cuota con $ en el hilo', () => {
     expect(replyShowsCuota(cuotaMsg)).toBe(true);

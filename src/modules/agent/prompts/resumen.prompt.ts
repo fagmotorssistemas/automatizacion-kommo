@@ -58,11 +58,12 @@ Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que tambi
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
 Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
 Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.
+Si el bot YA ofreció caminos de financiamiento (directo / banco o cooperativa) y AHORA elige uno, SOLICITUD: eligió ese camino para ESA unidad. Pide precio: no. Pide crédito: sí. Acepta crédito: no (aún no es “ver si aplica”). No pidas otra ficha. Falta que diga con cuánto de entrada y a qué plazo.
 Si el hilo YA ofreció crédito o contado y AHORA se queda de contado (lo interpreta el mensaje, no una palabra fija), Prefiere contado: sí. Pide crédito: no. SOLICITUD: prefiere de contado; elige de las unidades ya mostradas.
 Si pide precio de contado Y a crédito (o financiamiento), SOLICITUD debe decir las dos cosas. Pide precio: sí. Pide crédito: sí.
 Si pide otro color del mismo modelo (sin nombrar otro carro), SOLICITUD: quiere otro color de ESA línea. Pide otro color: sí. Pide precio: no, salvo que también pida el valor. No lo dejes en la misma unidad.
 Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envió la cédula para que un asesor revise si califica. No pidas la cédula otra vez. Pide precio: no.
-Si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija), Acepta crédito: sí. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
+Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
 Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no

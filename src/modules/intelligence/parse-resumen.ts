@@ -239,7 +239,7 @@ export function historyHasListedPrice(
   return (history ?? []).some(
     (item) =>
       item.role === 'assistant' &&
-      /\$\s*\d{3,6}\b/i.test(item.content),
+      /\$\s*\d{1,3}(?:[.,]\d{3})+|\$\s*\d{3,6}\b/i.test(item.content),
   );
 }
 

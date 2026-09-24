@@ -495,6 +495,75 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).not.toHaveBeenCalled();
   });
 
+  it('después del T1 no dice que no hay T1 ni salta al X70', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 't1-2026',
+      brand: 'jetour',
+      model: 't1 ac 2.0 5p 4x4 ta',
+      year: 2026,
+      price: 28990,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 14343,
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('jetour');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Jetour T1 AC 2.0 5 puertas, 4x4, transmisión automática, año 2026 color blanco, con 14,343 km. Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 't1-2026',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 28990,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 14343,
+      },
+      {
+        id: 'x70-2025',
+        brand: 'jetour',
+        model: 'x70 plus ac 1.5',
+        year: 2025,
+        price: 0,
+        typeBody: 'jeep',
+        color: 'plateado',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Jetour T1\nSOLICITUD ACTUAL:\nCliente quiere saber la ubicación del vehículo Jetour T1.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El T1 está en Cuenca, cerca del aeropuerto.',
+        meta: { vehiculo: { inventory_id: 't1-2026' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hermoso el precio en donde estan ubicados',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 't1-2026',
+      precio: 28990,
+    });
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=t1-2026');
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|VEHÍCULO DE INTERÉS/i);
+    expect(system).not.toMatch(/No hay Jetour T1|no tenemos Jetour T1/i);
+    expect(system).not.toContain('x70-2025');
+  });
+
   it('si pide Premiere 2020 no se queda en la D-Max 2022', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'dmax-vino-2022',
@@ -2854,6 +2923,47 @@ describe('AgentService', () => {
     expect(system).toMatch(/CONTADO Y CRÉDITO/i);
     expect(system).toMatch(/entrada y plazo/i);
     expect(system).toMatch(/PIDIÓ CRÉDITO/i);
+  });
+
+  it('si ya eligió el camino de crédito no repite ficha ni $, pide entrada y plazo', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Chevrolet D-max CRDI 2023 tiene un precio de $28,990. Para financiamiento, desde 60% CrediFAG o desde 25% banco. ¿Con cuál le ayudamos?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Chevrolet D-max CRDI 2023\nSOLICITUD ACTUAL:\nCliente quiere financiamiento a través de banco para Chevrolet D-max CRDI 2023.\nPide precio: sí\nPide crédito: sí\nAcepta crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra","financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Para el banco, ¿con cuánto de entrada puede contar y a qué plazo le gustaría?',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Quiero financiamiento con el del banco',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/Pregunta con cuánto de entrada y a qué plazo/i);
+    expect(system).toMatch(/PROHIBIDO repetir ficha/i);
+    expect(system).not.toMatch(/Di el \$ de inventario y justifica/i);
+    expect(system).not.toMatch(/MANEJOCARO/i);
   });
 
   it('otro color: ofrece las otras Sportage y no repite el plateado', async () => {

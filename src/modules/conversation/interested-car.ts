@@ -1,5 +1,6 @@
 import {
   modelFamily,
+  normalizeModelText,
   textMentionsModel,
   unitCaja,
   unitDoors,
@@ -42,6 +43,19 @@ export type ShownCarContext = {
   lexicon?: VehicleLexicon;
 };
 
+/** El nombre pedido (T1, Getours T1) es la misma línea que ya está en patio. */
+function askedMatchesShownModel(askedFamily: string, carModel: string): boolean {
+  const family = normalizeModelText(askedFamily);
+  if (!family) {
+    return false;
+  }
+  if (family === modelFamily(carModel)) {
+    return true;
+  }
+  const escaped = family.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(normalizeModelText(carModel));
+}
+
 function namedOtherUnit(
   text: string,
   car: InterestedCarSnapshot,
@@ -51,10 +65,10 @@ function namedOtherUnit(
   if (!asked) {
     return false;
   }
-  if (asked.family !== modelFamily(car.model)) {
-    return true;
+  if (askedMatchesShownModel(asked.family, car.model)) {
+    return Boolean(asked.year && car.year && asked.year !== car.year);
   }
-  return Boolean(asked.year && car.year && asked.year !== car.year);
+  return true;
 }
 
 /** Otro año, versión o color: ya no es la unidad que mostramos. */
@@ -212,7 +226,11 @@ export function historyPresentedFicha(
 export function formatInterestedCar(
   car: InterestedCarSnapshot,
   includePrice = false,
-  options?: { skipMileageCare?: boolean; slimAfterFicha?: boolean },
+  options?: {
+    skipMileageCare?: boolean;
+    slimAfterFicha?: boolean;
+    creditFollowUp?: boolean;
+  },
 ): string {
   const year = car.year ? ` ${car.year}` : '';
   const shown =
@@ -231,7 +249,9 @@ export function formatInterestedCar(
     const priceNote = hasLoadedPrice(car.price)
       ? ''
       : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
-    const close = hasLoadedPrice(car.price)
+    const close = options?.creditFollowUp
+      ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
+      : hasLoadedPrice(car.price)
       ? 'YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.'
       : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';
     return `VEHÍCULO DE INTERÉS (la ficha YA se presentó en el hilo)

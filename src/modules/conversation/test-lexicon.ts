@@ -8,6 +8,7 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'chevrolet', model: 'optra advance 1.8l' },
   { brand: 'suzuki', model: 'grand vitara sz ac 2.0' },
   { brand: 'jetour', model: 'x70 ii ac 1.5' },
+  { brand: 'jetour', model: 't1 ac 2.0 5p 4x4 ta' },
   { brand: 'kia', model: 'sportage r gti' },
   { brand: 'kia', model: 'seltos ex' },
   { brand: 'kia', model: 'rio lx' },

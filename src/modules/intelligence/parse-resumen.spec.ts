@@ -191,6 +191,11 @@ describe('historyHasListedPrice', () => {
     ).toBe(true);
     expect(
       historyHasListedPrice([
+        { role: 'assistant', content: 'El Chevrolet D-max tiene un precio de $28,990.' },
+      ]),
+    ).toBe(true);
+    expect(
+      historyHasListedPrice([
         { role: 'user', content: 'El precio muy alto' },
       ]),
     ).toBe(false);

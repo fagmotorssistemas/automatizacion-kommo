@@ -136,6 +136,45 @@ describe('vehículo de interés', () => {
     expect(
       refersToInterestedCar('Gran vitara 3 puertas', explorer, TEST_LEXICON),
     ).toBe(false);
+    const jetourT1 = {
+      inventoryId: 't1-2026',
+      brand: 'jetour',
+      model: 't1 ac 2.0 5p 4x4 ta',
+      year: 2026,
+      price: 28990,
+    };
+    expect(
+      leftShownCar({
+        text: 'el T1 el precio',
+        car: jetourT1,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
+    expect(
+      leftShownCar({
+        text: 'Hermoso el precio en donde estan ubicados',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Jetour T1\nSOLICITUD ACTUAL:\nCliente quiere saber la ubicación del vehículo Jetour T1.\nPide otras: no',
+        car: jetourT1,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
+    expect(
+      followsShownCar({
+        text: 'Hermoso el precio en donde estan ubicados',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Jetour T1\nSOLICITUD ACTUAL:\nCliente quiere saber la ubicación del vehículo Jetour T1.\nPide otras: no',
+        history: [
+          {
+            role: 'assistant',
+            content:
+              'tenemos disponible un Jetour T1 AC 2.0 5 puertas, 4x4, año 2026 color blanco, con 14,343 km.',
+          },
+        ],
+        car: jetourT1,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
   });
 
   it('otro año o otra caja no es la misma unidad', () => {
@@ -349,6 +388,12 @@ describe('vehículo de interés', () => {
     expect(text).not.toContain('color=plateado');
     expect(text).not.toContain('caja=manual');
     expect(text).not.toMatch(/AL CLIENTE:.*mecánico/i);
+    expect(
+      formatInterestedCar(explorer, false, {
+        slimAfterFicha: true,
+        creditFollowUp: true,
+      }),
+    ).toMatch(/Pregunta con cuánto de entrada y a qué plazo/i);
   });
 
   it('si pide furgoneta suelta el carro chico', () => {
