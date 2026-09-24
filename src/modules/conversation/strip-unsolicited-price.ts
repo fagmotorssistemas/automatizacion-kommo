@@ -87,6 +87,8 @@ function tidyStrippedPriceHoles(text: string): string {
     .replace(/\b(?:el\s+)?precio(?:\s+registrado)?\s+es\s*[.,]?\s*/gi, '')
     .replace(/\bentrada\s+de\s+y\b/gi, 'entrada y')
     .replace(/\bes\s+de\s*[.,]/gi, '.')
+    .replace(/\btiene\s+un\s*[.,]\s*/gi, '')
+    .replace(/\bcon\s+de\s+entrada\b/gi, '')
     .replace(/\bde\s+[.,]/g, '.')
     .replace(/\bpor\s+[.,]/gi, '.');
 }

@@ -25,6 +25,7 @@ import {
 import { OpenAiAgentClient } from './openai-agent.client';
 import {
   AgentTurnResult,
+  ParsedAgentOutput,
   parseAgentOutput,
   serializeAgentTurn,
 } from './parse-agent-output';
@@ -33,6 +34,12 @@ import { PersistenceService } from '../persistence/persistence.service';
 import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
+import {
+  adLabelLooksLikeVehicle,
+  facebookAdLabel,
+  isCtaAdLabel,
+  isFacebookMoreInfoOpener,
+} from '../inbox/first-touch';
 import { intentsSystemPrompt } from './prompts/intents.prompt';
 import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
@@ -83,6 +90,10 @@ import {
   SEGUIR_VENTA,
 } from '../conversation/polite-thanks';
 import {
+  historyAlreadyGaveCuota,
+  historyHasListedPrice,
+  isThreadAck,
+  postponesBiggerDownPayment,
   resumenAceptaCredito,
   resumenPrefiereContado,
   resumenRechazaAplicar,
@@ -97,6 +108,7 @@ import {
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
 import {
+  ensureListedPrice,
   historySaidMileageCare,
   stripRepeatedMileageCare,
 } from '../catalog/mileage';
@@ -194,6 +206,7 @@ type BrandReview = {
   text: string;
   holdVehicle: boolean;
   sendId: string | null;
+  unitPrice?: number | null;
   switchedModel?: boolean;
   vehicleKind?: VehicleKind | null;
 };
@@ -276,6 +289,28 @@ const MODEL_STOP = new Set([
   'hay',
 ]);
 
+/** Título del anuncio si nombra un carro. Vacío si es solo el clic o un botón. */
+function facebookOpenerVehicle(
+  text: string,
+  lexicon: VehicleLexicon,
+): string | null {
+  if (!isFacebookMoreInfoOpener(text)) {
+    return null;
+  }
+  const label = facebookAdLabel(text);
+  if (!label || isCtaAdLabel(label)) {
+    return null;
+  }
+  if (
+    detectNamedModelAsk(label, lexicon) ||
+    detectBrand(label, lexicon) ||
+    adLabelLooksLikeVehicle(label)
+  ) {
+    return label;
+  }
+  return null;
+}
+
 /** Palabra que puede ser un modelo (rio, seltos), no "ok" ni "precio". */
 function mightNameModel(text: string): boolean {
   return text.split(/[^\p{L}0-9]+/u).some((word) => {
@@ -306,11 +341,15 @@ export class AgentService {
       return null;
     }
 
+    const lexicon = await this.catalog.getLexicon();
+    const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
+    if (isFacebookMoreInfoOpener(input.customerText) && !adVehicle) {
+      return this.replyAskWhichCar(input.contactId, input.customerText);
+    }
+
     if (!this.openai.isReady()) {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
-
-    const lexicon = await this.catalog.getLexicon();
     const history = await this.recentDialogue(input.contactId);
     const interested = await this.persistence.latestInterestedCar(
       input.contactId,
@@ -355,9 +394,9 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
+    const askedListedPrice = textAsksForListedPrice(input.customerText);
     const mentionsPrice =
-      resumenAsksForListedPrice(resumen) ||
-      textAsksForListedPrice(input.customerText);
+      resumenAsksForListedPrice(resumen) || askedListedPrice;
     const askedPrice = mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
     const askedCredit = cashBudget
@@ -509,7 +548,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               skipMileageCare:
                 historySaidMileageCare(history) ||
                 objectionOnShown ||
-                justifyPriceAfterFicha,
+                justifyPriceAfterFicha ||
+                textAsksForListedPrice(input.customerText),
               slimAfterFicha: justifyPriceAfterFicha,
             },
           )
@@ -549,11 +589,38 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           (!interested ||
             !textMentionsModel(lastAssistantMsg.content, interested.model)),
       );
+    const creditQuote =
+      askedCredit &&
+      (hasQuotedUnit ||
+        alreadyShown ||
+        fichaAlreadyGiven ||
+        historyHasListedPrice(history));
+    const unitPrice =
+      revision.unitPrice && revision.unitPrice > 0
+        ? Math.round(revision.unitPrice)
+        : interested?.price &&
+            interested.price > 0 &&
+            (!revision.sendId || revision.sendId === interested.inventoryId)
+          ? Math.round(interested.price)
+          : null;
+    const askedThisUnitPrice =
+      askedListedPrice && hasQuotedUnit && unitPrice != null && !objectionOnShown;
     const canQuotePrice =
-      !objectionOnShown &&
-      ((hasQuotedUnit && alreadyShown && (askedPrice || askedCredit)) ||
-        lastAssistantListedOther);
-    const creditoHint = askedCredit
+      creditQuote ||
+      askedThisUnitPrice ||
+      (!objectionOnShown &&
+        ((hasQuotedUnit && alreadyShown && askedPrice) ||
+          lastAssistantListedOther));
+    const cuotaYaDicha =
+      historyAlreadyGaveCuota(history) &&
+      (isThreadAck(input.customerText) ||
+        postponesBiggerDownPayment(input.customerText));
+    const creditoHint = cuotaYaDicha
+      ? `YA SE DIJO LA CUOTA. El resumen tiene que leer eso: no pidió otra proforma.
+No repitas la ficha (modelo largo, color, km, caja) ni el precio, ni la entrada, ni la cuota.
+Si va a juntar más entrada, una frase: cuando tenga el monto se recalcula.
+Si cabe, UNA frase de garantía en documentos. Nada más.`
+      : askedCredit
       ? hasQuotedUnit && alreadyShown
         ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. En el turno de la cuota NO pidas cédula. El sistema pregunta si ayudamos a ver si aplica.'
         : hasQuotedUnit
@@ -563,14 +630,18 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const objecionHint = objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
-    const precioHint = objectionOnShown
+    const precioHint = cuotaYaDicha
+      ? ''
+      : objectionOnShown
       ? ''
       : justifyPriceAfterFicha
-        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
+        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
       : canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
-        : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
+        : !alreadyShown && unitPrice != null
+          ? `EL CLIENTE YA PIDIÓ EL PRECIO en este mensaje. Aunque sea la primera ficha, presenta la unidad y di el precio de inventario: $${unitPrice}. PROHIBIDO omitirlo y prohibido dejar la frase cortada en "y".`
+          : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
       : askedPrice && !hasQuotedUnit
         ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
         : !alreadyShown
@@ -613,9 +684,13 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               : cashBudget
                 ? 'PRESUPUESTO: lista las unidades que caben. El sistema pregunta si quieren crédito o contado. PROHIBIDO armar cuota. PROHIBIDO pregunta de visita en este turno.'
                 : '';
+    const anuncioHint = adVehicle
+      ? `ANUNCIO DE FACEBOOK. El cliente pidió información del ${adVehicle}. Presenta ESA unidad del inventario. Si hay una, mándala (ficha, sin precio). Si hay varias de esa misma línea, nómbralas y pregunta cuál. PROHIBIDO preguntar qué carro le interesa. PROHIBIDO listar otras marcas.`
+      : '';
     const pedidoVigente = (
       stayOnShown
         ? [
+            anuncioHint,
             revision.text,
             interestedText,
             thanksHint,
@@ -632,6 +707,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             precioHint,
           ]
         : [
+            anuncioHint,
             formatPedidoVigente(
               spaceAsk
                 ? null
@@ -734,8 +810,12 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         Boolean(replyId) &&
         (!interested || replyId !== interested.inventoryId) &&
         !askedPrice;
+      const listedPrice =
+        askedListedPrice && unitPrice != null && !objectionOnShown
+          ? unitPrice
+          : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice: canQuotePrice,
+        keepPrice: canQuotePrice || listedPrice != null,
         keepPlateShort: askedPlate || firstPresentation,
       });
       if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
@@ -802,6 +882,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       ) {
         parsed.mensaje = appendBudgetPickShown(parsed.mensaje);
       }
+      if (listedPrice != null) {
+        parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
+        parsed.meta.precioMostrado = true;
+      }
       if (
         hasCedula &&
         (replyAsksForCedula(parsed.mensaje) ||
@@ -817,7 +901,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           `Se evitó pedir cédula otra vez contactId=${input.contactId}`,
         );
       }
-      if (!canQuotePrice) {
+      if (!canQuotePrice && listedPrice == null) {
         parsed.meta.precioMostrado = false;
         if (parsed.meta.vehiculo && !parsed.meta.vehiculo.inventory_id) {
           parsed.meta.vehiculo = null;
@@ -843,6 +927,37 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     );
 
     return { reply: parsed, resumen };
+  }
+
+  /** Clic de Facebook sin carro en el título: una pregunta, sin listado. */
+  private async replyAskWhichCar(
+    contactId: string,
+    customerText: string,
+  ): Promise<AgentTurnResult> {
+    const mensaje = 'Claro. ¿Qué carro le interesa?';
+    const reply: ParsedAgentOutput = {
+      mensaje,
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: null,
+      },
+      img_prefix: '',
+    };
+    await this.conversation.appendMessage(contactId, {
+      role: 'user',
+      content: customerText,
+    });
+    await this.conversation.appendMessage(contactId, {
+      role: 'assistant',
+      content: mensaje,
+    });
+    await this.persistence.appendChatHistory({
+      contactId,
+      human: customerText,
+      ai: serializeAgentTurn(reply),
+    });
+    return { reply, resumen: customerText };
   }
 
   private async recentDialogue(contactId: string) {

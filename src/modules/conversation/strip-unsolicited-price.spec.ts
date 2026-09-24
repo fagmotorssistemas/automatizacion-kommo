@@ -105,6 +105,25 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/fotos/i);
   });
 
+  it('una proforma conserva precio, entrada y cuota', () => {
+    const raw =
+      'El Chevrolet d-max crdi 2.5 cd 4x4 2022 color vino, con 87687 km y transmisión manual, tiene un precio de $32,990. Con $1,000 de entrada para financiar a 5 años la cuota aproximada sería de $962.39 mensuales.';
+    const clean = stripUnsolicitedPriceAndPlate(raw, { keepPrice: true });
+    expect(clean).toMatch(/32,990/);
+    expect(clean).toMatch(/1,000/);
+    expect(clean).toMatch(/962\.39/);
+  });
+
+  it('si igual recorta el monto no deja “tiene un.” ni “Con de entrada”', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'El Chevrolet d-max, tiene un precio de $32,990. Con $1,000 de entrada para financiar a 5 años la cuota aproximada sería de $962.39 mensuales.',
+    );
+    expect(clean).not.toMatch(/32,990|1,000/);
+    expect(clean).not.toMatch(/tiene un\s*\./i);
+    expect(clean).not.toMatch(/con de entrada/i);
+    expect(clean).toMatch(/962\.39/);
+  });
+
   it('detecta fuga de precio', () => {
     expect(messageLeaksPrice('precio de $21800')).toBe(true);
     expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(

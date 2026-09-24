@@ -338,14 +338,22 @@ export function describeUnit(car: StockCar, includePrice = false): string {
 export function formatNamedUnits(
   cars: StockCar[],
   includePrice = false,
-): { text: string; holdVehicle: boolean; sendId: string | null } {
+): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  unitPrice: number | null;
+} {
   if (cars.length === 1) {
     const car = cars[0];
+    const unitPrice =
+      car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
       text: `De este modelo hay una sola unidad y hay que mandarla: ${describeUnit(car, includePrice)}.
 En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       holdVehicle: false,
       sendId: car.id,
+      unitPrice,
     };
   }
 
@@ -354,6 +362,7 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
 ${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`,
     holdVehicle: true,
     sendId: null,
+    unitPrice: null,
   };
 }
 

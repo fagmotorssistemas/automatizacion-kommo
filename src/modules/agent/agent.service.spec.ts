@@ -126,6 +126,62 @@ describe('AgentService', () => {
     expect(conversation.appendMessage).not.toHaveBeenCalled();
   });
 
+  it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
+    const result = await service.handleTurn({
+      contactId: '59099901',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(openai.complete).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(conversation.appendMessage).toHaveBeenCalledWith('59099901', {
+      role: 'assistant',
+      content: 'Claro. ¿Qué carro le interesa?',
+    });
+  });
+
+  it('clic de Facebook con botón no usa ese título como carro', async () => {
+    const result = await service.handleTurn({
+      contactId: '56671451',
+      customerText:
+        '¡Hola! Me gustaría conseguir más información sobre esto {Chatea con nosotros}',
+    });
+
+    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+  });
+
+  it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nPide el Fiat 500 del anuncio.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos un Fiat 500 2017 disponible.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59082581',
+      customerText:
+        'Hola. ¿Puedo obtener más información sobre esto {Fiat 500 2017}',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.stringContaining('ANUNCIO DE FACEBOOK'),
+      }),
+    );
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.stringContaining('Fiat 500 2017'),
+      }),
+    );
+  });
+
   it('resumen → intenciones → agente → parser', async () => {
     openai.complete
       .mockResolvedValueOnce('RESUMEN\nCliente quiere una hilux.')
@@ -742,6 +798,47 @@ describe('AgentService', () => {
     expect(system).toMatch(/YA SE DIO LA FICHA/i);
     expect(system).toMatch(/justifica el valor/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
+  });
+
+  it('precio y ciudad: sale el valor y no el mecánico', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Kia Seltos ex ac 1.6 5p 4x2 año 2020 color plomo, con 78159 km. Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'seltos-1',
+      brand: 'kia',
+      model: 'seltos ex ac 1.6 5p 4x2 ta',
+      year: 2020,
+      price: 19990,
+      typeBody: 'jeep',
+      color: 'plomo',
+      mileage: 78159,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio y uno en Cuenca.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Este Kia Seltos 2020 color plomo Está en Cuenca, con papeles en regla. El kilometraje es acorde al año, es un carro cuidado y en buen estado; puede traer a su mecánico para revisar.',
+        meta: { vehiculo: { inventory_id: 'seltos-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuál es el precio\nUno acá en cuenca',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/19,990|19990/);
+    expect(result?.reply.mensaje).toMatch(/Cuenca/i);
+    expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
   });
 
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {
@@ -3652,6 +3749,92 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/cédula/i);
   });
 
+  it('proforma a 5 años no borra precio ni entrada', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El precio del Chevrolet d-max es $32,990, justificado por su buen estado y km real. Con $1,000 de entrada, el financiamiento sería vía banco o cooperativa; ¿a cuántos años desea financiar?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+      color: 'vino',
+      mileage: 87687,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la cuota a 5 años.\nPide precio: no\nPide crédito: sí\nObjeción de precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Chevrolet d-max crdi 2.5 cd 4x4 2022 color vino, con 87687 km y transmisión manual, tiene un precio de $32,990. Con $1,000 de entrada para financiar a 5 años la cuota aproximada sería de $962.39 mensuales. Este valor es referencial y depende del banco o cooperativa elegida.',
+        meta: {
+          precio_mostrado: true,
+          cuota_mostrada: true,
+          vehiculo: { inventory_id: 'dmax-2022', precio: 32990 },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Para 5 años Melo haces proforma aver cuánto me cay de mensual',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/32,990/);
+    expect(result?.reply.mensaje).toMatch(/1,000/);
+    expect(result?.reply.mensaje).toMatch(/962\.39/);
+    expect(result?.reply.mensaje).not.toMatch(/tiene un\s*\./i);
+    expect(result?.reply.mensaje).not.toMatch(/con de entrada/i);
+  });
+
+  it('aaa o más entrada no pide repetir la cuota ya dicha', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Para financiar el Chevrolet d-max la cuota mensual aproximada es de $962.39.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente ya entendió la cuota.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Cuando tenga la entrada, la recalculamos.',
+        meta: { vehiculo: { inventory_id: 'dmax-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Aaa bueno voy buscar un poco de entrada mas',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA SE DIJO LA CUOTA/i);
+    expect(system).not.toMatch(/Di el precio de contado de inventario/i);
+  });
+
   it('primera presentación del Vitara no dice el precio', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
@@ -3706,5 +3889,47 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/13800/);
     expect(result?.reply.mensaje).not.toMatch(/\$/);
     expect(result?.reply.mensaje).toMatch(/Grand Vitara 2015/i);
+  });
+
+  it('si el primer mensaje pide el precio, la ficha lo trae', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'vitara-2015',
+        brand: 'suzuki',
+        model: 'grand vitara sz',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 207051,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Grand Vitara.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Grand Vitara 2015 color blanco, con 207051 km, y',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Precio del grand vitara xfabor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA PIDIÓ EL PRECIO/i);
+    expect(system).toMatch(/13800/);
+    expect(system).not.toMatch(/PROHIBIDO decir el precio, aunque el resumen/i);
+    expect(result?.reply.mensaje).toMatch(/13,800/);
+    expect(result?.reply.mensaje).toMatch(/Grand Vitara/i);
+    expect(result?.reply.mensaje).not.toMatch(/km, y/);
+    expect(result?.reply.meta.precioMostrado).toBe(true);
   });
 });

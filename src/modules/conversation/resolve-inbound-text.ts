@@ -1,3 +1,4 @@
+import { isFacebookMoreInfoOpener } from '../inbox/first-touch';
 import { CtwaMatch } from '../persistence/lead.types';
 
 /** cumple_rango_tiempo: |mensaje - clic| <= 60 s */
@@ -45,14 +46,15 @@ export function annotateTextWithVehicle(
 }
 
 /**
- * If18 + rango + determina texto final.
- * n8n usaba el texto crudo del webhook si había match; acá se anota
- * la cadena junta del debounce (si no, se tira el buffer de 30 s).
+ * El título del anuncio solo entra en el primer mensaje, y solo si es la
+ * plantilla de Facebook («más información sobre esto») sin un modelo.
+ * Si ya nombró el carro, o ya hay conversación, el texto se queda como llegó.
  */
 export function resolveInboundText(input: {
   joinedText: string;
   createdAtUnix: string;
   ctwa: CtwaMatch;
+  alreadyInConversation?: boolean;
 }): InboundTextResult {
   const buffer = input.joinedText;
   const unmatched: InboundTextResult = {
@@ -72,6 +74,14 @@ export function resolveInboundText(input: {
   );
   if (!withinWindow) {
     return unmatched;
+  }
+
+  const attachHeadline =
+    !input.alreadyInConversation &&
+    Boolean(input.ctwa.adHeadline) &&
+    isFacebookMoreInfoOpener(buffer);
+  if (!attachHeadline) {
+    return { ...unmatched, withinWindow: true };
   }
 
   const annotated = annotateTextWithVehicle(buffer, input.ctwa.adHeadline);

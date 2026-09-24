@@ -99,11 +99,63 @@ export function textAsksForListedPrice(text: string): boolean {
   return /\biel\s+valor\b|\bel\s+valor\b|\bvalores?\b/.test(n);
 }
 
+/**
+ * Va a juntar más entrada después. No está pidiendo la cuota otra vez.
+ * "2 mil de entrada" o "a 5 años" sí es un cálculo nuevo.
+ */
+export function postponesBiggerDownPayment(text: string): boolean {
+  const n = fold(stripResumenFlags(text));
+  if (/\b(?:cuanto|proforma|mensual(?:idad)?|cuota)\b/.test(n)) {
+    return false;
+  }
+  if (/\b\d+\s*an[io]s\b/.test(n)) {
+    return false;
+  }
+  if (/\d/.test(n) && /\bentrada\b/.test(n)) {
+    return false;
+  }
+  return (
+    /\b(?:buscar|juntar|conseguir|reunir|ahorrar)\b/.test(n) &&
+    /\bentrada\b/.test(n)
+  );
+}
+
+/** "Aaa", "buen", "ok": ya oyó lo anterior. No pide otro dato. */
+export function isThreadAck(text: string): boolean {
+  const n = fold(text)
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!n || n.length > 40) {
+    return false;
+  }
+  return /^(?:a+|ah+|ok|okay|okey|vale|si|bueno|buen|dale|listo|ya|aja|claro)(?:\s+(?:a+|ah+|ok|okay|okey|vale|si|bueno|buen|dale|listo|ya|aja|claro))*$/.test(
+    n,
+  );
+}
+
+/** El bot ya dijo un monto de cuota en este hilo. */
+export function historyAlreadyGaveCuota(
+  history?: { role: string; content: string }[],
+): boolean {
+  return (history ?? []).some(
+    (item) =>
+      item.role === 'assistant' &&
+      /\bcuota\b/i.test(item.content) &&
+      /\$\s*\d/.test(item.content),
+  );
+}
+
 /** El mensaje da o pide entrada, plazo o crédito. */
 export function textAsksForCredit(text: string): boolean {
+  if (postponesBiggerDownPayment(text)) {
+    return false;
+  }
   const n = fold(stripResumenFlags(text));
   return (
-    /\b(credito|financiamiento|cuota|entrada|plazo|inicial)\b/.test(n) ||
+    /\b(credito|financiamiento|cuota|entrada|plazo|inicial|proforma|mensual(?:idad)?)\b/.test(
+      n,
+    ) ||
     /\b\d+\s*an[io]s\b/.test(n)
   );
 }
