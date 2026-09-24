@@ -30,6 +30,7 @@ import {
 } from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
 import { PersistenceService } from '../persistence/persistence.service';
+import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
@@ -500,7 +501,7 @@ export class AgentService {
       resumen,
       input.customerText,
     );
-    const revision =
+    let revision =
       selling && !buying
         ? { text: '', holdVehicle: true, sendId: null }
         : stayOnShown && interested
@@ -546,6 +547,18 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               askedOtherColor,
               resumen,
             );
+    if (stayOnShown && interested && specTopic(input.customerText)) {
+      const notes = await this.specNotesForShown(
+        input.customerText,
+        interested,
+      );
+      if (notes) {
+        revision = {
+          ...revision,
+          text: `${revision.text}\n\n${notes}`,
+        };
+      }
+    }
     const objectionOnShown =
       stayOnShown &&
       Boolean(interested) &&
@@ -1827,6 +1840,45 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     };
   }
 
+  /** Dato de ficha de la unidad ya mostrada: investiga ese modelo y año. */
+  private async specNotesForShown(
+    ask: string,
+    car: InterestedCarSnapshot,
+  ): Promise<string> {
+    const topic = specTopic(ask);
+    if (!topic) {
+      return '';
+    }
+    const listed = car.brand
+      ? await this.catalog.listByBrand(car.brand)
+      : [];
+    const fromPatio = listed.find((item) => item.id === car.inventoryId);
+    const patioCapacity =
+      (fromPatio?.passengerCapacity ?? car.passengerCapacity) != null &&
+      String(fromPatio?.passengerCapacity ?? car.passengerCapacity).trim()
+        ? String(fromPatio?.passengerCapacity ?? car.passengerCapacity)
+        : '';
+    const stock: StockCar = fromPatio ?? {
+      id: car.inventoryId,
+      brand: car.brand,
+      model: car.model,
+      year: car.year,
+      price: car.price,
+      typeBody: car.typeBody ?? null,
+      color: car.color,
+      mileage: car.mileage,
+      transmission: car.transmission,
+      passengerCapacity: patioCapacity || null,
+      plateShort: car.plateShort,
+    };
+    const facts = await this.collectSpecFacts(ask, [stock]);
+    const rule =
+      topic === 'filas' && patioCapacity
+        ? `El patio trae passenger_capacity=${patioCapacity}. Ese dato manda. 3p/4p/5p son PUERTAS, no filas. No inventes.`
+        : `PREGUNTÓ UN DATO DE FICHA de ESTA unidad (${car.brand} ${car.model}${car.year ? ` ${car.year}` : ''}). Usa solo la investigación. 3p/4p/5p son PUERTAS, no filas ni equipo. Si no hay dato, dilo: no consta. PROHIBIDO inventar. PROHIBIDO rellenar con km, mecánico o “carro cuidado” si no lo pidió.`;
+    return [formatSpecNotes(facts), rule].filter(Boolean).join('\n');
+  }
+
   /**
    * Primero las fichas ya guardadas. Lo que falta se investiga junto, se guarda,
    * y recién después sigue el turno. Un solo mensaje al cliente.
@@ -1870,12 +1922,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         SPEC_RESEARCH_PROMPT,
         JSON.stringify({
           pedido: ask,
-          vehiculos: carsForReview(pending).map((car) => ({
-            id: car.id,
-            marca: car.marca,
-            modelo: car.modelo,
-            anio: car.anio,
-          })),
+          vehiculos: carsForReview(pending),
         }),
       );
       const found = factsFromResearch(

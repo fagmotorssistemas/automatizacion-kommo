@@ -1,4 +1,9 @@
-import { factsFromResearch, needsSpecLookup, parseSpecFacts } from './ficha-tecnica';
+import {
+  factsFromResearch,
+  needsSpecLookup,
+  parseSpecFacts,
+  specTopic,
+} from './ficha-tecnica';
 import { StockCar } from './clasificar-filas';
 
 const x70: StockCar = {
@@ -17,7 +22,14 @@ describe('ficha técnica', () => {
       needsSpecLookup('tiene 3 filas', [{ ...x70, passengerCapacity: '7' }]),
     ).toBe(false);
     expect(needsSpecLookup('que tenga techo', [x70])).toBe(true);
+    expect(needsSpecLookup('tiene cámara de reversa?', [x70])).toBe(true);
+    expect(needsSpecLookup('trae asientos de cuero?', [x70])).toBe(true);
     expect(needsSpecLookup('quiero la blanca', [x70])).toBe(false);
+    expect(needsSpecLookup('cuál es el precio', [x70])).toBe(false);
+    expect(specTopic('Es de 3 filas ?')).toBe('filas');
+    expect(specTopic('tiene cámara?')).toBe('camara');
+    expect(specTopic('trae asientos de cuero?')).toBe('cuero');
+    expect(specTopic('el precio')).toBeNull();
   });
 
   it('una ficha encontrada es hecho y la que no aparece no consta', () => {

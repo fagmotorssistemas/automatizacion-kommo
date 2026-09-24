@@ -1,12 +1,27 @@
 import { StockCar } from './clasificar-filas';
 
-const FILAS = /\b(?:filas?|pasajeros?|puestos|asientos)\b/i;
-const TECHO = /\b(?:techo|panor[aá]mic)/i;
+const FILAS = /\b(?:filas?|pasajeros?|puestos|asientos|tercera\s+fila)\b/i;
+const TECHO = /\b(?:techo|panor[aá]mic|sunroof|quemacocos?)\b/i;
+const EQUIPO = [
+  { topic: 'camara', pattern: /\b(?:c[aá]maras?|reversa|visi[oó]n\s+360)\b/i },
+  { topic: 'pantalla', pattern: /\b(?:pantalla|android\s+auto|carplay)\b/i },
+  { topic: 'cuero', pattern: /\b(?:cuero|piel)\b/i },
+  { topic: 'airbags', pattern: /\b(?:airbags?|bolsas?\s+de\s+aire)\b/i },
+  { topic: 'sensores', pattern: /\b(?:sensores?)\b/i },
+];
+
+/** Eso ya está en patio: no se investiga. */
+const DATO_DE_PATIO =
+  /\b(?:precio|valor|cu[oó]ta|entrada|cr[eé]dito|visita|direcci[oó]n|ubicaci[oó]n|fotos?|km|kilometr|placa|color|caja|manual|autom[aá]tic|transmisi[oó]n|4\s*x\s*[24]|tracci[oó]n)\b/i;
+
+const PREGUNTA_DE_FICHA =
+  /\b(?:tiene|trae|viene(?:\s+con)?|cuenta\s+con|es\s+de|son\s+de)\b/i;
 
 export const SPEC_RESEARCH_PROMPT = `Investigás fichas técnicas de vehículos en la web. Solo respondes JSON.
 
-Recibes el pedido del cliente y las unidades reales de una marca (id, modelo, año).
-Busca la ficha técnica de ESE modelo y ESE año (fabricante o catálogo). No uses otro modelo ni otro año para rellenar.
+Recibes el pedido del cliente y las filas reales de inventoryoracle (id, marca, modelo completo, año, versión, motor, tracción, puertas).
+Investiga ESA fila: el modelo tal como viene (Montero Sport GLS AC 3.0 5p 4x4, o Montero 2.5, el que esté). No lo acortes a la familia. No uses otro modelo ni otro año.
+Investiga exactamente lo que preguntó: filas, techo, cámara, cuero, airbags o el dato que pida. No cambies de tema.
 
 Devuelve únicamente:
 {"fichas":[{"id":"uuid","seguro":true,"dato":"texto corto del dato que confirma o niega el pedido"}]}
@@ -25,12 +40,34 @@ export type SpecFact = {
   dato: string;
 };
 
-export function specTopic(ask: string): 'filas' | 'techo' | null {
+function foldTopic(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .slice(0, 40);
+}
+
+/** Qué dato de ficha pidió. Null si es precio, km o algo que ya está en patio. */
+export function specTopic(ask: string): string | null {
+  if (!ask.trim() || DATO_DE_PATIO.test(ask)) {
+    return null;
+  }
   if (TECHO.test(ask)) {
     return 'techo';
   }
+  for (const item of EQUIPO) {
+    if (item.pattern.test(ask)) {
+      return item.topic;
+    }
+  }
   if (FILAS.test(ask)) {
     return 'filas';
+  }
+  if (PREGUNTA_DE_FICHA.test(ask)) {
+    return foldTopic(ask) || 'equipo';
   }
   return null;
 }
@@ -60,18 +97,19 @@ export function factsFromResearch(
   return parsed.length > 0 ? parsed : null;
 }
 
-/** Unidades a las que les falta el dato en el patio. El techo no tiene columna. */
+/** Unidades a las que les falta el dato en el patio. */
 export function carsForSpecLookup(ask: string, cars: StockCar[]): StockCar[] {
-  if (TECHO.test(ask)) {
-    return cars;
-  }
-  if (!FILAS.test(ask)) {
+  const topic = specTopic(ask);
+  if (!topic) {
     return [];
   }
-  return cars.filter((car) => !String(car.passengerCapacity ?? '').trim());
+  if (topic === 'filas') {
+    return cars.filter((car) => !String(car.passengerCapacity ?? '').trim());
+  }
+  return cars;
 }
 
-/** Filas, pasajeros o techo, y la ficha del patio no trae ese dato. */
+/** Un dato de ficha que el patio no trae. */
 export function needsSpecLookup(ask: string, cars: StockCar[]): boolean {
   return carsForSpecLookup(ask, cars).length > 0;
 }

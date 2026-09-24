@@ -2307,6 +2307,160 @@ describe('AgentService', () => {
     );
   });
 
+  it('si el hilo sigue y pregunta filas, investiga la ficha y no usa las puertas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'montero-2022',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'montero-2022',
+        brand: 'mitsubishi',
+        model: 'montero sport gls ac 3.0 5p 4x4',
+        year: 2022,
+        price: 45800,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 75258,
+        version: 'gls',
+        transmission: null,
+        fuelType: 'gasolina',
+        driveType: '4x4',
+        doorsCount: 5,
+      },
+    ]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Mitsubishi Montero Sport GLS AC 3.0 5p 4x4 2022 negro, con 75,258 km.',
+      },
+    ]);
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [
+          { id: 'montero-2022', seguro: true, dato: '7 pasajeros, 3 filas' },
+        ],
+      }),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si el Montero Sport 2022 tiene 3 filas.\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí, el Montero Sport 2022 tiene 3 filas.',
+        meta: { vehiculo: { inventory_id: 'montero-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Es de 3 filas ?',
+    });
+
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    const asked = JSON.parse(
+      openai.researchSpecs.mock.calls[0][1] as string,
+    ) as {
+      vehiculos: { id: string; modelo: string; anio: number; version?: string }[];
+    };
+    expect(asked.vehiculos[0]).toMatchObject({
+      id: 'montero-2022',
+      modelo: 'montero sport gls ac 3.0 5p 4x4',
+      anio: 2022,
+      version: 'gls',
+    });
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).toMatch(/7 pasajeros, 3 filas/i);
+    expect(system).toMatch(/PUERTAS, no filas/i);
+    expect(system).not.toMatch(/REVISIÓN DEL PEDIDO/i);
+  });
+
+  it('si el hilo sigue y pregunta un dato de ficha, investiga esa unidad', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+      color: 'plateado',
+      mileage: 77613,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 77613,
+        version: 'crdi 2.5',
+        transmission: 'manual',
+        fuelType: 'diesel',
+        driveType: '4x2',
+      },
+    ]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Chevrolet D-max CRDI 2023 plateado está en patio, con 77613 km.',
+      },
+    ]);
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [
+          { id: 'dmax-2023', seguro: true, dato: 'cámara de reversa' },
+        ],
+      }),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si el D-max 2023 tiene cámara.\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí, el D-max 2023 trae cámara de reversa.',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'tiene cámara?',
+    });
+
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    const asked = JSON.parse(
+      openai.researchSpecs.mock.calls[0][1] as string,
+    ) as {
+      pedido: string;
+      vehiculos: { id: string; modelo: string; anio: number }[];
+    };
+    expect(asked.pedido).toMatch(/cámara/i);
+    expect(asked.vehiculos[0]).toMatchObject({
+      id: 'dmax-2023',
+      modelo: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      anio: 2023,
+    });
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/cámara de reversa/i);
+    expect(system).toMatch(/D-max/i);
+  });
+
   it('al pedir 7 pasajeros manda el único Nissan que cumple', async () => {
     conversation.recentMessages.mockResolvedValue([
       { role: 'user', content: 'Nissan' },
