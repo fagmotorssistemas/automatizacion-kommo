@@ -8,6 +8,7 @@ import {
   formatRevisionMarca,
   pickClosestToMissingModel,
   pickShownByYear,
+  preferCurrentYears,
   textMentionsModel,
   unitCaja,
   unitDoors,
@@ -392,5 +393,50 @@ describe('clasificar filas', () => {
     expect(missing.text).not.toMatch(/no tenemos|No hay/i);
     expect(missing.sendId).toBe('dmax-2022');
     expect(missing.text).toMatch(/d-max crdi/i);
+  });
+});
+
+describe('preferCurrentYears', () => {
+  const montero1984 = { id: 'm-1984', year: 1984 };
+  const montero2010 = { id: 'm-2010', year: 2010 };
+  const montero2016 = { id: 'm-2016', year: 2016 };
+  const sport2022 = { id: 'sport-2022', year: 2022 };
+
+  it('si hay uno del 2010 en adelante no mete el anterior', () => {
+    expect(
+      preferCurrentYears([montero1984, montero2016, sport2022]).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['sport-2022', 'm-2016']);
+  });
+
+  it('un 2010 y un 2016 se quedan', () => {
+    expect(
+      preferCurrentYears([montero1984, montero2010, montero2016]).map(
+        (car) => car.year,
+      ),
+    ).toEqual([2016, 2010]);
+  });
+
+  it('si solo está el antiguo, se presenta', () => {
+    expect(preferCurrentYears([montero1984]).map((car) => car.id)).toEqual([
+      'm-1984',
+    ]);
+  });
+
+  it('si pide el año antiguo, se presenta ese', () => {
+    expect(
+      preferCurrentYears([montero1984, sport2022, montero2016], 1984).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['m-1984']);
+  });
+
+  it('si pide 2016 no lo trata como antiguo', () => {
+    expect(
+      preferCurrentYears([montero1984, montero2016, sport2022], 2016).map(
+        (car) => car.year,
+      ),
+    ).toEqual([2022, 2016]);
   });
 });

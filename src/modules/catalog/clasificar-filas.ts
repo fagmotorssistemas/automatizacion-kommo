@@ -342,6 +342,31 @@ export function describeUnit(car: StockCar, includePrice = false): string {
   return `${UNIT_FIELD_LEGEND}\n${fields.join(' | ')}`;
 }
 
+/** Del 2010 en adelante se ofrece. Un 2016 no es antiguo. */
+const ANIO_VIGENTE_DESDE = 2010;
+
+/**
+ * Si hay unidades del 2010 en adelante, no mezcla las anteriores.
+ * Si solo hay antiguas, se quedan. Si pidió ese año antiguo, se presenta ese.
+ */
+export function preferCurrentYears<T extends { year?: number | null }>(
+  cars: T[],
+  askedYear?: number | null,
+): T[] {
+  if (askedYear != null && askedYear < ANIO_VIGENTE_DESDE) {
+    const exact = cars.filter((car) => car.year === askedYear);
+    return exact.length > 0 ? exact : cars;
+  }
+  const kept = cars.filter(
+    (car) => car.year == null || car.year >= ANIO_VIGENTE_DESDE,
+  );
+  const vigentes = kept.filter((car) => car.year != null);
+  if (vigentes.length === 0) {
+    return cars;
+  }
+  return [...kept].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+}
+
 /** Una unidad se manda. Varias se nombran para que elija. */
 export function formatNamedUnits(
   cars: StockCar[],

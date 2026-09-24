@@ -148,6 +148,7 @@ import {
   formatMissingNamedModel,
   formatNamedUnits,
   hasUsableFicha,
+  preferCurrentYears,
   modelFamily,
   pickClosestToMissingModel,
   pickShownByYear,
@@ -1322,18 +1323,22 @@ PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presenta
         return true;
       });
       const shown = reference.color ? ` (${reference.color})` : '';
-      if (others.length === 0) {
+      const toName = preferCurrentYears(
+        others,
+        detectYearInText(customerText),
+      );
+      if (toName.length === 0) {
         return {
           text: `PIDIÓ OTRO COLOR del ${reference.family}. No hay otro color en patio. Dilo. No inventes colores. No vuelvas a presentar la misma unidad${shown}. No sueltes precio si no lo pidió.`,
           holdVehicle: true,
           sendId: null,
         };
       }
-      const named = formatNamedUnits(others, includePrice);
+      const named = formatNamedUnits(toName, includePrice);
       return {
         ...named,
         switchedModel: false,
-        vehicleKind: kindOfNamedUnits(others),
+        vehicleKind: kindOfNamedUnits(toName),
         text: `${named.text}
 PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distintos a la que ya vio${shown}). PROHIBIDO repetir la misma unidad. No sueltes precio si no lo pidió.`,
       };
@@ -1413,11 +1418,14 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           );
           const picked = matchUnitFacts(inFamily, yearAsk, colorAsk, null);
           if (picked.length === 1) {
-            return this.namedModelFound(picked, includePrice, false);
+            return this.namedModelFound(picked, includePrice, false, false, yearAsk);
           }
           if (picked.length > 1) {
             return {
-              ...formatNamedUnits(picked, includePrice),
+              ...formatNamedUnits(
+                preferCurrentYears(picked, yearAsk),
+                includePrice,
+              ),
               switchedModel: true,
               vehicleKind: kindOfNamedUnits(picked),
             };
@@ -1440,11 +1448,14 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
         }
         const byFacts = matchUnitFacts(listed, yearAsk, colorAsk, trimAsk);
         if (byFacts.length === 1) {
-          return this.namedModelFound(byFacts, includePrice, false);
+          return this.namedModelFound(byFacts, includePrice, false, false, yearAsk);
         }
         if (byFacts.length > 1) {
           return {
-            ...formatNamedUnits(byFacts, includePrice),
+            ...formatNamedUnits(
+              preferCurrentYears(byFacts, yearAsk),
+              includePrice,
+            ),
             switchedModel: true,
             vehicleKind: kindOfNamedUnits(byFacts),
           };
@@ -1476,7 +1487,13 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
         includePrice,
       );
       if (fromEmbed.length > 0) {
-        return this.namedModelFound(fromEmbed, includePrice, true, true);
+        return this.namedModelFound(
+          fromEmbed,
+          includePrice,
+          true,
+          true,
+          yearFromThread,
+        );
       }
     }
     if (saidBox && alreadyOffered.length > 0 && !asked) {
@@ -1503,9 +1520,18 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       const boxed = saidBox
         ? namedNow.filter((car) => gearboxOf(car) === saidBox)
         : namedNow;
-      let offer = boxed.length > 0 ? boxed : namedNow;
+      let offer = preferCurrentYears(
+        boxed.length > 0 ? boxed : namedNow,
+        yearFromThread,
+      );
       if (wantsClosest) {
-        return this.namedModelFound(offer, includePrice, false, true);
+        return this.namedModelFound(
+          offer,
+          includePrice,
+          false,
+          true,
+          yearFromThread,
+        );
       }
       if (yearFromThread) {
         const exactYear = offer.filter((car) => car.year === yearFromThread);
@@ -1526,7 +1552,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
               ).filter((car) => car.year === yearFromThread)
             : [];
           if (yearFromEmbed.length > 0) {
-            return this.namedModelFound(yearFromEmbed, includePrice, true);
+            return this.namedModelFound(
+              yearFromEmbed,
+              includePrice,
+              true,
+              false,
+              yearFromThread,
+            );
           }
           const yearElsewhere = family
             ? await this.familyInOtherBrands(
@@ -1540,6 +1572,8 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
               carsNearYear(yearElsewhere, yearFromThread),
               includePrice,
               false,
+              false,
+              yearFromThread,
             );
           }
           const missingYear = formatMissingNamedModel(
@@ -1555,7 +1589,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           };
         }
       }
-      return this.namedModelFound(offer, includePrice, false);
+      return this.namedModelFound(
+        offer,
+        includePrice,
+        false,
+        false,
+        yearFromThread,
+      );
     }
     if (asked) {
       const fromEmbed = await this.lookupNamedByEmbedding(
@@ -1566,7 +1606,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         includePrice,
       );
       if (fromEmbed.length > 0) {
-        return this.namedModelFound(fromEmbed, includePrice, true);
+        return this.namedModelFound(
+          fromEmbed,
+          includePrice,
+          true,
+          false,
+          asked.year,
+        );
       }
       const elsewhere = await this.familyInOtherBrands(
         asked.family,
@@ -1574,7 +1620,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         targetBrand,
       );
       if (elsewhere.length > 0) {
-        return this.namedModelFound(elsewhere, includePrice, false);
+        return this.namedModelFound(
+          elsewhere,
+          includePrice,
+          false,
+          false,
+          asked.year,
+        );
       }
       const sameFamily = listed.filter((car) =>
         textMentionsModel(car.model, asked.family),
@@ -1602,6 +1654,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           );
         }
       }
+      alternatives = preferCurrentYears(alternatives, asked.year);
       const missing = formatMissingNamedModel(
         asked.family,
         asked.year,
@@ -1700,10 +1753,16 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         textMentionsModel(customerText, car.model),
       );
       if (namedNow.length > 0) {
-        return formatNamedUnits(namedNow, includePrice);
+        return formatNamedUnits(
+          preferCurrentYears(namedNow, yearFromThread),
+          includePrice,
+        );
       }
       if (includePrice && cars.length > 0) {
-        return formatNamedUnits(cars, includePrice);
+        return formatNamedUnits(
+          preferCurrentYears(cars, yearFromThread),
+          includePrice,
+        );
       }
       if (userNamedModel(userTexts, cars) || !targetBrand) {
         return empty;
@@ -1870,8 +1929,10 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     includePrice: boolean,
     fromEmbed: boolean,
     closest = false,
+    askedYear?: number | null,
   ): BrandReview {
-    const named = formatNamedUnits(cars, includePrice);
+    const shown = preferCurrentYears(cars, askedYear);
+    const named = formatNamedUnits(shown, includePrice);
     const via = fromEmbed ? ' (búsqueda por inventario)' : '';
     const rule = closest
       ? `Estas son las más cercanas del patio a lo que pidió${via}. Preséntalas. Dilo en qué se parecen y en qué no (tracción, combustible, año). PROHIBIDO decir que no hay, que no tienes unidad exacta o que no hay fotos si hay ficha. PROHIBIDO otra línea.`
@@ -1881,7 +1942,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       text: `${named.text}
 ${rule}`,
       switchedModel: true,
-      vehicleKind: kindOfNamedUnits(cars),
+      vehicleKind: kindOfNamedUnits(shown),
     };
   }
 
