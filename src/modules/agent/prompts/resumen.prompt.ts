@@ -70,6 +70,14 @@ Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
 Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no
 
+REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
+Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
+Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
+- Sigue con la mostrada (el valor, el km, la visita, el crédito, confirmar esa, un detalle de esa): Pide otras: no. SOLICITUD: sigue con ESA unidad.
+- Ya no quiere la mostrada y pide otra (la otra del mismo hilo, otra del mismo modelo, u otra del patio): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
+- Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
+- Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
+
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
@@ -83,8 +91,7 @@ REGLAS:
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
-- Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas (otro modelo, otro color), la intención es ver otras opciones. Pide otras: sí.
-- Si ya no sigue con la unidad mostrada y quiere ver otras (otra línea, otras camionetas, que se las envíen), Pide otras: sí. SOLICITUD: quiere otras unidades, no esa. Si sigue con ESA, Pide otras: no. Lo interpreta el mensaje, no una palabra fija.
+- Pide otras sigue la REGLA DE CAMBIO DE VEHÍCULO: pedir otra unidad es cambiar de vehículo. No lo dejes en no solo porque no nombró otro modelo.
 - Respuestas vagas sin vehículo claro en conversación inicial:
   Si el cliente dice "sí por favor", "deseo información", "me interesa" o similar
   y no hay vehículo específico mencionado o confirmado,
@@ -106,6 +113,7 @@ Acepta crédito: sí|no
 Rechaza aplicar: sí|no
 Prefiere contado: sí|no
 Pide negociar: sí|no
+Pide otras: sí|no
 Tiene duda: sí|no
 Es despedida: sí|no
 

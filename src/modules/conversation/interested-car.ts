@@ -107,7 +107,7 @@ function askedOtherUnitFacts(
   return false;
 }
 
-/** El cliente dejó el hilo de la unidad mostrada (otro modelo/marca/caja/tipo/año). */
+/** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
 export function leftShownCar(input: ShownCarContext): boolean {
   const car = input.car;
   if (!car) {

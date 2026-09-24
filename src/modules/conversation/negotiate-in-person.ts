@@ -8,17 +8,17 @@ function fold(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+/** Ya dijo que por este medio no hay descuento, aunque lo parafrasee. */
 export function replySaidNegotiateInPerson(text: string): boolean {
   const n = fold(text);
-  if (
-    /no podemos (?:ofrecer )?descuento/.test(n) &&
-    /hablarlo en persona/.test(n)
-  ) {
+  const refused = /descuentos?/.test(n);
+  const channel = /(?:este medio|este chat|por chat)/.test(n);
+  if (refused && channel) {
     return true;
   }
   return (
-    /\bdescuento\b/.test(n) &&
-    /(?:este medio|este chat|por chat)/.test(n)
+    /no (?:podemos|ofrecemos|hay)(?:\s+\w+){0,3}\s+descuentos?/.test(n) &&
+    /(?:concesionaria|asesor|en persona)/.test(n)
   );
 }
 
@@ -53,7 +53,7 @@ export function appendNegotiateInPerson(text: string): string {
   if (!body) {
     return NEGOTIATE_IN_PERSON;
   }
-  if (fold(body).includes(fold(NEGOTIATE_IN_PERSON).slice(0, 32))) {
+  if (replySaidNegotiateInPerson(body)) {
     return body;
   }
   return `${body}\n\n${NEGOTIATE_IN_PERSON}`;

@@ -29,4 +29,20 @@ describe('negociar en persona', () => {
       }),
     ).toBe(false);
   });
+
+  it('si el modelo ya dijo que no hay descuentos, no pega la frase otra vez', () => {
+    const reply =
+      'Este por el excelente estado del Volkswagen Golf Comfortline 2.0 4p 2005, con 276968 km, documentos en regla y entrega inmediata. No ofrecemos descuentos por este medio, pero puede venir a la concesionaria para coordinarlo directamente con un asesor. Nuestra dirección es Av. España 6-73 y Sevilla, Cuenca.';
+    expect(
+      shouldSayNegotiateInPerson({
+        pideNegociar: true,
+        history: [],
+        reply,
+      }),
+    ).toBe(false);
+    expect(appendNegotiateInPerson(reply)).toBe(reply);
+    expect(appendNegotiateInPerson(reply)).not.toMatch(
+      /no podemos ofrecer descuento/i,
+    );
+  });
 });

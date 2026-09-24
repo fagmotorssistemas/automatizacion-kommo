@@ -321,7 +321,7 @@ export function resumenPideNegociar(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+negociar') === true;
 }
 
-/** Ya no sigue con la unidad mostrada: quiere otras. Lo marca el analizador. */
+/** Pidió otra unidad: es cambio de vehículo. Lo decide el resumen, no una frase del cliente. */
 export function resumenPideOtras(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+otras') === true;
 }
