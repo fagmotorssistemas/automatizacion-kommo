@@ -76,7 +76,9 @@ REGLAS:
 - Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
 - Después de Prefiere contado agrega: Tiene duda: sí|no   y   Es despedida: sí|no
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
-- Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas, la intención es ver otras opciones.
+- Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
+- Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
+- Si el cliente responde "sí", "sí por favor" u "ok" a una pregunta de alternativas (otro modelo, otro color), la intención es ver otras opciones.
 - Respuestas vagas sin vehículo claro en conversación inicial:
   Si el cliente dice "sí por favor", "deseo información", "me interesa" o similar
   y no hay vehículo específico mencionado o confirmado,

@@ -3641,7 +3641,7 @@ describe('AgentService', () => {
       {
         role: 'assistant',
         content:
-          'Con una entrada de $2000 la cuota estimada mensual sería alrededor de $590.21.',
+          'Con una entrada de $2000 la cuota estimada mensual sería alrededor de $590.21. ¿Desea que le ayudemos a ver si aplica al crédito?',
       },
     ]);
     persistence.latestInterestedCar.mockResolvedValue({
@@ -3668,6 +3668,9 @@ describe('AgentService', () => {
       customerText: 'Sí',
     });
 
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/acepta ver si aplica/i);
+    expect(system).not.toMatch(/YA SE DIJO LA CUOTA/i);
     expect(result?.reply.mensaje).toMatch(/Perfecto, seguimos/i);
     expect(result?.reply.mensaje).toMatch(
       /me ayuda con estos datos: su cédula, su nombre completo y de dónde es/i,
@@ -3707,6 +3710,9 @@ describe('AgentService', () => {
       customerText: 'No',
     });
 
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/no quiere ver si aplica/i);
+    expect(system).not.toMatch(/YA SE DIJO LA CUOTA/i);
     expect(result?.reply.mensaje).toMatch(/estamos aquí para ayudarle/i);
     expect(result?.reply.mensaje).not.toMatch(/cédula/i);
   });

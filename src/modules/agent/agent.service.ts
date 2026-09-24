@@ -153,6 +153,7 @@ import {
   appendFinancingDataAsk,
   appendFinancingDecline,
   historyAskedFinancingData,
+  historyAskedIfApplies,
   historyHasShownCuota,
   replyAsksFinancingData,
   replyShowsCuota,
@@ -399,9 +400,13 @@ export class AgentService {
       resumenAsksForListedPrice(resumen) || askedListedPrice;
     const askedPrice = mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
-    const askedCredit = cashBudget
-      ? false
-      : resumenAsksForCredit(resumen) || textAsksForCredit(input.customerText);
+    const askedCredit =
+      cashBudget ||
+      resumenAceptaCredito(resumen) ||
+      resumenRechazaAplicar(resumen) ||
+      resumenPrefiereContado(resumen)
+        ? false
+        : resumenAsksForCredit(resumen) || textAsksForCredit(input.customerText);
     const askedOtherColor =
       resumenAsksForOtherColor(resumen) ||
       textAsksForOtherColor(input.customerText);
@@ -613,8 +618,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           lastAssistantListedOther));
     const cuotaYaDicha =
       historyAlreadyGaveCuota(history) &&
-      (isThreadAck(input.customerText) ||
-        postponesBiggerDownPayment(input.customerText));
+      !resumenAceptaCredito(resumen) &&
+      !resumenRechazaAplicar(resumen) &&
+      (postponesBiggerDownPayment(input.customerText) ||
+        (isThreadAck(input.customerText) && !historyAskedIfApplies(history)));
     const creditoHint = cuotaYaDicha
       ? `YA SE DIJO LA CUOTA. El resumen tiene que leer eso: no pidió otra proforma.
 No repitas la ficha (modelo largo, color, km, caja) ni el precio, ni la entrada, ni la cuota.
