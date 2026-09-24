@@ -25,6 +25,7 @@ import {
 import { OpenAiAgentClient } from './openai-agent.client';
 import {
   AgentTurnResult,
+  ParsedAgentOutput,
   parseAgentOutput,
   serializeAgentTurn,
 } from './parse-agent-output';
@@ -33,6 +34,12 @@ import { PersistenceService } from '../persistence/persistence.service';
 import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
+import {
+  adLabelLooksLikeVehicle,
+  facebookAdLabel,
+  isCtaAdLabel,
+  isFacebookMoreInfoOpener,
+} from '../inbox/first-touch';
 import { intentsSystemPrompt } from './prompts/intents.prompt';
 import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.prompt';
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
@@ -98,6 +105,7 @@ import {
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
 import {
+  ensureListedPrice,
   historySaidMileageCare,
   stripRepeatedMileageCare,
 } from '../catalog/mileage';
@@ -259,6 +267,28 @@ const MODEL_STOP = new Set([
   'hay',
 ]);
 
+/** Título del anuncio si nombra un carro. Vacío si es solo el clic o un botón. */
+function facebookOpenerVehicle(
+  text: string,
+  lexicon: VehicleLexicon,
+): string | null {
+  if (!isFacebookMoreInfoOpener(text)) {
+    return null;
+  }
+  const label = facebookAdLabel(text);
+  if (!label || isCtaAdLabel(label)) {
+    return null;
+  }
+  if (
+    detectNamedModelAsk(label, lexicon) ||
+    detectBrand(label, lexicon) ||
+    adLabelLooksLikeVehicle(label)
+  ) {
+    return label;
+  }
+  return null;
+}
+
 /** Palabra que puede ser un modelo (rio, seltos), no "ok" ni "precio". */
 function mightNameModel(text: string): boolean {
   return text.split(/[^\p{L}0-9]+/u).some((word) => {
@@ -289,11 +319,15 @@ export class AgentService {
       return null;
     }
 
+    const lexicon = await this.catalog.getLexicon();
+    const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
+    if (isFacebookMoreInfoOpener(input.customerText) && !adVehicle) {
+      return this.replyAskWhichCar(input.contactId, input.customerText);
+    }
+
     if (!this.openai.isReady()) {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
-
-    const lexicon = await this.catalog.getLexicon();
     const history = await this.recentDialogue(input.contactId);
     const interested = await this.persistence.latestInterestedCar(
       input.contactId,
@@ -492,7 +526,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               skipMileageCare:
                 historySaidMileageCare(history) ||
                 objectionOnShown ||
-                justifyPriceAfterFicha,
+                justifyPriceAfterFicha ||
+                textAsksForListedPrice(input.customerText),
               slimAfterFicha: justifyPriceAfterFicha,
             },
           )
@@ -567,7 +602,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : objectionOnShown
       ? ''
       : justifyPriceAfterFicha
-        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
+        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
       : canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
@@ -602,9 +637,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : hasCedula
         ? 'YA TENEMOS LA CÉDULA. PROHIBIDO pedirla otra vez.'
         : '';
+    const anuncioHint = adVehicle
+      ? `ANUNCIO DE FACEBOOK. El cliente pidió información del ${adVehicle}. Presenta ESA unidad del inventario. Si hay una, mándala (ficha, sin precio). Si hay varias de esa misma línea, nómbralas y pregunta cuál. PROHIBIDO preguntar qué carro le interesa. PROHIBIDO listar otras marcas.`
+      : '';
     const pedidoVigente = (
       stayOnShown
         ? [
+            anuncioHint,
             revision.text,
             interestedText,
             thanksHint,
@@ -621,6 +660,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             precioHint,
           ]
         : [
+            anuncioHint,
             formatPedidoVigente(
               spaceAsk
                 ? null
@@ -723,8 +763,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         Boolean(replyId) &&
         (!interested || replyId !== interested.inventoryId) &&
         !askedPrice;
+      const askedListedPrice = textAsksForListedPrice(input.customerText);
+      const listedPrice =
+        askedListedPrice &&
+        interested?.price &&
+        interested.price > 0 &&
+        (alreadyShown || fichaAlreadyGiven)
+          ? Math.round(interested.price)
+          : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice: canQuotePrice,
+        keepPrice: canQuotePrice || listedPrice != null,
         keepPlateShort: askedPlate || firstPresentation,
       });
       if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
@@ -735,6 +783,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       parsed.mensaje = historySaidMileageCare(history)
         ? stripRepeatedMileageCare(cleaned)
         : cleaned;
+      if (listedPrice != null) {
+        parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
+        parsed.meta.precioMostrado = true;
+      }
       if (hasCedula && replyAsksForCedula(parsed.mensaje)) {
         const carLabel = interested
           ? [interested.brand, interested.model, interested.year]
@@ -746,7 +798,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           `Se evitó pedir cédula otra vez contactId=${input.contactId}`,
         );
       }
-      if (!canQuotePrice) {
+      if (!canQuotePrice && listedPrice == null) {
         parsed.meta.precioMostrado = false;
         if (parsed.meta.vehiculo && !parsed.meta.vehiculo.inventory_id) {
           parsed.meta.vehiculo = null;
@@ -772,6 +824,37 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     );
 
     return { reply: parsed, resumen };
+  }
+
+  /** Clic de Facebook sin carro en el título: una pregunta, sin listado. */
+  private async replyAskWhichCar(
+    contactId: string,
+    customerText: string,
+  ): Promise<AgentTurnResult> {
+    const mensaje = 'Claro. ¿Qué carro le interesa?';
+    const reply: ParsedAgentOutput = {
+      mensaje,
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: null,
+      },
+      img_prefix: '',
+    };
+    await this.conversation.appendMessage(contactId, {
+      role: 'user',
+      content: customerText,
+    });
+    await this.conversation.appendMessage(contactId, {
+      role: 'assistant',
+      content: mensaje,
+    });
+    await this.persistence.appendChatHistory({
+      contactId,
+      human: customerText,
+      ai: serializeAgentTurn(reply),
+    });
+    return { reply, resumen: customerText };
   }
 
   private async recentDialogue(contactId: string) {

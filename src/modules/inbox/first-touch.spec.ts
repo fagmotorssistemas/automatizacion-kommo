@@ -1,5 +1,8 @@
 import {
+  adLabelLooksLikeVehicle,
+  facebookAdLabel,
   isBareConfirmation,
+  isCtaAdLabel,
   isFacebookMoreInfoOpener,
 } from './first-touch';
 
@@ -28,6 +31,20 @@ describe('first-touch', () => {
         '¡Hola! Me gustaría conseguir más información sobre esto.\nSí, por favor',
       ),
     ).toBe(false);
+  });
+
+  it('el título del anuncio es un carro o un botón', () => {
+    expect(
+      facebookAdLabel(
+        'Hola. ¿Puedo obtener más información sobre esto {Fiat 500 2017}',
+      ),
+    ).toBe('Fiat 500 2017');
+    expect(adLabelLooksLikeVehicle('Fiat 500 2017')).toBe(true);
+    expect(adLabelLooksLikeVehicle('Grand Vitara')).toBe(true);
+    expect(isCtaAdLabel('Chatea con nosotros')).toBe(true);
+    expect(adLabelLooksLikeVehicle('Chatea con nosotros')).toBe(false);
+    expect(isCtaAdLabel('K-SI Nuevos.')).toBe(true);
+    expect(facebookAdLabel('¡Hola! Quiero más información')).toBeNull();
   });
 
   it('sí/ok suelto no es elegir un carro', () => {

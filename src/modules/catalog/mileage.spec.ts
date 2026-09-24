@@ -1,5 +1,6 @@
 import {
   assessMileageForYear,
+  ensureListedPrice,
   formatMileageFact,
   formatMileageForPrompt,
   formatUnitMileage,
@@ -47,5 +48,15 @@ describe('mileage', () => {
     expect(fact).toMatch(/km=77613/);
     expect(fact).not.toMatch(/mecánico/i);
     expect(fact).not.toMatch(/AL CLIENTE/i);
+  });
+
+  it('si pidió el precio y no vino el dólar, se pone y se quita el mecánico', () => {
+    const raw =
+      'Este Kia Seltos 2020 color plomo Está en Cuenca, con papeles en regla y entrega inmediata. El kilometraje es acorde al año, es un carro cuidado y en buen estado; puede traer a su mecánico para revisar.';
+    const clean = ensureListedPrice(raw, 19990);
+    expect(clean).toMatch(/\$19,990/);
+    expect(clean).toMatch(/Cuenca/i);
+    expect(clean).not.toMatch(/mecánico/i);
+    expect(clean).not.toMatch(/kilometraje es acorde/i);
   });
 });

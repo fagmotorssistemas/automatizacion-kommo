@@ -123,6 +123,39 @@ export function stripRepeatedMileageCare(text: string): string {
     .trim();
 }
 
+function priceIsInText(text: string, amount: number): boolean {
+  const raw = String(amount);
+  const comma = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const dot = raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return text.includes(raw) || text.includes(comma) || text.includes(dot);
+}
+
+/** Quita el discurso del km cuando el cliente pidió el precio, no el recorrido. */
+export function stripMileageCareOnPriceAsk(text: string): string {
+  return text
+    .replace(/[,;]?\s*el kilometraje es acorde[^.]*\./gi, '.')
+    .replace(/[,;]?\s*es un carro cuidado y en buen estado[^.]*\./gi, '.')
+    .replace(/[,;]?\s*puede traer a su mec[aá]nico[^.]*\./gi, '.')
+    .replace(/\s+\./g, '.')
+    .replace(/\.\s*\./g, '.')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Si preguntó el precio y el modelo no lo escribió, se pone el del patio.
+ * La ciudad u otra frase del mismo mensaje se queda.
+ */
+export function ensureListedPrice(text: string, price: number): string {
+  const amount = Math.round(price);
+  const body = stripMileageCareOnPriceAsk(text);
+  if (!Number.isFinite(amount) || amount <= 0 || priceIsInText(body, amount)) {
+    return body;
+  }
+  const lead = `El precio es $${amount.toLocaleString('en-US')}.`;
+  return body ? `${lead} ${body}` : lead;
+}
+
 export function formatMileageFact(
   mileage: number | null | undefined,
   year?: number | null,

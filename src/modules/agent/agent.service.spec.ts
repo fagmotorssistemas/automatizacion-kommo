@@ -126,6 +126,62 @@ describe('AgentService', () => {
     expect(conversation.appendMessage).not.toHaveBeenCalled();
   });
 
+  it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
+    const result = await service.handleTurn({
+      contactId: '59099901',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(openai.complete).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(conversation.appendMessage).toHaveBeenCalledWith('59099901', {
+      role: 'assistant',
+      content: 'Claro. ¿Qué carro le interesa?',
+    });
+  });
+
+  it('clic de Facebook con botón no usa ese título como carro', async () => {
+    const result = await service.handleTurn({
+      contactId: '56671451',
+      customerText:
+        '¡Hola! Me gustaría conseguir más información sobre esto {Chatea con nosotros}',
+    });
+
+    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+  });
+
+  it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nPide el Fiat 500 del anuncio.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos un Fiat 500 2017 disponible.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59082581',
+      customerText:
+        'Hola. ¿Puedo obtener más información sobre esto {Fiat 500 2017}',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.stringContaining('ANUNCIO DE FACEBOOK'),
+      }),
+    );
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.stringContaining('Fiat 500 2017'),
+      }),
+    );
+  });
+
   it('resumen → intenciones → agente → parser', async () => {
     openai.complete
       .mockResolvedValueOnce('RESUMEN\nCliente quiere una hilux.')
@@ -742,6 +798,47 @@ describe('AgentService', () => {
     expect(system).toMatch(/YA SE DIO LA FICHA/i);
     expect(system).toMatch(/justifica el valor/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
+  });
+
+  it('precio y ciudad: sale el valor y no el mecánico', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Kia Seltos ex ac 1.6 5p 4x2 año 2020 color plomo, con 78159 km. Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'seltos-1',
+      brand: 'kia',
+      model: 'seltos ex ac 1.6 5p 4x2 ta',
+      year: 2020,
+      price: 19990,
+      typeBody: 'jeep',
+      color: 'plomo',
+      mileage: 78159,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio y uno en Cuenca.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Este Kia Seltos 2020 color plomo Está en Cuenca, con papeles en regla. El kilometraje es acorde al año, es un carro cuidado y en buen estado; puede traer a su mecánico para revisar.',
+        meta: { vehiculo: { inventory_id: 'seltos-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuál es el precio\nUno acá en cuenca',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/19,990|19990/);
+    expect(result?.reply.mensaje).toMatch(/Cuenca/i);
+    expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
   });
 
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {

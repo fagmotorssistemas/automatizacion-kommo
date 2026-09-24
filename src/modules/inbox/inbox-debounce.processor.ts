@@ -14,7 +14,7 @@ import {
   INBOX_DEBOUNCE_QUEUE,
   InboxDebounceJobData,
 } from './inbox-debounce.queue';
-import { isBareConfirmation, isFacebookMoreInfoOpener } from './first-touch';
+import { isBareConfirmation } from './first-touch';
 import { routeByOrigin } from './inbox.routing';
 import { OtherChannelService } from './other-channel.service';
 
@@ -174,21 +174,6 @@ export class InboxDebounceProcessor extends WorkerHost {
         step: 'outbound',
         status: 'skipped',
         reason: 'ya_enviado',
-      });
-      return;
-    }
-
-    if (isFacebookMoreInfoOpener(inbound.message)) {
-      await this.conversationService.appendMessage(data.contactId, {
-        role: 'user',
-        content: inbound.message,
-      });
-      await this.runLog.record({
-        ...ctx,
-        step: 'outbound',
-        status: 'skipped',
-        reason: 'opener_facebook',
-        detail: { texto: inbound.message.slice(0, 500) },
       });
       return;
     }
