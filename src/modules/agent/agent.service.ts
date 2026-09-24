@@ -91,6 +91,7 @@ import {
   shouldSayNegotiateInPerson,
 } from '../conversation/negotiate-in-person';
 import { ungateLocationReply } from '../conversation/location-without-entrada';
+import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
 import {
   CONTESTA_DUDA,
   isPoliteThanks,
@@ -106,6 +107,7 @@ import {
   resumenPideOtras,
   resumenAsksForLocation,
   resumenPrefiereContado,
+  resumenAsksForImmediateDelivery,
   resumenRechazaAplicar,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
@@ -117,6 +119,7 @@ import {
   resumenIsFarewell,
   resumenIsPriceObjection,
   textAsksForCredit,
+  textAsksForImmediateDelivery,
   textAsksForListedPrice,
   textAsksForLocation,
   textAsksForOtherColor,
@@ -416,8 +419,17 @@ export class AgentService {
     const firstTouchBareOk =
       isBareConfirmation(input.customerText) &&
       !historyPresentedFicha(history, interested?.model);
+    const asksDeliveryNow =
+      textAsksForImmediateDelivery(input.customerText) ||
+      resumenAsksForImmediateDelivery(resumen);
+    const confirmingCashOrDelivery =
+      historyHasListedPrice(history) &&
+      !askedListedPrice &&
+      (resumenPrefiereContado(resumen) || asksDeliveryNow);
     const askedPrice =
-      resumenPideNegociar(resumen) || firstTouchBareOk
+      resumenPideNegociar(resumen) ||
+      firstTouchBareOk ||
+      confirmingCashOrDelivery
         ? false
         : mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
@@ -691,6 +703,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const locationHint = locationAsk
       ? 'PIDIÓ UBICACIÓN / VISITA (o dudó si hay que pagar para que le den la dirección). Dale Av. España 6-73 y Sevilla, Cuenca AHORA. PROHIBIDO pedir entrada, depósito o confirmar valores para pasar la dirección u otra información. La visita no se condiciona a la entrada. Si preguntó si primero deposita, la respuesta es no.'
       : '';
+    const cashDeliveryHint = confirmingCashOrDelivery
+      ? 'YA le dijo el $. Ahora confirma lo que pidió: ese valor ES de contado y/o SÍ hay entrega inmediata. PROHIBIDO repetir ficha, km, color ni el $ como si no lo hubiera dicho. No abras crédito. Una o dos frases.'
+      : '';
     const hasConfirmedUnit = Boolean(
       revision.sendId ||
         (interested &&
@@ -755,7 +770,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             ? 'El RESUMEN dice que no quiere ver si aplica. El sistema pega un mensaje para que no se vaya. Sigue con el carro. PROHIBIDO insistir con cédula.'
           : historyHasShownCuota(history)
             ? 'YA hubo cuota. Lee el RESUMEN: qué pide AHORA. No pidas cédula si no aceptó ver si aplica.'
-            : resumenPrefiereContado(resumen)
+            : resumenPrefiereContado(resumen) && !confirmingCashOrDelivery
               ? 'El RESUMEN dice que prefiere de contado. PROHIBIDO crédito, entrada o cuota. El sistema pregunta cuál de las unidades ya mostradas le gusta. Quédate en esas. No insistas con financiamiento.'
               : cashBudget
                 ? 'PRESUPUESTO: lista las unidades que caben. El sistema pregunta si quieren crédito o contado. PROHIBIDO armar cuota. PROHIBIDO pregunta de visita en este turno.'
@@ -770,7 +785,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             revision.text,
             interestedText,
             thanksHint,
-            isMoneyNotVisit(input.customerText) && !askedCredit
+            isMoneyNotVisit(input.customerText) &&
+            !askedCredit &&
+            !confirmingCashOrDelivery
               ? PRECIO_NO_HORARIO
               : '',
             formatVisitHourHint(input.customerText),
@@ -781,6 +798,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            cashDeliveryHint,
             precioHint,
           ]
         : [
@@ -799,7 +817,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             revision.text,
             interestedText,
             thanksHint,
-            isMoneyNotVisit(input.customerText) && !askedCredit
+            isMoneyNotVisit(input.customerText) &&
+            !askedCredit &&
+            !confirmingCashOrDelivery
               ? PRECIO_NO_HORARIO
               : '',
             formatVisitHourHint(input.customerText),
@@ -811,6 +831,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            cashDeliveryHint,
             precioHint,
           ]
     )
@@ -891,7 +912,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       const listedPrice =
         askedPrice && unitPrice != null ? unitPrice : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice: canQuotePrice || listedPrice != null,
+        keepPrice:
+          canQuotePrice || listedPrice != null || confirmingCashOrDelivery,
         keepPlateShort: askedPlate || firstPresentation,
       });
       if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
@@ -968,6 +990,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parsed.mensaje = appendNegotiateInPerson(parsed.mensaje);
       }
       parsed.mensaje = ungateLocationReply(parsed.mensaje);
+      if (confirmingCashOrDelivery) {
+        parsed.mensaje = ensureCashDeliveryConfirm(
+          parsed.mensaje,
+          lastAssistantMsg?.content,
+        );
+      }
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;

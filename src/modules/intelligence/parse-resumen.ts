@@ -304,6 +304,18 @@ export function resumenPrefiereContado(resumen: string): boolean {
   return flagSiNo(resumen, 'prefiere\\s+contado') === true;
 }
 
+/** Pregunta si hay entrega inmediata, no el $. */
+export function textAsksForImmediateDelivery(text: string): boolean {
+  return /\bentrega inmediata\b/.test(fold(stripResumenFlags(text)));
+}
+
+export function resumenAsksForImmediateDelivery(resumen: string): boolean {
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  return /\bentrega inmediata\b/.test(solicitud);
+}
+
 /** Quiere descuento, rebaja o negociar (o ofrece un monto). No es pedir oír el $. */
 export function resumenPideNegociar(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+negociar') === true;

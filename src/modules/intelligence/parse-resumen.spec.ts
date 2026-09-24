@@ -13,12 +13,14 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenPrefiereContado,
+  resumenAsksForImmediateDelivery,
   resumenRechazaAplicar,
   resumenIsFarewell,
   resumenIsPriceObjection,
   isThreadAck,
   textAsksForCredit,
   textAsksForListedPrice,
+  textAsksForImmediateDelivery,
   textAsksForLocation,
   textAsksForOtherColor,
   textIsPriceObjection,
@@ -171,6 +173,14 @@ describe('acepta crédito', () => {
         'SOLICITUD ACTUAL:\nCliente dispone de 10000.\nPrefiere contado: no',
       ),
     ).toBe(false);
+    expect(textAsksForImmediateDelivery('Al contado\nEntrega inmediata')).toBe(
+      true,
+    );
+    expect(
+      resumenAsksForImmediateDelivery(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio al contado con entrega inmediata.\nPide precio: sí',
+      ),
+    ).toBe(true);
     expect(
       resumenPideNegociar(
         'SOLICITUD ACTUAL:\nCliente pregunta si los precios son negociables.\nPide negociar: sí',

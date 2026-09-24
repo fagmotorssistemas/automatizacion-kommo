@@ -3080,6 +3080,51 @@ describe('AgentService', () => {
     expect(system).toMatch(/PIDIÓ CRÉDITO/i);
   });
 
+  it('al contado y entrega inmediata no repite el $ ya dicho', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'plata-1',
+      brand: 'kia',
+      model: 'sportage r gti 2019 ta',
+      year: 2019,
+      price: 21500,
+      typeBody: 'jeep',
+      color: 'plateado',
+      mileage: 113170,
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, el Kia Sportage 2019 plateado automático con 113,170 km tiene un precio de $21,500.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio al contado para el Kia Sportage 2019 plateado automático con entrega inmediata.\nPide precio: sí\nPide crédito: no\nPrefiere contado: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, el Kia Sportage 2019 plateado automático con 113,170 km tiene un precio de $21,500.',
+        meta: { vehiculo: { inventory_id: 'plata-1', precio: 21500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Al contado\nEntrega inmediata',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/contado/i);
+    expect(result?.reply.mensaje).toMatch(/entrega inmediata/i);
+    expect(result?.reply.mensaje).not.toMatch(/113,?170 km/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA le dijo el \$/i);
+    expect(system).not.toMatch(/di el \$ de inventario primero/i);
+    expect(system).not.toMatch(/Este mensaje es de PRECIO, no de horario/i);
+  });
+
   it('si ya eligió el camino de crédito no repite ficha ni $, pide entrada y plazo', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'dmax-2023',
