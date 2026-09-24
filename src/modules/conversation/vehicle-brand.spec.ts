@@ -210,6 +210,23 @@ describe('marca y tres filas', () => {
     expect(detectTresFilas('cuánto cuesta')).toBe(false);
   });
 
+  it('4x4 es tracción, no el T1 ni otro modelo', () => {
+    expect(detectNamedModelAsk('No era 4x4?', TEST_LEXICON)).toBeNull();
+    expect(detectNamedModelAsk('Precio\nNo era 4x4?', TEST_LEXICON)).toBeNull();
+    expect(detectNamedModelAsk('Jetour T1', TEST_LEXICON)).toEqual({
+      brand: 'jetour',
+      family: 't1',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk('Tienen D-max 4x4?', TEST_LEXICON),
+    ).toEqual({
+      brand: 'chevrolet',
+      family: 'dmax',
+      year: null,
+    });
+  });
+
   it('recuerda que pidió tres filas', () => {
     expect(
       resolveTresFilas({

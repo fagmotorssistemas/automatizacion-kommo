@@ -59,6 +59,7 @@ import {
   detectNamedModelAsk,
   detectTrimInText,
   detectYearInText,
+  isDriveFamily,
   modelHasTrim,
   resolveBrand,
   type VehicleLexicon,
@@ -89,6 +90,7 @@ import {
   appendNegotiateInPerson,
   shouldSayNegotiateInPerson,
 } from '../conversation/negotiate-in-person';
+import { ungateLocationReply } from '../conversation/location-without-entrada';
 import {
   CONTESTA_DUDA,
   isPoliteThanks,
@@ -102,6 +104,7 @@ import {
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPideOtras,
+  resumenAsksForLocation,
   resumenPrefiereContado,
   resumenRechazaAplicar,
   resumenAsksForCredit,
@@ -115,6 +118,7 @@ import {
   resumenIsPriceObjection,
   textAsksForCredit,
   textAsksForListedPrice,
+  textAsksForLocation,
   textAsksForOtherColor,
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
@@ -680,6 +684,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
+    const locationAsk =
+      textAsksForLocation(input.customerText) ||
+      resumenAsksForLocation(resumen);
+    const locationHint = locationAsk
+      ? 'PIDIÓ UBICACIÓN / VISITA (o dudó si hay que pagar para que le den la dirección). Dale Av. España 6-73 y Sevilla, Cuenca AHORA. PROHIBIDO pedir entrada, depósito o confirmar valores para pasar la dirección u otra información. La visita no se condiciona a la entrada. Si preguntó si primero deposita, la respuesta es no.'
+      : '';
     const hasConfirmedUnit = Boolean(
       revision.sendId ||
         (interested &&
@@ -766,6 +776,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             cedulaHint,
             mileageCareHint,
             objecionHint,
+            locationHint,
             precioHint,
           ]
         : [
@@ -795,6 +806,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             cedulaHint,
             mileageCareHint,
             objecionHint,
+            locationHint,
             precioHint,
           ]
     )
@@ -951,6 +963,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ) {
         parsed.mensaje = appendNegotiateInPerson(parsed.mensaje);
       }
+      parsed.mensaje = ungateLocationReply(parsed.mensaje);
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;
@@ -1125,12 +1138,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     resumen = '',
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
+    const fromText = detectNamedModelAsk(customerText, lexicon);
+    const fromSolicitud = detectNamedModelAsk(
+      parseResumen(resumen).solicitudActual ?? '',
+      lexicon,
+    );
     const asked =
-      detectNamedModelAsk(customerText, lexicon) ??
-      detectNamedModelAsk(
-        parseResumen(resumen).solicitudActual ?? '',
-        lexicon,
-      );
+      (fromText && !isDriveFamily(fromText.family) ? fromText : null) ??
+      (fromSolicitud && !isDriveFamily(fromSolicitud.family)
+        ? fromSolicitud
+        : null);
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);

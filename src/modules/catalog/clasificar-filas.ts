@@ -62,13 +62,21 @@ export function normalizeModelText(value: string): string {
     .replace(/-/g, '');
 }
 
+function isDriveToken(part: string): boolean {
+  return /^(?:4x[24]|x[24]|4wd|awd)$/i.test(part);
+}
+
 export function modelFamily(model: string): string {
   const normalized = normalizeModelText(model);
   const skip = new Set(['new', 'ac', 'all', 'gran', 'next']);
-  const token = normalized
-    .split(/[^a-z0-9]+/)
-    .find((part) => part.length >= 3 && !skip.has(part));
-  return token ?? '';
+  const parts = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  const token = parts.find(
+    (part) => part.length >= 3 && !skip.has(part) && !isDriveToken(part),
+  );
+  if (token) {
+    return token;
+  }
+  return parts.find((part) => /^[a-z]\d{1,3}$/i.test(part)) ?? '';
 }
 
 /** Unidades que el último mensaje del bot realmente nombró (año/km/color), no toda la línea. */

@@ -150,6 +150,22 @@ describe('vehículo de interés', () => {
         lexicon: TEST_LEXICON,
       }),
     ).toBe(false);
+    const runner = {
+      inventoryId: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+    };
+    expect(
+      leftShownCar({
+        text: 'Precio\nNo era 4x4?',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Toyota 4 runner 4x2 t/a 2004\nSOLICITUD ACTUAL:\nCliente quiere saber el precio del Toyota 4runner mostrado y confirmar la tracción 4x2 vs 4x4.\nPide otras: no\nTiene duda: sí',
+        car: runner,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
     expect(
       leftShownCar({
         text: 'Hermoso el precio en donde estan ubicados',

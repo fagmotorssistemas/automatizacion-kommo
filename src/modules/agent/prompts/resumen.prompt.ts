@@ -55,6 +55,7 @@ Si pregunta si hay descuento, rebaja o si el precio es negociable, o ofrece un m
 Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
 Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
+Si pregunta o duda si hay que pagar, depositar o dar la entrada ANTES de que le den la dirección, la ubicación o para ir a ver: SOLICITUD: quiere la ubicación para visitar. Tiene duda: sí. NO es que aceptó pagar primero. La visita y la dirección no se condicionan a la entrada.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
 Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
 Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.

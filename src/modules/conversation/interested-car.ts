@@ -15,6 +15,7 @@ import {
   detectNamedModelAsk,
   detectTrimInText,
   detectYearInText,
+  isDriveFamily,
   modelHasTrim,
 } from './vehicle-brand';
 import { detectGearbox, gearboxOf } from './gearbox';
@@ -49,11 +50,19 @@ function askedMatchesShownModel(askedFamily: string, carModel: string): boolean 
   if (!family) {
     return false;
   }
-  if (family === modelFamily(carModel)) {
+  const shown = modelFamily(carModel);
+  if (family === shown) {
     return true;
   }
   const escaped = family.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`, 'i').test(normalizeModelText(carModel));
+  if (new RegExp(`\\b${escaped}\\b`, 'i').test(normalizeModelText(carModel))) {
+    return true;
+  }
+  return (
+    family.length >= 4 &&
+    shown.length >= 4 &&
+    (shown.includes(family) || family.includes(shown))
+  );
 }
 
 function namedOtherUnit(
@@ -62,7 +71,7 @@ function namedOtherUnit(
   lexicon: VehicleLexicon,
 ): boolean {
   const asked = detectNamedModelAsk(text, lexicon);
-  if (!asked) {
+  if (!asked || isDriveFamily(asked.family)) {
     return false;
   }
   if (askedMatchesShownModel(asked.family, car.model)) {

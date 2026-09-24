@@ -1,4 +1,4 @@
-import { modelFamily } from '../catalog/clasificar-filas';
+import { modelFamily, normalizeModelText } from '../catalog/clasificar-filas';
 import {
   brandsOfFamily,
   emptyLexicon,
@@ -41,6 +41,11 @@ function isYearLikeFamily(family: string): boolean {
   return /^(?:19|20)\d{2}$/.test(family);
 }
 
+/** 4x4 / 4x2 es tracción de la ficha, no un modelo. */
+export function isDriveFamily(family: string): boolean {
+  return /^(?:4x[24]|x[24]|4wd|awd)$/i.test(family.trim());
+}
+
 function lastModelHit(
   text: string,
   lexicon: VehicleLexicon,
@@ -49,7 +54,7 @@ function lastModelHit(
   let numeric: { brand: string; family: string; index: number } | null = null;
   for (const hit of fuzzyModelHits(text, lexicon)) {
     const family = modelFamily(hit.name);
-    if (!family) {
+    if (!family || isDriveFamily(family)) {
       continue;
     }
     const row = { brand: hit.brand, family, index: hit.index };
@@ -127,6 +132,10 @@ function letterNumberModelAsk(
     if (/\s*(an[io]s|meses|mil|km|dolares)/i.test(after)) {
       continue;
     }
+    const prev = folded[(match.index ?? 0) - 1];
+    if (prev === '4' && /^x[24]$/i.test(raw)) {
+      continue;
+    }
     const families = lexicon.models.map((row) => row.family);
     const alt =
       match[1] === 'y' ? `i${match[2]}` : match[1] === 'i' ? `y${match[2]}` : '';
@@ -155,13 +164,19 @@ function isFactToken(token: string): boolean {
   if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?)$/.test(token)) {
     return true;
   }
+  if (isDriveFamily(token)) {
+    return true;
+  }
   return /^(?:filas?|pasajeros?|fotos?|videos?|recorrido|kilometraje)$/.test(
     token,
   );
 }
 
+const FAMILY_TOKEN =
+  /\b((?:19|20)\d{2}|[a-z][a-z0-9]+|[0-9]+[a-z][a-z0-9]*)\b/gi;
+
 function tokenAfter(tail: string, from: number): string | null {
-  const re = /\b((?:19|20)\d{2}|[a-z][a-z0-9]+)\b/gi;
+  const re = new RegExp(FAMILY_TOKEN.source, 'gi');
   re.lastIndex = from;
   let match: RegExpExecArray | null;
   while ((match = re.exec(tail)) !== null) {
@@ -188,13 +203,13 @@ function familyAfterLastBrand(
     return null;
   }
   const folded = foldAccents(text).toLowerCase();
-  const tail = folded.slice(brand.index + brand.name.length);
+  const tail = normalizeModelText(folded.slice(brand.index + brand.name.length));
   const known = new Set(
     lexicon.models
       .filter((row) => row.brand === brand.name)
       .map((row) => row.family),
   );
-  const re = /\b((?:19|20)\d{2}|[a-z][a-z0-9]+)\b/gi;
+  const re = new RegExp(FAMILY_TOKEN.source, 'gi');
   let match: RegExpExecArray | null;
   while ((match = re.exec(tail)) !== null) {
     const token = match[1];
@@ -217,7 +232,17 @@ function familyAfterLastBrand(
     if (family.length >= 4) {
       const next = tokenAfter(tail, (match.index ?? 0) + match[0].length);
       if (next && isFactToken(next)) {
+        if (/[0-9]/.test(family) && (match.index ?? 0) <= 12) {
+          return {
+            brand: brand.name,
+            family,
+            index: brand.index + brand.name.length + (match.index ?? 0),
+          };
+        }
         continue;
+      }
+      if ((match.index ?? 0) > 40) {
+        return null;
       }
       return {
         brand: brand.name,

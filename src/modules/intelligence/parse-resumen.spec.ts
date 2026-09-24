@@ -5,6 +5,7 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenAsksForPhotos,
+  resumenAsksForLocation,
   resumenHasPendingDoubt,
   resumenIsCourtesy,
   resumenIsThreadAck,
@@ -18,6 +19,7 @@ import {
   isThreadAck,
   textAsksForCredit,
   textAsksForListedPrice,
+  textAsksForLocation,
   textAsksForOtherColor,
   textIsPriceObjection,
 } from './parse-resumen';
@@ -232,6 +234,27 @@ describe('resumenPideOtras', () => {
       ),
     ).toBe(false);
     expect(resumenPideOtras('Q otras tienen porfabor')).toBe(false);
+  });
+});
+
+describe('resumenAsksForLocation', () => {
+  it('lee ubicación o el candado de entrada para la dirección', () => {
+    expect(
+      resumenAsksForLocation(
+        'SOLICITUD ACTUAL:\nCliente quiere confirmar que primero debe apostar la plata para obtener la dirección y coordinar la visita.',
+      ),
+    ).toBe(true);
+    expect(
+      textAsksForLocation(
+        'Primero hay que apostar la plata para que le puedan dar la dirección para ir a ver.',
+      ),
+    ).toBe(true);
+    expect(textAsksForLocation('Unos tres mil de entrada')).toBe(false);
+    expect(
+      resumenAsksForLocation(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Sportage.\nPide precio: sí',
+      ),
+    ).toBe(false);
   });
 });
 

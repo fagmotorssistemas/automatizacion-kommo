@@ -194,6 +194,32 @@ export function resumenAsksForPhotos(resumen: string): boolean {
   );
 }
 
+const LOCATION_ASK =
+  /\b(?:ubicacion|direccion|parqueadero|ir a ver|donde estan|donde queda)\b/;
+
+/** Quiere la dirección / ir a ver. No se condiciona a la entrada. */
+export function textAsksForLocation(text: string): boolean {
+  const n = fold(stripResumenFlags(text));
+  if (LOCATION_ASK.test(n)) {
+    return true;
+  }
+  return (
+    /\b(?:entrada|plata|deposit|apostar)\b/.test(n) &&
+    /\b(?:direccion|ubicacion|visita)\b/.test(n)
+  );
+}
+
+/** El resumen nombra ubicación, dirección o visita. */
+export function resumenAsksForLocation(resumen: string): boolean {
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  if (!solicitud) {
+    return false;
+  }
+  return textAsksForLocation(solicitud);
+}
+
 /** El analizador vio que quiere crédito / financiamiento, no solo el precio de contado. */
 export function resumenAsksForCredit(resumen: string): boolean {
   const solicitud = parseResumen(resumen).solicitudActual ?? resumen;

@@ -495,6 +495,76 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).not.toHaveBeenCalled();
   });
 
+  it('4x4 del 4Runner no salta al T1 ni inventa Toyota T1', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Toyota 4 runner 4x2 t/a 2004 color rojo, con 701839 km y tracción 4x2. La placa es P2 Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'runner-2004',
+        brand: 'toyota',
+        model: '4 runner 4x2 t/a',
+        year: 2004,
+        price: 21400,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 701839,
+      },
+      {
+        id: 't1-2026',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 38990,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 14343,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Toyota 4 runner 4x2 t/a 2004 color rojo\nSOLICITUD ACTUAL:\nCliente quiere saber el precio del Toyota 4runner mostrado y confirmar la tracción 4x2 vs 4x4.\nPide precio: sí\nPide otras: no\nTiene duda: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El 4Runner rojo 2004 es $21400 y esa unidad es 4x2, no 4x4.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Precio\nNo era 4x4?',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'runner-2004',
+      precio: 21400,
+    });
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=runner-2004');
+    expect(system).not.toContain('t1-2026');
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|VEHÍCULO DE INTERÉS/i);
+  });
+
   it('después del T1 no dice que no hay T1 ni salta al X70', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 't1-2026',
@@ -1032,6 +1102,50 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/PIDIÓ NEGOCIAR/i);
     expect(system).not.toMatch(/di el \$ de inventario primero/i);
+  });
+
+  it('no pide entrada para dar la dirección ni confirma ese candado', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'tunland-1',
+      brand: 'foton',
+      model: 'tunland tm',
+      year: 2023,
+      price: 21800,
+      typeBody: 'camioneta',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El financiamiento para el Foton Tunland 2023 con una entrada de $3,000 a 72 meses tiene una cuota aproximada de $517.61 mensuales. La entrega en Cuenca es inmediata una vez que los valores están efectivizados en la empresa. Puede enviarnos la dirección para coordinar la visita cuando desee.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere confirmar que primero debe apostar la plata para obtener la dirección y coordinar la visita.\nPide precio: no\nPide crédito: no\nTiene duda: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["visita"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Para coordinar la visita y darle la dirección, primero se confirma la entrada en la empresa. Así podemos atenderle mejor y asegurar la disponibilidad del vehículo.',
+        meta: { vehiculo: { inventory_id: 'tunland-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Primero hay que apostar la plata para que le puedan dar la dirección para ir a ver.',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/Av\. España/i);
+    expect(result?.reply.mensaje).not.toMatch(
+      /primero se confirma la entrada|debe entregar la entrada primero/i,
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ UBICACIÓN/i);
+    expect(system).toMatch(/PROHIBIDO pedir entrada/i);
   });
 
   it('si el precio de patio es 0 no dice que vale cero', async () => {
