@@ -6,6 +6,7 @@ import {
   resumenAsksForOtherColor,
   resumenHasPendingDoubt,
   resumenAceptaCredito,
+  resumenPideNegociar,
   resumenPrefiereContado,
   resumenRechazaAplicar,
   resumenIsFarewell,
@@ -162,6 +163,16 @@ describe('acepta crédito', () => {
     expect(
       resumenPrefiereContado(
         'SOLICITUD ACTUAL:\nCliente dispone de 10000.\nPrefiere contado: no',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPideNegociar(
+        'SOLICITUD ACTUAL:\nCliente pregunta si los precios son negociables.\nPide negociar: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nCliente pregunta si son negociables.\nPide precio: sí\nPide negociar: sí',
       ),
     ).toBe(false);
   });

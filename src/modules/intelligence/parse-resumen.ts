@@ -29,7 +29,7 @@ function fold(text: string): string {
  * no las palabras sueltas del cliente.
  */
 export function resumenAsksForListedPrice(resumen: string): boolean {
-  if (resumenIsPriceObjection(resumen)) {
+  if (resumenIsPriceObjection(resumen) || resumenPideNegociar(resumen)) {
     return false;
   }
   const flag = resumen.match(/pide\s+precio:\s*(s[ií]|no)(?:\s|$)/i);
@@ -68,7 +68,8 @@ function stripResumenFlags(text: string): string {
     .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '')
     .replace(/acepta\s+cr[eé]dito:\s*(s[ií]|no)/gi, '')
     .replace(/rechaza\s+aplicar:\s*(s[ií]|no)/gi, '')
-    .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '');
+    .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
+    .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '');
 }
 
 /** Objeta el valor que ya vio; no está pidiendo oír el número. */
@@ -245,6 +246,11 @@ export function resumenRechazaAplicar(resumen: string): boolean {
 /** Después de ofrecer crédito o contado, se queda de contado. */
 export function resumenPrefiereContado(resumen: string): boolean {
   return flagSiNo(resumen, 'prefiere\\s+contado') === true;
+}
+
+/** Quiere descuento, rebaja o negociar (o ofrece un monto). No es pedir oír el $. */
+export function resumenPideNegociar(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+negociar') === true;
 }
 
 /** El analizador marcó que de verdad se va, sin duda pendiente. */

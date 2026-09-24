@@ -85,6 +85,10 @@ import {
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import {
+  appendNegotiateInPerson,
+  shouldSayNegotiateInPerson,
+} from '../conversation/negotiate-in-person';
+import {
   CONTESTA_DUDA,
   isPoliteThanks,
   SEGUIR_VENTA,
@@ -95,6 +99,7 @@ import {
   isThreadAck,
   postponesBiggerDownPayment,
   resumenAceptaCredito,
+  resumenPideNegociar,
   resumenPrefiereContado,
   resumenRechazaAplicar,
   resumenAsksForCredit,
@@ -398,7 +403,9 @@ export class AgentService {
     const askedListedPrice = textAsksForListedPrice(input.customerText);
     const mentionsPrice =
       resumenAsksForListedPrice(resumen) || askedListedPrice;
-    const askedPrice = mentionsPrice;
+    const askedPrice = resumenPideNegociar(resumen)
+      ? false
+      : mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
     const askedCredit =
       cashBudget ||
@@ -639,7 +646,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. En la primera ficha no digas el precio. Pregunta entrada y plazo. No inventes cuota.'
           : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
       : '';
-    const objecionHint = objectionOnShown
+    const objecionHint = resumenPideNegociar(resumen)
+      ? 'PIDIÓ NEGOCIAR / DESCUENTO (o ofreció un monto). Una frase de que el carro está bien (estado, km, documentos). PROHIBIDO descuento, rebaja o aceptar su oferta por este chat. El sistema pega que debe venir a hablarlo con un asesor. Si pidió ubicación, dila en ESTE turno. No vuelvas a mandar la ficha. No inventes un precio más bajo.'
+      : objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
     const hasConfirmedUnit = Boolean(
@@ -903,6 +912,15 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         })
       ) {
         parsed.mensaje = appendBudgetPickShown(parsed.mensaje);
+      }
+      if (
+        shouldSayNegotiateInPerson({
+          pideNegociar: resumenPideNegociar(resumen),
+          history,
+          reply: parsed.mensaje,
+        })
+      ) {
+        parsed.mensaje = appendNegotiateInPerson(parsed.mensaje);
       }
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);

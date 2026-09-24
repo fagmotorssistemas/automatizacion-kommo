@@ -920,6 +920,50 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/Kona 2022 \./);
   });
 
+  it('si pregunta si es negociable, no rebaja y lo invita a venir', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Hyundai Kona GLS está en $18500. El Chevrolet Tracker LS está a $17200.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'tracker-1',
+      brand: 'chevrolet',
+      model: 'tracker ls turbo',
+      year: 2022,
+      price: 17200,
+      typeBody: 'jeep',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si los precios son negociables y pide la ubicación.\nPide precio: no\nObjeción de precio: sí\nPide negociar: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["objeciones","manejocaro"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Tracker está en excelente estado, con documentos en regla. Nuestra concesionaria está en Av. España 6-73 y Sevilla, Cuenca.',
+        meta: { vehiculo: { inventory_id: 'tracker-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Los precios son negociables? Soy de azogues y si son negociables me puede mandar la ubicación del parqueadero',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/Av\. España/i);
+    expect(result?.reply.mensaje).toMatch(/no podemos ofrecer descuento/i);
+    expect(result?.reply.mensaje).toMatch(/hablarlo en persona/i);
+    expect(result?.reply.mensaje).not.toMatch(/le hacemos|le bajo|descuento de/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ NEGOCIAR/i);
+    expect(system).not.toMatch(/di el \$ de inventario primero/i);
+  });
+
   it('si el precio de patio es 0 no dice que vale cero', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

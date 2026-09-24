@@ -50,7 +50,8 @@ REGLA DE PRECIO (OBLIGATORIA):
 Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
 En la primera presentación (Hola me interesa X, o “sí/ok” al saludo para ver esa unidad), Pide precio: no. Todavía no preguntó el valor.
 Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km. Objeción de precio: no.
-Si objeta el valor de una unidad YA mostrada (caro, alto, mucho, descuento, rebaja), SOLICITUD: objeta el precio de ESA unidad. No lo conviertas en “quiere el precio” ni en ficha. Pide precio: no. Objeción de precio: sí.
+Si objeta el valor de una unidad YA mostrada (caro, alto, mucho), SOLICITUD: objeta el precio de ESA unidad. No lo conviertas en “quiere el precio” ni en ficha. Pide precio: no. Objeción de precio: sí. Pide negociar: no.
+Si pregunta si hay descuento, rebaja o si el precio es negociable, o ofrece un monto más bajo, Pide negociar: sí. Pide precio: no. Objeción de precio: sí. SOLICITUD: quiere saber si se puede negociar; si también pide ubicación o visita, dilo en la misma solicitud.
 Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
 Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km", extrañeza frente al año), NO es pregunta de km ni su carro. Es duda de ESA unidad: validar km vs año (mínimo 15.000 km/año, tope 20.000), confirmar que es un carro cuidado, la unidad y el precio. Pide precio: sí. Tiene duda: sí. Es despedida: no.
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
@@ -64,7 +65,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija), Acepta crédito: sí. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
@@ -74,7 +75,7 @@ REGLAS:
 - Si pide furgoneta, van o muchos pasajeros (17, 20, varias personas), SOLICITUD debe decir que quiere un vehículo GRANDE de pasajeros. No lo conviertas en camioneta ni en un carro chico.
 - Si dice que siguen en contacto o que aún no (visita, más info), no es despedida. Es despedida: no. Sigue interesado en ESA unidad, pero no ahora.
 - Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
-- Después de Prefiere contado agrega: Tiene duda: sí|no   y   Es despedida: sí|no
+- Después de Pide negociar agrega: Tiene duda: sí|no   y   Es despedida: sí|no
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
@@ -99,6 +100,7 @@ Objeción de precio: sí|no
 Acepta crédito: sí|no
 Rechaza aplicar: sí|no
 Prefiere contado: sí|no
+Pide negociar: sí|no
 Tiene duda: sí|no
 Es despedida: sí|no
 
