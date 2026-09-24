@@ -20,5 +20,13 @@ describe('negociar en persona', () => {
         ],
       }),
     ).toBe(false);
+    expect(
+      shouldSayNegotiateInPerson({
+        pideNegociar: true,
+        history: [],
+        reply:
+          'Este Fiat está en excelente estado y no puedo ofrecer descuento por este medio. ¿Le interesa financiamiento o una visita?',
+      }),
+    ).toBe(false);
   });
 });

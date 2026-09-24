@@ -10,9 +10,15 @@ function fold(text: string): string {
 
 export function replySaidNegotiateInPerson(text: string): boolean {
   const n = fold(text);
-  return (
+  if (
     /no podemos (?:ofrecer )?descuento/.test(n) &&
     /hablarlo en persona/.test(n)
+  ) {
+    return true;
+  }
+  return (
+    /\bdescuento\b/.test(n) &&
+    /(?:este medio|este chat|por chat)/.test(n)
   );
 }
 
