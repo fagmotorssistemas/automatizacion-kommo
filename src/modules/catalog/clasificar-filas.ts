@@ -445,7 +445,12 @@ export function formatMissingNamedModel(
   year: number | null,
   alternatives: StockCar[],
   includePrice = false,
-): { text: string; holdVehicle: boolean; sendId: string | null } {
+): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  unitPrice: number | null;
+} {
   const same = alternatives.filter((car) => sameAskedUnit(car, family, year));
   if (same.length > 0) {
     return formatNamedUnits(same, includePrice);
@@ -455,12 +460,15 @@ export function formatMissingNamedModel(
   const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA (lo más cercano en tamaño). Prohibido presentarla como si fuera el ${pretty}. Prohibido volver al carro que el cliente ya dejó.`;
   if (alternatives.length === 1) {
     const car = alternatives[0];
+    const unitPrice =
+      car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
       text: `${header}
 Lo más cercano, y hay que mandarlo solo después de decir que no hay ${asked}: ${describeUnit(car, includePrice)}.
 En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       holdVehicle: false,
       sendId: car.id,
+      unitPrice,
     };
   }
   if (alternatives.length > 1) {
@@ -470,6 +478,7 @@ Nómbralas para que elija. vehiculo null.
 ${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
       holdVehicle: true,
       sendId: null,
+      unitPrice: null,
     };
   }
   return {
@@ -477,6 +486,7 @@ ${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
 No hay otra unidad cercana en tamaño. Pregunta si quiere ver otra línea. vehiculo null.`,
     holdVehicle: true,
     sendId: null,
+    unitPrice: null,
   };
 }
 

@@ -1,5 +1,6 @@
 import {
   appendUnloadedPrice,
+  stripUnloadedPriceClaim,
   messageLeaksPrice,
   PRICE_UNLOADED,
   stripUnsolicitedPriceAndPlate,
@@ -139,6 +140,11 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(stripZeroListedPrice('El precio es $00')).not.toMatch(/\$0/);
     expect(stripZeroListedPrice('El X-Trail está en $16890.')).toMatch(/16890/);
     expect(appendUnloadedPrice('El valor es $0.')).toContain(PRICE_UNLOADED);
+    expect(
+      stripUnloadedPriceClaim(
+        'Estimado, no tenemos el precio cargado aún para vehículos Nissan SUV. El precio de esta unidad aún no está cargado en patio.',
+      ),
+    ).toBe('');
   });
 
   it('si no preguntó placa quita también la corta', () => {

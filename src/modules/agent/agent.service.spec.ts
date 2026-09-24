@@ -1148,6 +1148,47 @@ describe('AgentService', () => {
     expect(system).toMatch(/PROHIBIDO pedir entrada/i);
   });
 
+  it('Nissan + precio no dice que el X-Trail no tiene valor', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: '62434e00-2a0e-4795-a4c9-fd544fe2c1af',
+        brand: 'nissan',
+        model: 'x-trail sense cvt ac 2.5 5p 4x2 ta',
+        year: 2016,
+        price: 16890,
+        typeBody: 'jeep',
+        color: 'azul',
+        mileage: 144904,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: No aplica\nContexto: Primera interacción\nSOLICITUD ACTUAL:\nCliente quiere el precio del vehículo Nissan.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, no tenemos el precio cargado aún para vehículos Nissan SUV.',
+        meta: {
+          vehiculo: { inventory_id: '62434e00-2a0e-4795-a4c9-fd544fe2c1af' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Nisan\nPrecio por favor',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/16890|16,890/);
+    expect(result?.reply.mensaje).not.toMatch(/aún no está cargado/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/\$16890|16890/);
+    expect(system).not.toMatch(/PIDIÓ EL PRECIO pero en patio está 0/i);
+    expect(system).not.toMatch(/No hay Precio en patio/i);
+  });
+
   it('si el precio de patio es 0 no dice que vale cero', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

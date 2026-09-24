@@ -144,6 +144,9 @@ describe('marca y tres filas', () => {
     ).toBeNull();
     expect(detectNamedModelAsk('Nissan automático', TEST_LEXICON)).toBeNull();
     expect(
+      detectNamedModelAsk('Nisan\nPrecio por favor', TEST_LEXICON),
+    ).toBeNull();
+    expect(
       detectNamedModelAsk('El jeptour Blanco 2023', TEST_LEXICON),
     ).toBeNull();
     expect(detectBrand('el Jetour tiene 3 filas?', TEST_LEXICON)).toBe(

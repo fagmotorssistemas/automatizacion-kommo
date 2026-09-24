@@ -29,7 +29,19 @@ export function stripZeroListedPrice(text: string): string {
 }
 
 export function replySaidPriceUnloaded(text: string): boolean {
-  return /a[uú]n no est[aá] cargado/.test(text.toLowerCase());
+  return /a[uú]n no est[aá] cargado|no tenemos el precio cargado/.test(
+    text.toLowerCase(),
+  );
+}
+
+/** Si el patio sí tiene $, no dejamos el “aún no está cargado”. */
+export function stripUnloadedPriceClaim(text: string): string {
+  return text
+    .replace(/[^.?!]*no tenemos el precio cargado[^.?!]*[.?!]?/gi, '')
+    .replace(/[^.?!]*a[uú]n no est[aá] cargado[^.?!]*[.?!]?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export function appendUnloadedPrice(text: string): string {

@@ -517,7 +517,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               input.customerText,
               selling ? detectBrand(input.customerText, lexicon) : brand,
               concreteAsk,
-              false,
+              askedPrice,
               vehicleKind,
               gearbox,
               interested
@@ -641,6 +641,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         alreadyShown ||
         fichaAlreadyGiven ||
         historyHasListedPrice(history));
+    const listedPriceKnown = revision.unitPrice !== undefined;
     const unitPrice =
       revision.unitPrice && revision.unitPrice > 0
         ? Math.round(revision.unitPrice)
@@ -697,7 +698,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             refersToInterestedCar(input.customerText, interested, lexicon))),
     );
     const priceUnloadedHint =
-      askedPrice && hasConfirmedUnit && unitPrice == null
+      askedPrice &&
+      hasConfirmedUnit &&
+      unitPrice == null &&
+      listedPriceKnown
         ? 'PIDIÓ EL PRECIO pero en patio está 0 o vacío: AÚN NO CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor.'
         : '';
     const precioHint = cuotaYaDicha || financingFollowUp
@@ -828,7 +832,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           argsJson,
           revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
-          canQuotePrice,
+          canQuotePrice || askedPrice,
           lexicon,
         ),
     });
@@ -967,7 +971,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;
-      } else if (askedPrice && hasConfirmedUnit && unitPrice == null) {
+      } else if (
+        askedPrice &&
+        hasConfirmedUnit &&
+        unitPrice == null &&
+        listedPriceKnown
+      ) {
         parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
         parsed.meta.precioMostrado = false;
       }
@@ -1664,6 +1673,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       if (namedNow.length > 0) {
         return formatNamedUnits(namedNow, includePrice);
+      }
+      if (includePrice && cars.length > 0) {
+        return formatNamedUnits(cars, includePrice);
       }
       if (userNamedModel(userTexts, cars) || !targetBrand) {
         return empty;

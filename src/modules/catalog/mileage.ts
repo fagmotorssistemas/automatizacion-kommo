@@ -1,3 +1,5 @@
+import { stripUnloadedPriceClaim } from '../conversation/strip-unsolicited-price';
+
 /** Piso: 15.000 km/año. Tope: 20.000 km/año. Alto solo si pasa el tope. */
 export const KM_PER_YEAR_MIN = 15_000;
 export const KM_PER_YEAR_MAX = 20_000;
@@ -156,7 +158,9 @@ function dropDanglingAnd(text: string): string {
 
 export function ensureListedPrice(text: string, price: number): string {
   const amount = Math.round(price);
-  const body = dropDanglingAnd(stripMileageCareOnPriceAsk(text));
+  const body = dropDanglingAnd(
+    stripMileageCareOnPriceAsk(stripUnloadedPriceClaim(text)),
+  );
   if (!Number.isFinite(amount) || amount <= 0 || priceIsInText(body, amount)) {
     return body;
   }
