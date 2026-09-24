@@ -141,10 +141,16 @@ export class InboxDebounceProcessor extends WorkerHost {
       });
     }
 
+    const live = await this.conversationService.recentMessages(data.contactId);
+    const alreadyInConversation =
+      live.length > 0 ||
+      (await this.persistenceService.loadRecentChat(data.contactId)).length > 0;
+
     const inbound = this.conversationService.resolveInboundText({
       joinedText: result.text,
       createdAtUnix: data.createdAt,
       ctwa: synced.ctwa,
+      alreadyInConversation,
     });
 
     if (!inbound.message) {

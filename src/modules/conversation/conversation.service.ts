@@ -37,6 +37,7 @@ export class ConversationService {
     joinedText: string;
     createdAtUnix: string;
     ctwa: CtwaMatch;
+    alreadyInConversation?: boolean;
   }): InboundTextResult {
     return resolveInboundText(input);
   }

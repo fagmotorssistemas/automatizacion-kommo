@@ -7,6 +7,7 @@ import {
   resumenHasPendingDoubt,
   resumenIsFarewell,
   resumenIsPriceObjection,
+  isThreadAck,
   textAsksForCredit,
   textAsksForListedPrice,
   textAsksForOtherColor,
@@ -92,6 +93,18 @@ describe('contado y crédito', () => {
     ).toBe(true);
     expect(textAsksForCredit('2 mil de entrada')).toBe(true);
     expect(textAsksForCredit('Para 6 años')).toBe(true);
+    expect(
+      textAsksForCredit(
+        'Para 5 años Melo haces proforma aver cuánto me cay de mensual',
+      ),
+    ).toBe(true);
+    expect(textAsksForCredit('Aaa')).toBe(false);
+    expect(textAsksForCredit('Buen')).toBe(false);
+    expect(isThreadAck('Aaa')).toBe(true);
+    expect(isThreadAck('Buen')).toBe(true);
+    expect(
+      textAsksForCredit('Aaa bueno voy buscar un poco de entrada mas'),
+    ).toBe(false);
   });
 });
 

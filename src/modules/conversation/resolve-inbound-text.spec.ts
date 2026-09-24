@@ -1,17 +1,22 @@
 import { resolveInboundText } from './resolve-inbound-text';
 
 describe('resolveInboundText', () => {
-  const joined = 'hola\nme interesa esto';
+  const opener = '¡Hola! Me gustaría conseguir más información sobre esto.';
+  const click = {
+    matched: true,
+    adHeadline: 'F150 2022',
+    capturedAt: new Date(1000 * 1000).toISOString(),
+  };
 
   it('sin match deja la cadena del debounce', () => {
     expect(
       resolveInboundText({
-        joinedText: joined,
+        joinedText: opener,
         createdAtUnix: '1000',
         ctwa: { matched: false, adHeadline: 'Hilux', capturedAt: null },
       }),
     ).toEqual({
-      message: joined,
+      message: opener,
       source: 'buffer',
       vehicle: null,
       withinWindow: false,
@@ -21,7 +26,7 @@ describe('resolveInboundText', () => {
   it('match fuera de 60 s no anota el vehículo', () => {
     expect(
       resolveInboundText({
-        joinedText: joined,
+        joinedText: opener,
         createdAtUnix: '1000',
         ctwa: {
           matched: true,
@@ -32,36 +37,58 @@ describe('resolveInboundText', () => {
     ).toBe('buffer');
   });
 
-  it('match reciente reemplaza "esto" por el vehículo', () => {
+  it('el primer clic de Facebook anota el título del anuncio', () => {
     expect(
       resolveInboundText({
-        joinedText: joined,
+        joinedText: opener,
         createdAtUnix: '1000',
-        ctwa: {
-          matched: true,
-          adHeadline: 'Hilux 2022',
-          capturedAt: new Date(1000 * 1000 + 10_000).toISOString(),
-        },
+        alreadyInConversation: false,
+        ctwa: click,
       }),
     ).toEqual({
-      message: 'hola\nme interesa esto {Hilux 2022}',
+      message:
+        '¡Hola! Me gustaría conseguir más información sobre esto {F150 2022}.',
       source: 'ad',
-      vehicle: 'Hilux 2022',
+      vehicle: 'F150 2022',
       withinWindow: true,
     });
   });
 
-  it('match reciente sin "esto" concatena el vehículo', () => {
+  it('si el primer mensaje ya nombra el modelo, no se pega el título', () => {
+    const text = 'Hola. Me interesa la Chevrolet Dmax 2022';
     expect(
       resolveInboundText({
-        joinedText: 'quiero info',
+        joinedText: text,
         createdAtUnix: '1000',
-        ctwa: {
-          matched: true,
-          adHeadline: 'Vitara',
-          capturedAt: new Date(1000 * 1000).toISOString(),
-        },
+        ctwa: click,
+      }),
+    ).toEqual({
+      message: text,
+      source: 'buffer',
+      vehicle: null,
+      withinWindow: true,
+    });
+  });
+
+  it('una pregunta de dirección no hereda el anuncio', () => {
+    const text = 'Yo soy de gualaquiza y ustedes de dond son';
+    expect(
+      resolveInboundText({
+        joinedText: text,
+        createdAtUnix: '1000',
+        ctwa: click,
       }).message,
-    ).toBe('quiero info {Vitara}');
+    ).toBe(text);
+  });
+
+  it('después del primer turno no se vuelve a pegar el título', () => {
+    expect(
+      resolveInboundText({
+        joinedText: opener,
+        createdAtUnix: '1000',
+        alreadyInConversation: true,
+        ctwa: click,
+      }).message,
+    ).toBe(opener);
   });
 });

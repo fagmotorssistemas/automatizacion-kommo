@@ -83,6 +83,10 @@ import {
   SEGUIR_VENTA,
 } from '../conversation/polite-thanks';
 import {
+  historyAlreadyGaveCuota,
+  historyHasListedPrice,
+  isThreadAck,
+  postponesBiggerDownPayment,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
@@ -528,11 +532,27 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           (!interested ||
             !textMentionsModel(lastAssistantMsg.content, interested.model)),
       );
+    const creditQuote =
+      askedCredit &&
+      (hasQuotedUnit ||
+        alreadyShown ||
+        fichaAlreadyGiven ||
+        historyHasListedPrice(history));
     const canQuotePrice =
-      !objectionOnShown &&
-      ((hasQuotedUnit && alreadyShown && (askedPrice || askedCredit)) ||
-        lastAssistantListedOther);
-    const creditoHint = askedCredit
+      creditQuote ||
+      (!objectionOnShown &&
+        ((hasQuotedUnit && alreadyShown && askedPrice) ||
+          lastAssistantListedOther));
+    const cuotaYaDicha =
+      historyAlreadyGaveCuota(history) &&
+      (isThreadAck(input.customerText) ||
+        postponesBiggerDownPayment(input.customerText));
+    const creditoHint = cuotaYaDicha
+      ? `YA SE DIJO LA CUOTA. El resumen tiene que leer eso: no pidió otra proforma.
+No repitas la ficha (modelo largo, color, km, caja) ni el precio, ni la entrada, ni la cuota.
+Si va a juntar más entrada, una frase: cuando tenga el monto se recalcula.
+Si cabe, UNA frase de garantía en documentos. Nada más.`
+      : askedCredit
       ? hasQuotedUnit && alreadyShown
         ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. Cédula solo después de una cuota.'
         : hasQuotedUnit
@@ -542,7 +562,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const objecionHint = objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
-    const precioHint = objectionOnShown
+    const precioHint = cuotaYaDicha
+      ? ''
+      : objectionOnShown
       ? ''
       : justifyPriceAfterFicha
         ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'

@@ -3497,6 +3497,92 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/entrada de y/i);
   });
 
+  it('proforma a 5 años no borra precio ni entrada', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El precio del Chevrolet d-max es $32,990, justificado por su buen estado y km real. Con $1,000 de entrada, el financiamiento sería vía banco o cooperativa; ¿a cuántos años desea financiar?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+      color: 'vino',
+      mileage: 87687,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la cuota a 5 años.\nPide precio: no\nPide crédito: sí\nObjeción de precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Chevrolet d-max crdi 2.5 cd 4x4 2022 color vino, con 87687 km y transmisión manual, tiene un precio de $32,990. Con $1,000 de entrada para financiar a 5 años la cuota aproximada sería de $962.39 mensuales. Este valor es referencial y depende del banco o cooperativa elegida.',
+        meta: {
+          precio_mostrado: true,
+          cuota_mostrada: true,
+          vehiculo: { inventory_id: 'dmax-2022', precio: 32990 },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Para 5 años Melo haces proforma aver cuánto me cay de mensual',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/32,990/);
+    expect(result?.reply.mensaje).toMatch(/1,000/);
+    expect(result?.reply.mensaje).toMatch(/962\.39/);
+    expect(result?.reply.mensaje).not.toMatch(/tiene un\s*\./i);
+    expect(result?.reply.mensaje).not.toMatch(/con de entrada/i);
+  });
+
+  it('aaa o más entrada no pide repetir la cuota ya dicha', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Para financiar el Chevrolet d-max la cuota mensual aproximada es de $962.39.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente ya entendió la cuota.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Cuando tenga la entrada, la recalculamos.',
+        meta: { vehiculo: { inventory_id: 'dmax-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Aaa bueno voy buscar un poco de entrada mas',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA SE DIJO LA CUOTA/i);
+    expect(system).not.toMatch(/Di el precio de contado de inventario/i);
+  });
+
   it('primera presentación del Vitara no dice el precio', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

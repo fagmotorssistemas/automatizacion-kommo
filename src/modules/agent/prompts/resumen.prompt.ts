@@ -96,4 +96,10 @@ REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
 El km o el año de la unidad que YA le mostramos no es su carro.
 Si dice que venderá una casa, terreno, departamento o negocio para pagar al contado, NO es su vehículo ni toma. Es contexto de cómo pagará. SOLICITUD: sigue con la unidad mostrada; comprará al contado cuando venda eso. Es despedida: no.
-Si además nombra otro carro que quiere ver o comprar en la concesionaria, dilo en la misma oración: cuál es el suyo y cuál quiere ver.`
+Si además nombra otro carro que quiere ver o comprar en la concesionaria, dilo en la misma oración: cuál es el suyo y cuál quiere ver.
+
+REGLA DE LA CUOTA YA DICHA (OBLIGATORIA):
+Lee qué quiere AHORA. Si el historial ya trajo la cuota mensual de esa unidad, no vuelvas a pedir la proforma.
+"Aaa", "ah", "buen", "bueno", "ok", "sí" o "dale", sin un monto nuevo, significa que ya entendió. SOLICITUD: sigue con esa unidad y no quiere que le repitan la ficha ni la cuota. Pide crédito: no. Pide precio: no. Es despedida: no.
+Si dice que va a buscar, juntar o conseguir más entrada, sin dar un monto nuevo ni preguntar cuánto le cae: SOLICITUD: va a juntar más entrada y después se recalcula. No pide otra proforma. Pide crédito: no. Pide precio: no. Es despedida: no.
+Pide crédito: sí solo si ahora pide la cuota, la proforma, el mensual, da un monto de entrada o dice los años para calcular.`
