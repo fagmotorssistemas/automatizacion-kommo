@@ -125,7 +125,9 @@ function tidyStrippedPriceHoles(text: string): string {
     .replace(/\btiene\s+un\s*[.,]\s*/gi, '')
     .replace(/\bcon\s+de\s+entrada\b/gi, '')
     .replace(/\bde\s+[.,]/g, '.')
-    .replace(/\bpor\s+[.,]/gi, '.');
+    .replace(/\bpor\s+[.,]/gi, '.')
+    .replace(/\bcontado\s+del\b[^.]*\s+[.,]/gi, '')
+    .replace(/\s+[.,](\s)/g, '.$1');
 }
 
 export function messageLeaksPrice(text: string): boolean {

@@ -880,6 +880,46 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/16,890|16890/);
   });
 
+  it('Precio después de la ficha no se come el $ aunque venga manejocaro', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Hyundai Kona GLS AC 1.6 2022 color azul, con 54694 km y transmisión automática. La placa es P3 Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'kona-1',
+      brand: 'hyundai',
+      model: 'kona gls ac 1.6',
+      year: 2022,
+      price: 21990,
+      typeBody: 'jeep',
+      color: 'azul',
+      mileage: 54694,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nObjeción de precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra","manejocaro"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El contado del Hyundai Kona 2022 . un valor justo por su estado excelente, kilometraje acorde y documentos en regla. ¿Le interesa financiamiento o lo prefiere de contado?',
+        meta: { vehiculo: { inventory_id: 'kona-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Precio',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/21,990|21990/);
+    expect(result?.reply.mensaje).not.toMatch(/Kona 2022 \./);
+  });
+
   it('si el precio de patio es 0 no dice que vale cero', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

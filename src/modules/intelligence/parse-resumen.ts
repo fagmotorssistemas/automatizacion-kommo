@@ -29,6 +29,9 @@ function fold(text: string): string {
  * no las palabras sueltas del cliente.
  */
 export function resumenAsksForListedPrice(resumen: string): boolean {
+  if (resumenIsPriceObjection(resumen)) {
+    return false;
+  }
   const flag = resumen.match(/pide\s+precio:\s*(s[ií]|no)(?:\s|$)/i);
   if (flag) {
     return /^s/i.test(flag[1]);

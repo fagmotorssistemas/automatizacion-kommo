@@ -129,6 +129,11 @@ describe('textAsksForListedPrice', () => {
         'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nObjeción de precio: no',
       ),
     ).toBe(false);
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nCliente dice que el precio es alto.\nPide precio: sí',
+      ),
+    ).toBe(false);
   });
 });
 

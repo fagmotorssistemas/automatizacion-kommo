@@ -17,7 +17,6 @@ import {
 import {
   assembleDynamicContext,
   buildIntentsInput,
-  OBJECTION_PROMPT_NAMES,
   parseIntentsPayload,
   promptNamesFromIntents,
   toFetchPromptNames,
@@ -483,6 +482,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                 !askedCredit
                   ? null
                   : interested.inventoryId,
+              unitPrice:
+                interested.price && interested.price > 0
+                  ? Math.round(interested.price)
+                  : null,
             }
           : await this.reviewBrand(
               history,
@@ -508,9 +511,10 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const objectionOnShown =
       stayOnShown &&
       Boolean(interested) &&
+      !askedPrice &&
       (priceObjection ||
-        promptNames.some((name) =>
-          (OBJECTION_PROMPT_NAMES as readonly string[]).includes(name),
+        promptNames.some(
+          (name) => name === 'objeciones' || name === 'presupuestocliente',
         ));
     const askingKmOnly =
       /\bkm\b|kilometr/i.test(input.customerText) &&
@@ -610,7 +614,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           ? Math.round(interested.price)
           : null;
     const askedThisUnitPrice =
-      askedPrice && hasQuotedUnit && unitPrice != null && !objectionOnShown;
+      askedPrice && hasQuotedUnit && unitPrice != null;
     const canQuotePrice =
       creditQuote ||
       askedThisUnitPrice ||
@@ -831,9 +835,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         (!interested || replyId !== interested.inventoryId) &&
         !askedPrice;
       const listedPrice =
-        askedPrice && unitPrice != null && !objectionOnShown
-          ? unitPrice
-          : null;
+        askedPrice && unitPrice != null ? unitPrice : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
         keepPrice: canQuotePrice || listedPrice != null,
         keepPlateShort: askedPlate || firstPresentation,
