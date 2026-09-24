@@ -31,6 +31,7 @@ import {
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
 import { detectCashBudget } from './budget';
+import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
   text: string;
@@ -230,10 +231,16 @@ export function formatInterestedCar(
       car.mileage && car.mileage > 0
         ? `\nkm=${Math.round(car.mileage)} (para justificar el valor, no para repetir la ficha)`
         : '';
+    const priceNote = hasLoadedPrice(car.price)
+      ? ''
+      : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
+    const close = hasLoadedPrice(car.price)
+      ? 'YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.'
+      : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';
     return `VEHÍCULO DE INTERÉS (la ficha YA se presentó en el hilo)
 ${car.brand} ${car.model}${year}${shown}
-inventory_id=${car.inventoryId}${interno}${km}
-YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.`;
+inventory_id=${car.inventoryId}${interno}${km}${priceNote}
+${close}`;
   }
   const tipo = kindFromTypeBody(car.typeBody);
   const tipoLine = tipo
@@ -255,12 +262,15 @@ YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, gara
   ]
     .filter(Boolean)
     .join('\n');
+  const priceUnload = hasLoadedPrice(car.price)
+    ? ''
+    : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
   const factsLine = facts
     ? `\n${facts}
 Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es sin dato, no la menciones). 4p/5p = puertas, no transmisión. 4x2/4x4 = tracción, no transmisión. Placa: solo plate_short (nunca inventes una placa; el km no es placa).`
     : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}
-inventory_id=${car.inventoryId}${interno}${tipoLine}${factsLine}
+inventory_id=${car.inventoryId}${interno}${priceUnload}${tipoLine}${factsLine}
 El resumen y el historial dicen cómo sigue el hilo: si pidió otro año, versión o modelo, busca esa unidad en inventario. Si no cambió de carro, sigue ESTA.`;
 }

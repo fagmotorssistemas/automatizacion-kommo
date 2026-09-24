@@ -1,6 +1,9 @@
 import {
+  appendUnloadedPrice,
   messageLeaksPrice,
+  PRICE_UNLOADED,
   stripUnsolicitedPriceAndPlate,
+  stripZeroListedPrice,
 } from './strip-unsolicited-price';
 
 describe('stripUnsolicitedPriceAndPlate', () => {
@@ -129,6 +132,13 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(
       false,
     );
+  });
+
+  it('quita $0 y no toca un precio real', () => {
+    expect(stripZeroListedPrice('El valor es $0.')).not.toMatch(/\$0/);
+    expect(stripZeroListedPrice('El precio es $00')).not.toMatch(/\$0/);
+    expect(stripZeroListedPrice('El X-Trail está en $16890.')).toMatch(/16890/);
+    expect(appendUnloadedPrice('El valor es $0.')).toContain(PRICE_UNLOADED);
   });
 
   it('si no preguntó placa quita también la corta', () => {

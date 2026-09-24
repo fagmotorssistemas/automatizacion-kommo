@@ -5,12 +5,47 @@ export type StripUnsolicitedOptions = {
   keepPlateShort?: boolean;
 };
 
+/** 0 o vacío = el patio aún no cargó el precio. No es que el carro cueste $0. */
+export function hasLoadedPrice(price: number | null | undefined): boolean {
+  return typeof price === 'number' && Number.isFinite(price) && price > 0;
+}
+
+export const PRICE_UNLOADED =
+  'El precio de esta unidad aún no está cargado en patio. En un momento un asesor le confirma el valor.';
+
+/** $0 / $00 no es un valor real. */
+export function stripZeroListedPrice(text: string): string {
+  return tidyStrippedPriceHoles(
+    text
+      .replace(/\$\s*0+(?:[.,]0+)?\b/g, '')
+      .replace(
+        /\b(?:el\s+)?(?:precio|valor)\s+(?:es\s+)?(?:de\s+)?0+(?:[.,]0+)?\b/gi,
+        '',
+      )
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+\./g, '.')
+      .trim(),
+  );
+}
+
+export function replySaidPriceUnloaded(text: string): boolean {
+  return /a[uú]n no est[aá] cargado/.test(text.toLowerCase());
+}
+
+export function appendUnloadedPrice(text: string): string {
+  const body = stripZeroListedPrice(text).trim();
+  if (replySaidPriceUnloaded(body)) {
+    return body;
+  }
+  return body ? `${body}\n\n${PRICE_UNLOADED}` : PRICE_UNLOADED;
+}
+
 /** Quita precio o placa corta si el cliente no los pidió. Siempre quita placa larga y chasis. */
 export function stripUnsolicitedPriceAndPlate(
   text: string,
   options?: StripUnsolicitedOptions,
 ): string {
-  let out = text;
+  let out = stripZeroListedPrice(text);
   const keepPrice = options?.keepPrice === true;
   const keepPlateShort = options?.keepPlateShort !== false;
 

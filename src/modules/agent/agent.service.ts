@@ -80,6 +80,7 @@ import {
   resolveConcreteAsk,
 } from '../conversation/concrete-ask';
 import {
+  appendUnloadedPrice,
   asksForPlate,
   messageLeaksPrice,
   stripUnsolicitedPriceAndPlate,
@@ -609,7 +610,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           ? Math.round(interested.price)
           : null;
     const askedThisUnitPrice =
-      askedListedPrice && hasQuotedUnit && unitPrice != null && !objectionOnShown;
+      askedPrice && hasQuotedUnit && unitPrice != null && !objectionOnShown;
     const canQuotePrice =
       creditQuote ||
       askedThisUnitPrice ||
@@ -637,10 +638,22 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const objecionHint = objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
+    const hasConfirmedUnit = Boolean(
+      revision.sendId ||
+        (interested &&
+          (stayOnShown ||
+            refersToInterestedCar(input.customerText, interested, lexicon))),
+    );
+    const priceUnloadedHint =
+      askedPrice && hasConfirmedUnit && unitPrice == null
+        ? 'PIDIÓ EL PRECIO pero en patio está 0 o vacío: AÚN NO CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor.'
+        : '';
     const precioHint = cuotaYaDicha
       ? ''
       : objectionOnShown
       ? ''
+      : priceUnloadedHint
+        ? priceUnloadedHint
       : justifyPriceAfterFicha
         ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
       : canQuotePrice
@@ -649,7 +662,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         : !alreadyShown && unitPrice != null
           ? `EL CLIENTE YA PIDIÓ EL PRECIO en este mensaje. Aunque sea la primera ficha, presenta la unidad y di el precio de inventario: $${unitPrice}. PROHIBIDO omitirlo y prohibido dejar la frase cortada en "y".`
           : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
-      : askedPrice && !hasQuotedUnit
+      : askedPrice && !hasConfirmedUnit
         ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
         : !alreadyShown
           ? 'PRIMERA PRESENTACIÓN. PROHIBIDO decir el precio, aunque el resumen lo pida. Presenta unidad, km, color, caja y fotos si toca. El precio solo cuando ya se mostró y lo vuelva a pedir.'
@@ -818,7 +831,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         (!interested || replyId !== interested.inventoryId) &&
         !askedPrice;
       const listedPrice =
-        askedListedPrice && unitPrice != null && !objectionOnShown
+        askedPrice && unitPrice != null && !objectionOnShown
           ? unitPrice
           : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
@@ -892,6 +905,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;
+      } else if (askedPrice && hasConfirmedUnit && unitPrice == null) {
+        parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
+        parsed.meta.precioMostrado = false;
       }
       if (
         hasCedula &&

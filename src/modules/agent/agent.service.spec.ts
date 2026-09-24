@@ -841,6 +841,86 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
   });
 
+  it('si el resumen pide precio, sale el $ aunque no diga la palabra precio', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Nissan Xtrail Sense CVT AC 2.5 2016 color azul, con 144904 km, transmisión automática y la placa es L5 Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-2016',
+      brand: 'nissan',
+      model: 'xtrail sense cvt ac 2.5',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+      color: 'azul',
+      mileage: 144904,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio y saluda desde el Puyo.\nPide precio: sí\nObjeción de precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Nissan Xtrail 2016 que le mostramos está en excelente estado, con 144904 km que es un kilometraje acorde para su año. Incluye garantía en documentos para su confianza y el trámite de traspaso está al día.',
+        meta: { vehiculo: { inventory_id: 'xtrail-2016' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Buenos días cual es valor le stoy saludando desde el Puyo',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/16,890|16890/);
+  });
+
+  it('si el precio de patio es 0 no dice que vale cero', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Nissan Xtrail 2016 color azul. Aquí tiene las fotos.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-2016',
+      brand: 'nissan',
+      model: 'xtrail sense cvt',
+      year: 2016,
+      price: 0,
+      typeBody: 'jeep',
+      color: 'azul',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El valor es $0.',
+        meta: { vehiculo: { inventory_id: 'xtrail-2016' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuál es el precio',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/\$0\b/);
+    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/AÚN NO CARGADO/i);
+    expect(system).not.toMatch(/di el \$ de inventario primero/i);
+  });
+
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

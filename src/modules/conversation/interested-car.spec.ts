@@ -198,6 +198,15 @@ describe('vehículo de interés', () => {
     expect(text).toMatch(/20.?000/);
   });
 
+  it('precio 0 es dato no cargado, no cero dólares', () => {
+    const text = formatInterestedCar({
+      ...sportage,
+      price: 0,
+    });
+    expect(text).toMatch(/aún no cargado/i);
+    expect(text).not.toMatch(/,\s*\$0\b/);
+  });
+
   it('km 0 es dato no cargado, no cero kilómetros', () => {
     const text = formatInterestedCar({
       ...sportage,
