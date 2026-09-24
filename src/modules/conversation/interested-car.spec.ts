@@ -60,6 +60,29 @@ describe('vehículo de interés', () => {
     ).toBe(true);
   });
 
+  it('se suelta si pide un modelo que no está en patio', () => {
+    const patioKia = {
+      ...picanto,
+      typeBody: 'sedan',
+    };
+    expect(
+      leftShownCar({
+        text: 'Si el picanto es muy pequeño el Kia sonet me interesa del año 2021\nO 2022',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere información sobre un Kia Sonet año 2021 o 2022.',
+        car: patioKia,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'Si el picanto es muy pequeño el Kia sonet me interesa del año 2021\nO 2022',
+        car: patioKia,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(false);
+  });
+
   it('se suelta si el mensaje o el resumen piden otro carro', () => {
     expect(
       followsShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),

@@ -36,6 +36,7 @@ import { isRealCustomerText } from '../conversation/is-real-customer-text';
 import {
   adLabelLooksLikeVehicle,
   facebookAdLabel,
+  isBareConfirmation,
   isCtaAdLabel,
   isFacebookMoreInfoOpener,
 } from '../inbox/first-touch';
@@ -105,7 +106,11 @@ import {
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
+  parseResumen,
   resumenHasPendingDoubt,
+  resumenIsCourtesy,
+  resumenIsThreadAck,
+  resumenIsFarewell,
   resumenIsPriceObjection,
   textAsksForCredit,
   textAsksForListedPrice,
@@ -135,7 +140,6 @@ import {
   formatMissingNamedModel,
   formatNamedUnits,
   hasUsableFicha,
-  isCityLetterCode,
   modelFamily,
   pickClosestToMissingModel,
   pickShownByYear,
@@ -403,9 +407,13 @@ export class AgentService {
     const askedListedPrice = textAsksForListedPrice(input.customerText);
     const mentionsPrice =
       resumenAsksForListedPrice(resumen) || askedListedPrice;
-    const askedPrice = resumenPideNegociar(resumen)
-      ? false
-      : mentionsPrice;
+    const firstTouchBareOk =
+      isBareConfirmation(input.customerText) &&
+      !historyPresentedFicha(history, interested?.model);
+    const askedPrice =
+      resumenPideNegociar(resumen) || firstTouchBareOk
+        ? false
+        : mentionsPrice;
     const cashBudget = detectCashBudget(input.customerText);
     const askedCredit =
       cashBudget ||
@@ -419,7 +427,8 @@ export class AgentService {
       textAsksForOtherColor(input.customerText);
     const thanksHint = resumenHasPendingDoubt(resumen)
       ? CONTESTA_DUDA
-      : isPoliteThanks(input.customerText)
+      : (isPoliteThanks(input.customerText) || resumenIsCourtesy(resumen)) &&
+          !resumenIsFarewell(resumen)
         ? SEGUIR_VENTA
         : '';
 
@@ -633,7 +642,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !resumenAceptaCredito(resumen) &&
       !resumenRechazaAplicar(resumen) &&
       (postponesBiggerDownPayment(input.customerText) ||
-        (isThreadAck(input.customerText) && !historyAskedIfApplies(history)));
+        ((isThreadAck(input.customerText) ||
+          resumenIsThreadAck(resumen)) &&
+          !historyAskedIfApplies(history)));
     const creditoHint = cuotaYaDicha
       ? `YA SE DIJO LA CUOTA. El resumen tiene que leer eso: no pidió otra proforma.
 No repitas la ficha (modelo largo, color, km, caja) ni el precio, ni la entrada, ni la cuota.
@@ -1096,7 +1107,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     resumen = '',
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
-    const asked = detectNamedModelAsk(customerText, lexicon);
+    const asked =
+      detectNamedModelAsk(customerText, lexicon) ??
+      detectNamedModelAsk(
+        parseResumen(resumen).solicitudActual ?? '',
+        lexicon,
+      );
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
     const yearPick = asked?.year ?? detectYearInText(customerText);
@@ -1124,6 +1140,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       Boolean(cashBudgetEarly) ||
       wantsListedPrices;
     if (
+      !asked &&
       !maybeAsk &&
       !namesBrandNow &&
       !mightNameModel(customerText)
@@ -1264,15 +1281,19 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           vehicleKind: kindOfNamedUnits(known),
         };
       }
-      if (!asked) {
-        const threadFamily =
-          detectNamedModelAsk(threadText, lexicon)?.family ||
-          [...priorUserTexts]
-            .reverse()
-            .map((text) => detectNamedModelAsk(text, lexicon)?.family)
-            .find(Boolean) ||
-          reference?.family ||
-          '';
+      const inferredFamily =
+        detectNamedModelAsk(threadText, lexicon)?.family ||
+        [...priorUserTexts]
+          .reverse()
+          .map((text) => detectNamedModelAsk(text, lexicon)?.family)
+          .find(Boolean) ||
+        reference?.family ||
+        '';
+      const threadFamily = asked?.family || inferredFamily;
+      if (
+        !asked ||
+        (Boolean(inferredFamily) && asked.family === inferredFamily)
+      ) {
         if (threadFamily && !trimAsk) {
           const inFamily = listed.filter((car) =>
             textMentionsModel(car.model, threadFamily),
@@ -1450,17 +1471,23 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           ? carsNearYear(sameFamily, asked.year)
           : sameFamily;
       if (alternatives.length === 0) {
-        const patio = await this.catalog.listAvailableExcept('_');
-        const close = pickClosestToMissingModel(patio, asked.family, {
+        const except = {
           inventoryId: reference?.inventoryId,
           family: reference?.family,
-        });
-        alternatives =
-          close.length > 0
-            ? close
-            : isCityLetterCode(asked.family)
-              ? []
-              : listed;
+        };
+        alternatives = pickClosestToMissingModel(
+          listed,
+          asked.family,
+          except,
+        );
+        if (alternatives.length === 0) {
+          const patio = await this.catalog.listAvailableExcept('_');
+          alternatives = pickClosestToMissingModel(
+            patio,
+            asked.family,
+            except,
+          );
+        }
       }
       const missing = formatMissingNamedModel(
         asked.family,

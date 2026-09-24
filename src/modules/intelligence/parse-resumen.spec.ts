@@ -4,7 +4,10 @@ import {
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
+  resumenAsksForPhotos,
   resumenHasPendingDoubt,
+  resumenIsCourtesy,
+  resumenIsThreadAck,
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPrefiereContado,
@@ -210,6 +213,31 @@ describe('otro color', () => {
   });
 });
 
+describe('resumenAsksForPhotos', () => {
+  it('lee la solicitud del analizador, no la palabra del cliente', () => {
+    expect(
+      resumenAsksForPhotos(
+        'SOLICITUD ACTUAL:\nCliente quiere que le envíen fotos o videos del Chevrolet Dmax 4x4 que mencionó.\nPide precio: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForPhotos(
+        'SOLICITUD ACTUAL:\nCliente quiere la D-max 2023 y solicita fotos.\nPide precio: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForPhotos(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Sportage.\nPide precio: sí',
+      ),
+    ).toBe(false);
+    expect(
+      resumenAsksForPhotos(
+        'SOLICITUD ACTUAL:\nCliente no solicita fotos; quiere el valor.\nPide precio: sí',
+      ),
+    ).toBe(false);
+  });
+});
+
 describe('duda vs despedida', () => {
   it('una duda pendiente no es cierre', () => {
     const resumen = `SOLICITUD ACTUAL:
@@ -249,6 +277,57 @@ Es despedida: no`;
     expect(
       resumenIsFarewell(
         'SOLICITUD ACTUAL:\nCliente se va pero pregunta si son usados.\nEs despedida: sí\nTiene duda: sí',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('resumenIsThreadAck', () => {
+  it('lee la solicitud o la bandera; no inventa por “cuota” en el texto', () => {
+    expect(
+      resumenIsThreadAck(
+        'SOLICITUD ACTUAL:\nCliente ya entendió la cuota.\nPide precio: no\nPide crédito: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenIsThreadAck(
+        'SOLICITUD ACTUAL:\nCliente no quiere que le repitan la ficha ni la cuota.\nPide precio: no\nEs acuse: sí',
+      ),
+    ).toBe(true);
+    expect(isThreadAck('listisimoo')).toBe(false);
+    expect(
+      resumenIsThreadAck(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí',
+      ),
+    ).toBe(false);
+    expect(
+      resumenIsThreadAck(
+        'SOLICITUD ACTUAL:\nCliente quiere otra proforma.\nPide crédito: sí',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('resumenIsCourtesy', () => {
+  it('lee agradece o la bandera; el “gracias” del mensaje queda de respaldo', () => {
+    expect(
+      resumenIsCourtesy(
+        'SOLICITUD ACTUAL:\nCliente agradece y sigue con la unidad.\nPide precio: no\nTiene duda: no\nEs despedida: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenIsCourtesy(
+        'SOLICITUD ACTUAL:\nCliente sigue con la X-Trail.\nEs cortesía: sí\nTiene duda: no\nEs despedida: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenIsCourtesy(
+        'SOLICITUD ACTUAL:\nCliente cree que no son de segunda y agradece.\nTiene duda: sí\nEs despedida: no',
+      ),
+    ).toBe(false);
+    expect(
+      resumenIsCourtesy(
+        'SOLICITUD ACTUAL:\nCliente no quiere seguir.\nEs despedida: sí\nTiene duda: no',
       ),
     ).toBe(false);
   });

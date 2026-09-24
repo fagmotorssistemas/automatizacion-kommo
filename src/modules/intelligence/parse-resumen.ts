@@ -69,7 +69,9 @@ function stripResumenFlags(text: string): string {
     .replace(/acepta\s+cr[eé]dito:\s*(s[ií]|no)/gi, '')
     .replace(/rechaza\s+aplicar:\s*(s[ií]|no)/gi, '')
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
-    .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '');
+    .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
+    .replace(/es\s+acuse:\s*(s[ií]|no)/gi, '')
+    .replace(/es\s+cortes[ií]a:\s*(s[ií]|no)/gi, '');
 }
 
 /** Objeta el valor que ya vio; no está pidiendo oír el número. */
@@ -164,6 +166,33 @@ export function textAsksForCredit(text: string): boolean {
   );
 }
 
+/**
+ * El analizador pidió fotos o video de la unidad.
+ * Se lee la SOLICITUD, no las palabras sueltas del cliente.
+ */
+export function resumenAsksForPhotos(resumen: string): boolean {
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  if (!solicitud) {
+    return false;
+  }
+  if (
+    /\bno\s+(?:solicita|pide|quiere|envien|manden)\s+(?:fotos?|videos?)\b/.test(
+      solicitud,
+    )
+  ) {
+    return false;
+  }
+  return (
+    /\b(?:solicita|pide)\s+(?:fotos?|videos?)\b/.test(solicitud) ||
+    /\b(?:envien|enviar|manden|compartan)\s+(?:fotos?|videos?)\b/.test(
+      solicitud,
+    ) ||
+    /\b(?:fotos?|videos?)\s+(?:o\s+(?:fotos?|videos?)\s+)?del\b/.test(solicitud)
+  );
+}
+
 /** El analizador vio que quiere crédito / financiamiento, no solo el precio de contado. */
 export function resumenAsksForCredit(resumen: string): boolean {
   const solicitud = parseResumen(resumen).solicitudActual ?? resumen;
@@ -251,6 +280,56 @@ export function resumenPrefiereContado(resumen: string): boolean {
 /** Quiere descuento, rebaja o negociar (o ofrece un monto). No es pedir oír el $. */
 export function resumenPideNegociar(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+negociar') === true;
+}
+
+/**
+ * Ya entendió; no pide otra ficha ni cuota.
+ * Bandera o SOLICITUD del analizador. La lista de “ok/aaa” queda de respaldo.
+ */
+export function resumenIsThreadAck(resumen: string): boolean {
+  if (
+    resumenIsFarewell(resumen) ||
+    flagSiNo(resumen, 'pide\\s+precio') === true ||
+    flagSiNo(resumen, 'pide\\s+cr[eé]dito') === true ||
+    resumenAsksForPhotos(resumen) ||
+    resumenAceptaCredito(resumen) ||
+    resumenRechazaAplicar(resumen)
+  ) {
+    return false;
+  }
+  const flag = flagSiNo(resumen, 'es\\s+acuse');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  if (!solicitud) {
+    return false;
+  }
+  return (
+    /\bno quiere que le repitan\b/.test(solicitud) ||
+    /\bya entendio\b/.test(solicitud) ||
+    /\bno pide otra (?:proforma|cuota|ficha)\b/.test(solicitud)
+  );
+}
+
+/**
+ * Agradeció; no se va.
+ * Bandera o SOLICITUD. “gracias” en el mensaje queda de respaldo.
+ */
+export function resumenIsCourtesy(resumen: string): boolean {
+  if (resumenIsFarewell(resumen) || resumenHasPendingDoubt(resumen)) {
+    return false;
+  }
+  const flag = flagSiNo(resumen, 'es\\s+cortes[ií]a');
+  if (flag != null) {
+    return flag;
+  }
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  return /\bagradece\b|\bcortesia\b/.test(solicitud);
 }
 
 /** El analizador marcó que de verdad se va, sin duda pendiente. */

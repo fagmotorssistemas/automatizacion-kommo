@@ -128,6 +128,40 @@ describe('clasificar filas', () => {
     expect(close.map((car) => car.id)).toEqual(['picanto-1']);
   });
 
+  it('si no hay Sonet ofrece un SUV Kia, no el Picanto rechazado', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'picanto-1',
+          brand: 'kia',
+          model: 'picanto lx ac 1.2',
+          year: 2023,
+          price: 15990,
+          typeBody: 'sedan',
+        },
+        {
+          id: 'seltos-1',
+          brand: 'kia',
+          model: 'seltos ex ac 1.6',
+          year: 2020,
+          price: 19990,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'sportage-1',
+          brand: 'kia',
+          model: 'sportage ac 2.0',
+          year: 2024,
+          price: 29200,
+          typeBody: 'jeep',
+        },
+      ],
+      'sonet',
+      { inventoryId: 'picanto-1', family: 'picanto' },
+    );
+    expect(close.map((car) => car.id)).toEqual(['seltos-1']);
+  });
+
   it('X-Trail no se nombra X-Trail TRAIL', () => {
     const named = formatNamedUnits(
       [

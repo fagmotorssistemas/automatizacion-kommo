@@ -21,6 +21,11 @@ function withoutPhotoClaims(mensaje: string): string {
   return kept.join(' ').replace(/[ \t]+\n/g, '\n').trim();
 }
 
+/** Quita “aquí tiene las fotos” si Nest no va a disparar el SalesBot. */
+export function stripUnsentPhotoClaim(mensaje: string): string {
+  return withoutPhotoClaims((mensaje || '').trim());
+}
+
 export function appendNoPhotosNotice(mensaje: string): string {
   const raw = (mensaje || '').trim();
   if (

@@ -715,7 +715,8 @@ describe('AgentService', () => {
 
     const result = await service.handleTurn({
       contactId: '1',
-      customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
+      customerText:
+        'Hola. ¿Puedo obtener más información sobre esto {Toyota 4Runner 2004}',
     });
 
     expect(result?.reply.mensaje).not.toMatch(/JYQ/i);
@@ -4003,6 +4004,75 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/YA SE DIJO LA CUOTA/i);
     expect(system).not.toMatch(/Di el precio de contado de inventario/i);
+  });
+
+  it('un acuse mal escrito no pide repetir la cuota si el resumen ya entendió', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Para financiar el Chevrolet d-max la cuota mensual aproximada es de $962.39.',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2022',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente ya entendió la cuota.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Cuando tenga la entrada, la recalculamos.',
+        meta: { vehiculo: { inventory_id: 'dmax-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'listisimoo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA SE DIJO LA CUOTA/i);
+  });
+
+  it('un gracias mal escrito no cierra si el resumen marca cortesía', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Tenemos una Nissan X-Trail 2016 en $16890.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente agradece y sigue con la unidad.\nPide precio: no\nTiene duda: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '¿Le preparo el financiamiento de la X-Trail?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'grasias por su atencion',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('NO ES DESPEDIDA'),
+        user: expect.stringContaining('financiamiento o visita'),
+      }),
+    );
   });
 
   it('primera presentación del Vitara no dice el precio', async () => {

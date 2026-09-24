@@ -138,6 +138,29 @@ describe('OutboundService', () => {
     );
   });
 
+  it('si no dispara fotos, no deja el “aquí tiene las fotos”', async () => {
+    await service.dispatch(
+      '41807269',
+      {
+        mensaje:
+          'Estimado, tenemos disponible un Chevrolet Dmax 2022 color vino, con 87687 km. Aquí tiene también las fotos del vehículo para que pueda verlo mejor.',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: UUID },
+        },
+        img_prefix: '',
+      },
+      { alreadyShown: true, wantsPhotos: false },
+    );
+
+    expect(crm.setRespuestaIa).toHaveBeenCalledWith(
+      '41807269',
+      'Estimado, tenemos disponible un Chevrolet Dmax 2022 color vino, con 87687 km.',
+    );
+    expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
+  });
+
   it('si pide fotos otra vez, sí las manda aunque ya las haya visto', async () => {
     await service.dispatch(
       '41807269',

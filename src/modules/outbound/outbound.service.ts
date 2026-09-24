@@ -5,7 +5,7 @@ import { CrmService } from '../crm/crm.service';
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { isUuid } from '../persistence/is-uuid';
 import { OUTBOUND_CONFIG, type OutboundConfig } from './outbound.config';
-import { appendNoPhotosNotice } from './no-photos-notice';
+import { appendNoPhotosNotice, stripUnsentPhotoClaim } from './no-photos-notice';
 import { shouldSendVehiclePhotos } from './should-send-photos';
 
 export type OutboundDispatchResult = {
@@ -96,6 +96,8 @@ export class OutboundService {
         `Sin fotos (bot_id vacío) lead=${leadId} inventory=${inventoryId}`,
       );
       mensaje = appendNoPhotosNotice(mensaje);
+    } else if (!sendPhotos) {
+      mensaje = stripUnsentPhotoClaim(mensaje);
     }
 
     if (this.outboundConfig.shadowMode) {

@@ -380,9 +380,6 @@ export function pickClosestToMissingModel(
   family: string,
   except?: { inventoryId?: string | null; family?: string | null },
 ): StockCar[] {
-  if (!isCityLetterCode(family)) {
-    return [];
-  }
   const pool = cars.filter((car) => {
     if (except?.inventoryId && car.id === except.inventoryId) {
       return false;
@@ -395,19 +392,29 @@ export function pickClosestToMissingModel(
   const byPrice = (a: StockCar, b: StockCar) =>
     (a.price ?? Number.POSITIVE_INFINITY) -
     (b.price ?? Number.POSITIVE_INFINITY);
-  const hatches = pool
-    .filter((car) => kindFromTypeBody(car.typeBody) === 'hatchback')
-    .sort(byPrice);
-  if (hatches.length > 0) {
-    return [hatches[0]];
+  if (isCityLetterCode(family)) {
+    const hatches = pool
+      .filter((car) => kindFromTypeBody(car.typeBody) === 'hatchback')
+      .sort(byPrice);
+    if (hatches.length > 0) {
+      return [hatches[0]];
+    }
+    const sedans = pool
+      .filter((car) => kindFromTypeBody(car.typeBody) === 'sedan')
+      .sort(byPrice);
+    if (sedans.length > 0) {
+      return [sedans[0]];
+    }
+    return [];
   }
-  const sedans = pool
-    .filter((car) => kindFromTypeBody(car.typeBody) === 'sedan')
+  const suvs = pool
+    .filter((car) => kindFromTypeBody(car.typeBody) === 'suv')
     .sort(byPrice);
-  if (sedans.length > 0) {
-    return [sedans[0]];
+  if (suvs.length > 0) {
+    return [suvs[0]];
   }
-  return [];
+  const rest = [...pool].sort(byPrice);
+  return rest.length > 0 ? [rest[0]] : [];
 }
 
 function sameAskedUnit(

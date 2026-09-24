@@ -25,6 +25,20 @@ export const flushJobId = (contactId: string, messageId: string) =>
 export const TURN_LOCK_TTL_SECONDS = 180;
 export const turnLockKey = (contactId: string) => `inbox:turn:${contactId}`;
 
+/** Si el candado sigue puesto, reencolar; no tirar el mensaje. */
+export const TURN_LOCK_RETRY_DELAY_MS = 12_000;
+export const TURN_LOCK_MAX_RETRIES = 2;
+export const turnRetryJobId = (
+  contactId: string,
+  messageId: string,
+  attempt: number,
+) => `${flushJobId(contactId, messageId)}:lock${attempt}`;
+export const turnRetryFlushMessageId = (messageId: string, attempt: number) =>
+  `${messageId}:lock${attempt}`;
+
+/** afterReply no puede bloquear el siguiente mensaje del cliente. */
+export const INTELLIGENCE_TIMEOUT_MS = 15_000;
+
 /** Ya se mandó una respuesta de arranque; un “sí” no vuelve a listar. */
 export const RECENT_OUTBOUND_TTL_SECONDS = 120;
 export const recentOutboundKey = (contactId: string) =>

@@ -141,20 +141,119 @@ function letterNumberModelAsk(
   return last;
 }
 
+/** Año, color, caja o dato de ficha: no es un modelo. */
+function isFactToken(token: string): boolean {
+  if (isYearLikeFamily(token)) {
+    return true;
+  }
+  if (detectColorInText(token)) {
+    return true;
+  }
+  if (detectTrimInText(token)) {
+    return true;
+  }
+  if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?)$/.test(token)) {
+    return true;
+  }
+  return /^(?:filas?|pasajeros?|fotos?|videos?|recorrido|kilometraje)$/.test(
+    token,
+  );
+}
+
+function tokenAfter(tail: string, from: number): string | null {
+  const re = /\b((?:19|20)\d{2}|[a-z][a-z0-9]+)\b/gi;
+  re.lastIndex = from;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(tail)) !== null) {
+    const token = match[1];
+    if (isYearLikeFamily(token) || token.length <= 3) {
+      continue;
+    }
+    return token;
+  }
+  return null;
+}
+
+/**
+ * Modelo pegado a la marca aunque no esté en patio: “Kia sonet”.
+ * Se saltan año, color y caja. Si lo que sigue es un dato (filas, fotos),
+ * no se inventa un modelo con el verbo.
+ */
+function familyAfterLastBrand(
+  text: string,
+  lexicon: VehicleLexicon,
+): { brand: string; family: string; index: number } | null {
+  const brand = lastBrandHit(text, lexicon);
+  if (!brand) {
+    return null;
+  }
+  const folded = foldAccents(text).toLowerCase();
+  const tail = folded.slice(brand.index + brand.name.length);
+  const known = new Set(
+    lexicon.models
+      .filter((row) => row.brand === brand.name)
+      .map((row) => row.family),
+  );
+  const re = /\b((?:19|20)\d{2}|[a-z][a-z0-9]+)\b/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(tail)) !== null) {
+    const token = match[1];
+    if (isFactToken(token)) {
+      continue;
+    }
+    const family = modelFamily(token);
+    const knownName = known.has(token)
+      ? token
+      : known.has(family)
+        ? family
+        : '';
+    if (knownName) {
+      return {
+        brand: brand.name,
+        family: knownName,
+        index: brand.index + brand.name.length + (match.index ?? 0),
+      };
+    }
+    if (family.length >= 4) {
+      const next = tokenAfter(tail, (match.index ?? 0) + match[0].length);
+      if (next && isFactToken(next)) {
+        continue;
+      }
+      return {
+        brand: brand.name,
+        family,
+        index: brand.index + brand.name.length + (match.index ?? 0),
+      };
+    }
+    return null;
+  }
+  return null;
+}
+
 /** Último modelo concreto del mensaje (Sportage, Tucson) y año si lo dijo. */
 export function detectNamedModelAsk(
   text: string,
   lexicon: VehicleLexicon = emptyLexicon(),
 ): NamedModelAsk | null {
   const winner = lastModelHit(text, lexicon);
-  if (winner) {
-    const near = brandBeforeModel(text, winner.index, lexicon);
-    const brands = brandsOfFamily(lexicon, winner.family);
+  const afterBrand = familyAfterLastBrand(text, lexicon);
+  const lastBrand = lastBrandHit(text, lexicon);
+  const useAfter =
+    afterBrand != null &&
+    (!winner ||
+      afterBrand.family === winner.family ||
+      winner.index < (lastBrand?.index ?? 0));
+  const picked = useAfter ? afterBrand : winner;
+  if (picked) {
+    const near = brandBeforeModel(text, picked.index, lexicon);
+    const brands = brandsOfFamily(lexicon, picked.family);
     const year = detectYearInText(text);
     return {
-      brand: near ?? (brands.length === 1 ? winner.brand : ''),
-      family: winner.family,
-      year: year && String(year) === winner.family ? null : year,
+      brand: useAfter
+        ? picked.brand
+        : (near ?? (brands.length === 1 ? picked.brand : '')),
+      family: picked.family,
+      year: year && String(year) === picked.family ? null : year,
     };
   }
   const code = letterNumberModelAsk(text, lexicon);

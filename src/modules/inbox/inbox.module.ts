@@ -11,6 +11,7 @@ import { OutboundModule } from '../outbound/outbound.module';
 import { PersistenceModule } from '../persistence/persistence.module';
 import { RunLogModule } from '../runs/run-log.module';
 import { InboxDebounceProcessor } from './inbox-debounce.processor';
+import { InboxFlushRunner } from './inbox-flush.runner';
 import { OtherChannelService } from './other-channel.service';
 import {
   INBOX_DEBOUNCE_QUEUE,
@@ -41,10 +42,11 @@ import { InboxService } from './inbox.service';
     },
     InboxService,
     OtherChannelService,
+    InboxFlushRunner,
     InboxDebounceProcessor,
     {
       provide: INBOX_FLUSH,
-      useExisting: InboxDebounceProcessor,
+      useExisting: InboxFlushRunner,
     },
   ],
   exports: [InboxService],

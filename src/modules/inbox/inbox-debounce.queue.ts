@@ -14,6 +14,8 @@ export type InboxDebounceJobData = {
   createdAt: string;
   text?: string;
   assignedTo?: string;
+  /** Reintento tras turno_ocupado (1..TURN_LOCK_MAX_RETRIES). */
+  lockRetry?: number;
 };
 
 /** Evita importar @nestjs/bullmq en InboxService (Jest + ESM). */

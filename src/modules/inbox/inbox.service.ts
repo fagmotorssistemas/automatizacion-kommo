@@ -14,6 +14,8 @@ import {
   DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
   RECENT_OUTBOUND_TTL_SECONDS,
+  TURN_LOCK_MAX_RETRIES,
+  TURN_LOCK_RETRY_DELAY_MS,
   TURN_LOCK_TTL_SECONDS,
   bufferKey,
   flushDoneKey,
@@ -22,6 +24,7 @@ import {
   outboundSentKey,
   recentOutboundKey,
   turnLockKey,
+  turnRetryJobId,
 } from './inbox.constants';
 import {
   INBOX_DEBOUNCE_QUEUE_CLIENT,
@@ -262,6 +265,48 @@ export class InboxService {
       );
       return true;
     }
+  }
+
+  async scheduleTurnRetry(
+    data: InboxDebounceJobData,
+  ): Promise<DebounceScheduleResult> {
+    const nextRetry = (data.lockRetry ?? 0) + 1;
+    if (
+      !data.contactId ||
+      !data.messageId ||
+      nextRetry > TURN_LOCK_MAX_RETRIES
+    ) {
+      return 'skipped';
+    }
+
+    const next: InboxDebounceJobData = { ...data, lockRetry: nextRetry };
+    try {
+      await this.debounceQueue.add('flush', next, {
+        delay: TURN_LOCK_RETRY_DELAY_MS,
+        jobId: turnRetryJobId(data.contactId, data.messageId, nextRetry),
+        attempts: 1,
+        removeOnComplete: true,
+        removeOnFail: 50,
+      });
+      this.scheduleLocalTurnRetry(next);
+      return 'scheduled';
+    } catch (error) {
+      this.logger.error(
+        `No se pudo agendar reintento de turno contactId=${data.contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return 'skipped';
+    }
+  }
+
+  private scheduleLocalTurnRetry(data: InboxDebounceJobData): void {
+    this.logger.log(
+      `Reintento de turno en ${TURN_LOCK_RETRY_DELAY_MS / 1000}s contactId=${data.contactId} messageId=${data.messageId} intento=${data.lockRetry}`,
+    );
+    const timer = setTimeout(() => {
+      void this.runLocalFlush(data);
+    }, TURN_LOCK_RETRY_DELAY_MS);
+    timer.unref?.();
   }
 
   async releaseTurn(contactId: string): Promise<void> {

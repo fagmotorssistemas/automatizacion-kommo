@@ -125,6 +125,33 @@ describe('marca y tres filas', () => {
     expect(detectBrand('Río ?', TEST_LEXICON)).toBe('kia');
   });
 
+  it('un modelo fuera de patio gana si va después de la marca', () => {
+    expect(
+      detectNamedModelAsk(
+        'Si el picanto es muy pequeño el Kia sonet me interesa del año 2021\nO 2022',
+        TEST_LEXICON,
+      ),
+    ).toEqual({ brand: 'kia', family: 'sonet', year: 2022 });
+    expect(
+      detectNamedModelAsk(
+        'Cliente quiere información sobre un Kia Sonet año 2021 o 2022.',
+        TEST_LEXICON,
+      ),
+    ).toEqual({ brand: 'kia', family: 'sonet', year: 2022 });
+    expect(detectNamedModelAsk('El Kia me interesa', TEST_LEXICON)).toBeNull();
+    expect(
+      detectNamedModelAsk('el Jetour tiene 3 filas?', TEST_LEXICON),
+    ).toBeNull();
+    expect(detectNamedModelAsk('Nissan automático', TEST_LEXICON)).toBeNull();
+    expect(
+      detectNamedModelAsk('El jeptour Blanco 2023', TEST_LEXICON),
+    ).toBeNull();
+    expect(detectBrand('el Jetour tiene 3 filas?', TEST_LEXICON)).toBe(
+      'jetour',
+    );
+    expect(detectBrand('El jeptour Blanco 2023', TEST_LEXICON)).toBe('jetour');
+  });
+
   it('Sportage manda sobre un Hyundai suelto en el mismo mensaje', () => {
     expect(
       detectBrand(

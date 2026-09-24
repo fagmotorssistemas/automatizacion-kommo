@@ -2,9 +2,11 @@ import {
   BUFFER_TTL_SECONDS,
   DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
+  TURN_LOCK_RETRY_DELAY_MS,
   bufferKey,
   flushJobId,
   messageIdKey,
+  turnRetryJobId,
 } from './inbox.constants';
 import { InboxService } from './inbox.service';
 import { serializeBufferedMessage } from './debounce.buffer';
@@ -193,5 +195,55 @@ describe('InboxService', () => {
     await expect(
       service.flushIfLatest('c1', 'msg-1', 'Sí, por favor'),
     ).resolves.toEqual({ status: 'lost' });
+  });
+
+  it('agenda reintento de turno a 12 s', async () => {
+    jest.useFakeTimers();
+    await expect(
+      service.scheduleTurnRetry({
+        contactId: 'c1',
+        messageId: 'msg-1',
+        leadId: '1',
+        name: 'Nattu',
+        phone: null,
+        source: 'waba',
+        createdAt: '1',
+        text: 'cotizaciones financiado y al contado',
+      }),
+    ).resolves.toBe('scheduled');
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'flush',
+      expect.objectContaining({
+        contactId: 'c1',
+        messageId: 'msg-1',
+        text: 'cotizaciones financiado y al contado',
+        lockRetry: 1,
+      }),
+      expect.objectContaining({
+        delay: TURN_LOCK_RETRY_DELAY_MS,
+        jobId: turnRetryJobId('c1', 'msg-1', 1),
+        attempts: 1,
+      }),
+    );
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  it('no agenda más de 2 reintentos de turno', async () => {
+    await expect(
+      service.scheduleTurnRetry({
+        contactId: 'c1',
+        messageId: 'msg-1',
+        leadId: '1',
+        name: 'Nattu',
+        phone: null,
+        source: 'waba',
+        createdAt: '1',
+        text: 'cotizaciones',
+        lockRetry: 2,
+      }),
+    ).resolves.toBe('skipped');
+    expect(queue.add).not.toHaveBeenCalled();
   });
 });

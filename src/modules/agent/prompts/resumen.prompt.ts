@@ -76,6 +76,7 @@ REGLAS:
 - Si dice que siguen en contacto o que aún no (visita, más info), no es despedida. Es despedida: no. Sigue interesado en ESA unidad, pero no ahora.
 - Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
 - Después de Pide negociar agrega: Tiene duda: sí|no   y   Es despedida: sí|no
+- Si ya entendió y no pide ficha ni cuota de nuevo: Es acuse: sí. Si solo agradece y sigue: Es cortesía: sí. Si no aplica, no las pongas.
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
