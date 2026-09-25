@@ -57,7 +57,7 @@ Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km"
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
 Si pregunta o duda si hay que pagar, depositar o dar la entrada ANTES de que le den la dirección, la ubicación o para ir a ver: SOLICITUD: quiere la ubicación para visitar. Tiene duda: sí. NO es que aceptó pagar primero. La visita y la dirección no se condicionan a la entrada.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
-Toma: sí SOLO si en este turno habla del carro que ES SUYO (lo vende, deja, intercambia, pone a cuenta, o pide cuánto le damos). Lo decides por el sentido, no por una frase fija. Toma: no si el carro del que habla es el que quiere ver/comprar de patio, o si vende casa/terreno/negocio. Si Toma: sí, Toma ficha debe nombrar marca/modelo/año/caja/km que dijo del SUYO. Si Toma: no, Toma ficha: no.
+Toma: sí SOLO si en este turno habla del carro que ES SUYO (lo vende, deja, intercambia, pone a cuenta, o pide cuánto le damos). Lo decides por el sentido, no por una frase fija. Toma: no si el carro del que habla es el que quiere ver/comprar de patio, o si vende casa/terreno/negocio. Si Toma: sí, Toma ficha debe nombrar marca/modelo/año/caja/km que dijo del SUYO. Si nos vende DOS o más, Toma ficha y Toma ya van en bloques con || (uno por carro; no los mezcles). Si Toma: no, Toma ficha: no.
 Si el sentido es un tope de contado para ver/comprar (el dinero que no quiere superar) y NO es entrada/cuota/plazo, es PRESUPUESTO. SOLICITUD: quiere ver qué hay en ese tope. Tope de contado: el monto. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
 Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.
 Si el bot YA ofreció caminos de financiamiento (directo / banco o cooperativa) y AHORA elige uno, SOLICITUD: eligió ese camino para ESA unidad. Pide precio: no. Pide crédito: sí. Acepta crédito: no (aún no es “ver si aplica”). No pidas otra ficha. Falta que diga con cuánto de entrada y a qué plazo.
@@ -123,9 +123,9 @@ Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
 Toma: sí|no
-Toma ficha: [marca modelo año caja km del suyo, o no]
-Toma ya: marca=...; color=...; año=...; km=... | no
-Toma falta: modelo, placa, monto | no
+Toma ficha: [marca modelo año caja km del suyo, o no]  // dos carros: A || B
+Toma ya: marca=...; modelo=...; color=...; año=...; km=... | no  // dos: A || B
+Toma falta: modelo, color | no  // dos: A || B
 Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
@@ -158,11 +158,12 @@ Lee el sentido, no una frase fija. ¿La transmisión que mencionó es del carro 
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
+Si nos vende DOS o más, nómbralos a todos en la SOLICITUD y sepáralos en Toma ficha/Toma ya con ||. No dejes uno solo.
 El km o el año de la unidad que YA le mostramos no es su carro.
 Si dice que venderá una casa, terreno, departamento o negocio para pagar al contado, NO es su vehículo ni toma. Es contexto de cómo pagará. SOLICITUD: sigue con la unidad mostrada; comprará al contado cuando venda eso. Es despedida: no.
 Si además quiere ver un carro o un tipo nuestro (camioneta, SUV, una marca), dilo en la misma oración con "quiere ver": cuál quiere ver de patio y cuál es el suyo. No uses la ficha del suyo (caja, año, marca) como pedido de compra.
 Toma: sí. Toma ficha: solo los datos del SUYO. Esos datos no se guardan como marca, año, caja ni pedido de compra.
-CHECKLIST DE TOMA (si Toma: sí): lee el sentido y el CHECKLIST TOMA YA GUARDADO si viene. Es el carro SUYO, no uno de patio: da igual si no lo vendemos. Toma ya: SOLO la identidad de ESE carro (marca y modelo que dijo) y hechos (color, año, km). marca= y modelo= son el vehículo, no un saludo ni un verbo. Si no hay marca clara, no inventes: déjala en Toma falta. Toma pendiente: lo que dijo que NO tiene. Un dato en ya o pendiente NO va en falta. Si no hay toma: Toma ya/falta/pendiente: no.
+CHECKLIST DE TOMA (si Toma: sí): lee el sentido y el CHECKLIST TOMA YA GUARDADO si viene. Es el carro SUYO, no uno de patio: da igual si no lo vendemos. Toma ya: SOLO la identidad de ESE carro (marca y modelo que dijo) y hechos (color, año, km). marca= y modelo= son el vehículo, no un saludo ni un verbo. Si no hay marca clara, no inventes: déjala en Toma falta. Toma pendiente: lo que dijo que NO tiene. Un dato en ya o pendiente NO va en falta. Si nos vende DOS o más, Toma ficha y Toma ya van en bloques separados con || (uno por carro). Una marca mal escrita (dounfent) se escribe como la marca real (Dongfeng). Si no hay toma: Toma ya/falta/pendiente: no.
 
 REGLA DE LA CUOTA YA DICHA (OBLIGATORIA):
 Lee qué quiere AHORA. Si el historial ya trajo la cuota mensual de esa unidad, no vuelvas a pedir la proforma.

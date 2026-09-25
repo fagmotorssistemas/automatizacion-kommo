@@ -98,6 +98,42 @@ Toma pendiente: fotos
     expect(merged?.pending).toEqual(['fotos', 'placa']);
   });
 
+  it('un | no del formato no inventa un segundo carro', () => {
+    const parsed = parseTomaChecklistFromResumen(
+      'Toma ya: marca=Jetour; color=rojo; año=2024; km=50 mil | no',
+    );
+    expect(parsed?.others).toBeUndefined();
+    expect(parsed?.have.marca).toBe('Jetour');
+  });
+
+  it('el segundo carro que nos vende no pisa al primero', () => {
+    const merged = mergeTomaChecklist(
+      {
+        have: {
+          marca: 'Chevrolet',
+          modelo: 'Captiva',
+          anio: '2024',
+          color: 'blanco',
+        },
+        pending: [],
+      },
+      {
+        have: {
+          marca: 'Dongfeng',
+          modelo: 'SX5',
+          anio: '2022',
+          km: '105 mil',
+        },
+        pending: [],
+      },
+    );
+    expect(merged?.have.marca).toBe('Chevrolet');
+    expect(merged?.others?.[0].have).toMatchObject({
+      marca: 'Dongfeng',
+      modelo: 'SX5',
+    });
+  });
+
   it('el pedido solo pide huecos y no recita la ficha', () => {
     const text = formatTomaPedido({
       have: {
@@ -110,7 +146,37 @@ Toma pendiente: fotos
     });
     expect(text).toMatch(/YA.*marca=Jetour/);
     expect(text).toMatch(/PENDIENTE.*fotos/i);
-    expect(text).toMatch(/máximo 2: modelo exacto, primera letra de la placa/);
+    expect(text).toMatch(/máximo 2: modelo exacto del Jetour/);
+    expect(text).toMatch(/PROHIBIDO placa, fotos o monto/);
     expect(text).not.toMatch(/Pide solo los datos que falten de ESE carro \(marca, modelo, año/);
+  });
+
+  it('dos carros que nos vende no se mezclan ni piden placa de una', () => {
+    const parsed = parseTomaChecklistFromResumen(
+      `
+Toma: sí
+Toma ficha: Chevrolet Captiva 2024 blanco 112 mil km || Dongfeng SX5 2022 105 mil km
+Toma ya: marca=Chevrolet; modelo=Captiva; año=2024; km=112 mil; color=blanco || marca=Dongfeng; modelo=SX5; año=2022; km=105 mil
+Toma falta: no || color
+Toma pendiente: no
+`,
+    );
+    expect(parsed?.have).toMatchObject({
+      marca: 'Chevrolet',
+      modelo: 'Captiva',
+      anio: '2024',
+      color: 'blanco',
+    });
+    expect(parsed?.others?.[0].have).toMatchObject({
+      marca: 'Dongfeng',
+      modelo: 'SX5',
+      anio: '2022',
+      km: '105 mil',
+    });
+    const text = formatTomaPedido(parsed);
+    expect(text).toMatch(/2 carros/);
+    expect(text).toMatch(/color del Dongfeng SX5/);
+    expect(text).not.toMatch(/máximo 2:.*primera letra/);
+    expect(text).toMatch(/PROHIBIDO placa, fotos o monto/);
   });
 });

@@ -308,7 +308,27 @@ export class ConversationService {
         (slot): slot is TomaSlot =>
           TOMA_SLOTS.includes(slot as TomaSlot),
       );
-      return { have, pending };
+      const others = (Array.isArray(parsed.others) ? parsed.others : [])
+        .map((car) => {
+          if (!car || typeof car !== 'object') {
+            return null;
+          }
+          const extraHave: TomaChecklist['have'] = {};
+          for (const slot of TOMA_SLOTS) {
+            const value = car.have?.[slot];
+            if (typeof value === 'string' && value.trim()) {
+              extraHave[slot] = value.trim();
+            }
+          }
+          const extraPending = (
+            Array.isArray(car.pending) ? car.pending : []
+          ).filter((slot): slot is TomaSlot =>
+            TOMA_SLOTS.includes(slot as TomaSlot),
+          );
+          return { have: extraHave, pending: extraPending };
+        })
+        .filter((car): car is NonNullable<typeof car> => Boolean(car));
+      return others.length > 0 ? { have, pending, others } : { have, pending };
     } catch (error) {
       this.logger.error(
         `No se pudo leer checklist toma contactId=${contactId}`,

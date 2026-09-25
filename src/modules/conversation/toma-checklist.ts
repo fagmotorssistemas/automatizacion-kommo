@@ -18,10 +18,16 @@ export const TOMA_SLOTS = [
 
 export type TomaSlot = (typeof TOMA_SLOTS)[number];
 
-export type TomaChecklist = {
+export type TomaCar = {
   have: Partial<Record<TomaSlot, string>>;
   pending: TomaSlot[];
 };
+
+export type TomaChecklist = TomaCar & {
+  others?: TomaCar[];
+};
+
+const IDENTITY_SLOTS: TomaSlot[] = ['marca', 'modelo', 'anio', 'km', 'color'];
 
 const SLOT_LABEL: Record<TomaSlot, string> = {
   marca: 'marca',
@@ -236,9 +242,62 @@ export function emptyTomaChecklist(): TomaChecklist {
   return { have: {}, pending: [] };
 }
 
-export function missingTomaSlots(checklist: TomaChecklist): TomaSlot[] {
-  const pending = new Set(checklist.pending);
-  return TOMA_SLOTS.filter((slot) => !checklist.have[slot] && !pending.has(slot));
+export function tomaCars(checklist: TomaChecklist): TomaCar[] {
+  return [{ have: checklist.have, pending: checklist.pending }, ...(checklist.others ?? [])];
+}
+
+function asChecklist(cars: TomaCar[]): TomaChecklist | null {
+  if (cars.length === 0) {
+    return null;
+  }
+  const [first, ...others] = cars;
+  return others.length > 0 ? { ...first, others } : { ...first };
+}
+
+function carKey(have: Partial<Record<TomaSlot, string>>): string {
+  return fold(`${have.marca ?? ''}|${have.modelo ?? ''}`);
+}
+
+export function missingTomaSlots(car: TomaCar): TomaSlot[] {
+  const pending = new Set(car.pending);
+  return TOMA_SLOTS.filter((slot) => !car.have[slot] && !pending.has(slot));
+}
+
+export function missingIdentitySlots(car: TomaCar): TomaSlot[] {
+  return missingTomaSlots(car).filter((slot) => IDENTITY_SLOTS.includes(slot));
+}
+
+function splitCarBlocks(text: string): string[] {
+  const numbered = text
+    .split(/\s*\d+\)\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (numbered.length >= 2) {
+    return numbered;
+  }
+  const bars = text
+    .split(/\s*\|\|\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (bars.length >= 2) {
+    return bars;
+  }
+  return [text.trim()].filter(Boolean);
+}
+
+function parseCarBlock(
+  ficha: string | undefined,
+  ya: string | undefined,
+  pendiente: string | undefined,
+  lexicon: VehicleLexicon,
+): TomaCar {
+  return {
+    have: {
+      ...(ficha ? parseHaveFacts(ficha, lexicon) : {}),
+      ...(ya ? parseHaveFacts(ya, lexicon) : {}),
+    },
+    pending: pendiente ? parseSlotList(pendiente) : [],
+  };
 }
 
 export function parseTomaChecklistFromResumen(
@@ -252,26 +311,23 @@ export function parseTomaChecklistFromResumen(
   if (!ya && !pendiente && !falta && !ficha) {
     return null;
   }
-  const have = {
-    ...(ficha ? parseHaveFacts(ficha, lexicon) : {}),
-    ...(ya ? parseHaveFacts(ya, lexicon) : {}),
-  };
-  return {
-    have,
-    pending: pendiente ? parseSlotList(pendiente) : [],
-  };
+  const yaBlocks = ya ? splitCarBlocks(ya) : [];
+  const fichaBlocks = ficha ? splitCarBlocks(ficha) : [];
+  const pendBlocks = pendiente ? splitCarBlocks(pendiente) : [];
+  const count = Math.max(yaBlocks.length, fichaBlocks.length, 1);
+  const cars: TomaCar[] = [];
+  for (let i = 0; i < count; i += 1) {
+    cars.push(
+      parseCarBlock(fichaBlocks[i], yaBlocks[i], pendBlocks[i], lexicon),
+    );
+  }
+  return asChecklist(cars);
 }
 
-export function mergeTomaChecklist(
-  prev: TomaChecklist | null,
-  next: TomaChecklist | null,
-): TomaChecklist | null {
-  if (!prev && !next) {
-    return null;
-  }
-  const have = { ...(prev?.have ?? {}), ...(next?.have ?? {}) };
-  const pending = [...(prev?.pending ?? [])];
-  for (const slot of next?.pending ?? []) {
+function mergeCar(prev: TomaCar, next: TomaCar): TomaCar {
+  const have = { ...prev.have, ...next.have };
+  const pending = [...prev.pending];
+  for (const slot of next.pending) {
     if (!pending.includes(slot)) {
       pending.push(slot);
     }
@@ -282,6 +338,33 @@ export function mergeTomaChecklist(
   };
 }
 
+export function mergeTomaChecklist(
+  prev: TomaChecklist | null,
+  next: TomaChecklist | null,
+): TomaChecklist | null {
+  if (!prev && !next) {
+    return null;
+  }
+  const prevCars = prev ? tomaCars(prev) : [];
+  const nextCars = next ? tomaCars(next) : [];
+  const merged = prevCars.map((car) => ({ ...car, have: { ...car.have } }));
+  for (const incoming of nextCars) {
+    const key = carKey(incoming.have);
+    const index =
+      key === '|'
+        ? merged.length === 1 && nextCars.length === 1
+          ? 0
+          : -1
+        : merged.findIndex((car) => carKey(car.have) === key);
+    if (index >= 0) {
+      merged[index] = mergeCar(merged[index], incoming);
+    } else {
+      merged.push(incoming);
+    }
+  }
+  return asChecklist(merged);
+}
+
 function formatHave(have: Partial<Record<TomaSlot, string>>): string {
   const parts = TOMA_SLOTS.flatMap((slot) =>
     have[slot] ? [`${slot}=${have[slot]}`] : [],
@@ -289,14 +372,23 @@ function formatHave(have: Partial<Record<TomaSlot, string>>): string {
   return parts.join(', ') || 'nada aún';
 }
 
+function carLabel(car: TomaCar, index: number): string {
+  const name = [car.have.marca, car.have.modelo].filter(Boolean).join(' ');
+  return name || `carro ${index + 1}`;
+}
+
 export function formatTomaForResumen(checklist: TomaChecklist | null): string {
   if (!checklist) {
     return '';
   }
-  const falta = missingTomaSlots(checklist);
-  return `YA: ${formatHave(checklist.have)}
-PENDIENTE: ${checklist.pending.join(', ') || 'nada'}
+  return tomaCars(checklist)
+    .map((car, index) => {
+      const falta = missingTomaSlots(car);
+      return `${index + 1}) YA: ${formatHave(car.have)}
+PENDIENTE: ${car.pending.join(', ') || 'nada'}
 FALTA: ${falta.join(', ') || 'nada'}`;
+    })
+    .join('\n');
 }
 
 export function formatTomaPedido(checklist: TomaChecklist | null): string {
@@ -306,16 +398,27 @@ Si además quiere comprar OTRO carro nuestro, ese sí se busca. Casa/terreno no 
     return `${base}
 Pide SOLO lo que falte, máximo 2 datos. No repitas lo que ya dijo. Si no tiene un dato (fotos, placa), queda pendiente: no lo vuelvas a pedir.`;
   }
-  const falta = missingTomaSlots(checklist);
-  const ask = falta.slice(0, 2).map((slot) => SLOT_LABEL[slot]);
+  const cars = tomaCars(checklist);
+  const identityAsk = cars.flatMap((car, index) =>
+    missingIdentitySlots(car).map((slot) => `${SLOT_LABEL[slot]} del ${carLabel(car, index)}`),
+  );
+  const ask = identityAsk.slice(0, 2);
+  const identityDone = identityAsk.length === 0;
+  const lines = cars.map((car, index) => {
+    const faltaId = missingIdentitySlots(car);
+    return `${index + 1}) ${carLabel(car, index)} — YA: ${formatHave(car.have)}
+   PENDIENTE: ${car.pending.map((slot) => SLOT_LABEL[slot]).join(', ') || 'nada'}
+   IDENTIDAD FALTA: ${faltaId.map((slot) => SLOT_LABEL[slot]).join(', ') || 'nada'}`;
+  });
+  const next = identityDone
+    ? `Identidad de ${cars.length} carro${cars.length > 1 ? 's' : ''} lista. Confirma que con eso avanzamos al avalúo. UNA pregunta: si puede traerlos o mandar fotos. PROHIBIDO placa y monto ahora. PROHIBIDO recitar año/km/color.`
+    : `Pide SOLO esto, máximo 2: ${ask.join(', ')}
+PROHIBIDO placa, fotos o monto mientras falte marca/modelo/año/km/color de alguno.
+PROHIBIDO "primera letra de ." — si algún día pides placa, di "la primera letra de la placa".`;
   return `${base}
 
-CHECKLIST TOMA (manda, no inventes):
-YA (no los pidas ni recites de nuevo; un acuse corto basta): ${formatHave(checklist.have)}
-PENDIENTE (dijo que no tiene o no puede ahora: PROHIBIDO volver a pedirlos): ${
-    checklist.pending.map((slot) => SLOT_LABEL[slot]).join(', ') || 'nada'
-  }
-FALTA: ${falta.map((slot) => SLOT_LABEL[slot]).join(', ') || 'nada'}
-Pide SOLO esto, máximo 2: ${ask.join(', ') || 'nada: confirma que con eso avanzamos al avalúo o a que lo traiga'}
-Si ofrece traer el carro, reconócelo y sigue con lo que falte. PROHIBIDO repetir marca+color+año+km en cada turno.`;
+CHECKLIST TOMA (${cars.length} carro${cars.length > 1 ? 's' : ''} que nos VENDE; manda, no inventes):
+${lines.join('\n')}
+${next}
+Si ofrece traer el carro, reconócelo. PROHIBIDO repetir marca+color+año+km en cada turno.`;
 }

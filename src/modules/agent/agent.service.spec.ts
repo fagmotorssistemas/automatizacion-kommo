@@ -676,11 +676,57 @@ describe('AgentService', () => {
       }),
     );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/YA \(no los pidas.*marca=Jetour/s);
+    expect(system).toMatch(/YA:.*marca=Jetour/s);
     expect(system).toMatch(/PENDIENTE.*fotos/i);
-    expect(system).toMatch(/máximo 2: modelo exacto, primera letra de la placa/);
+    expect(system).toMatch(/máximo 2: modelo exacto del Jetour/);
     expect(system).not.toMatch(/Pide solo los datos que falten de ESE carro/);
     expect(openai.complete.mock.calls[0][1]).toMatch(/CHECKLIST TOMA YA GUARDADO/);
+  });
+
+  it('en toma de dos carros no mezcla ficha ni pide placa/fotos/monto', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere vendernos su Chevrolet Captiva 2024 blanco 112 mil km y su Dongfeng SX5 2022 105 mil km.\nToma: sí\nToma ficha: Chevrolet Captiva 2024 blanco 112 mil km || Dongfeng SX5 2022 105 mil km\nToma ya: marca=Chevrolet; modelo=Captiva; año=2024; km=112 mil; color=blanco || marca=Dongfeng; modelo=SX5; año=2022; km=105 mil\nToma falta: no || color\nToma pendiente: no\nCaja de compra: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Registro el Chevrolet Captiva 2024 blanco y el Dongfeng SX5 2022. ¿De qué color es el Dongfeng?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'El uno es un Chevrolet Captiva año 2024 tiene 112. Mil kilómetros color blanco. El otro es un dounfent SX5 año 2022 con 105 mil kilómetros',
+    });
+
+    expect(conversation.saveTomaChecklist).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        have: expect.objectContaining({
+          marca: 'Chevrolet',
+          modelo: 'Captiva',
+          color: 'blanco',
+        }),
+        others: [
+          expect.objectContaining({
+            have: expect.objectContaining({
+              marca: 'Dongfeng',
+              modelo: 'SX5',
+              anio: '2022',
+            }),
+          }),
+        ],
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2 carros/);
+    expect(system).toMatch(/color del Dongfeng SX5/);
+    expect(system).not.toMatch(/máximo 2:.*primera letra/);
+    expect(system).toMatch(/PROHIBIDO placa, fotos o monto/);
   });
 
   it('si pide Mitsubishi manual no manda la Hunter por la Ranger anterior', async () => {
