@@ -60,6 +60,13 @@ describe('mileage', () => {
     expect(clean).not.toMatch(/kilometraje es acorde/i);
   });
 
+  it('si el recado ya trajo un $, no pega otro encima', () => {
+    const already = 'El Prado 2016 dorado tiene un precio de $53800.';
+    const clean = ensureListedPrice(already, 14990);
+    expect(clean).toBe(already);
+    expect(clean).not.toMatch(/14,?990/);
+  });
+
   it('si el precio se cortó, no deja la y colgada', () => {
     const raw =
       'Estimado, tenemos disponible un Santa Fe 2018 color azul, con 124923 km, y';

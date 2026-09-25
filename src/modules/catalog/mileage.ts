@@ -132,6 +132,11 @@ function priceIsInText(text: string, amount: number): boolean {
   return text.includes(raw) || text.includes(comma) || text.includes(dot);
 }
 
+/** Ya hay un $ de lista: no se pega otro encima. */
+function textAlreadyHasListedPrice(text: string): boolean {
+  return /\$\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?/.test(text);
+}
+
 /** Quita el discurso del km cuando el cliente pidió el precio, no el recorrido. */
 export function stripMileageCareOnPriceAsk(text: string): string {
   return text
@@ -161,7 +166,10 @@ export function ensureListedPrice(text: string, price: number): string {
   const body = dropDanglingAnd(
     stripMileageCareOnPriceAsk(stripUnloadedPriceClaim(text)),
   );
-  if (!Number.isFinite(amount) || amount <= 0 || priceIsInText(body, amount)) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return body;
+  }
+  if (priceIsInText(body, amount) || textAlreadyHasListedPrice(body)) {
     return body;
   }
   const lead = `El precio es $${amount.toLocaleString('en-US')}.`;

@@ -662,7 +662,7 @@ export function formatRevisionMarca(input: {
 
   if (input.soloMarca) {
     parts.push(
-      `El cliente solo dijo la marca. Líneas en patio: ${lineas.join(', ')}. Pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.`,
+      `El cliente solo dijo la marca. Líneas DISPONIBLES en patio: ${lineas.join(', ')}. Pregunta cuál le interesa. No elijas una. PROHIBIDO nombrar una vendida o que no esté en esta lista. No mandes fotos: vehiculo null.`,
     );
   }
 

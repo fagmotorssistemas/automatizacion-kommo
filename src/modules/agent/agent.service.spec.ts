@@ -1189,6 +1189,56 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/No hay Precio en patio/i);
   });
 
+  it('Toyota + precio no pega el $ de otra línea ni elige un Prado', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'yaris-1',
+        brand: 'toyota',
+        model: 'yaris sport 1.5',
+        year: 2018,
+        price: 14990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+      {
+        id: 'prado-1',
+        brand: 'toyota',
+        model: 'land cruiser prado tx ac 4.0',
+        year: 2016,
+        price: 53800,
+        typeBody: 'jeep',
+        color: 'dorado',
+        mileage: 226947,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Toyota.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos Yaris y Prado. ¿Cuál Toyota le interesa para indicarle el valor?',
+        meta: { vehiculo: { inventory_id: 'prado-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: '¡Hola! Quiero más información,que lindo Toyota q precio tiene ???',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/solo dijo la marca/i);
+    expect(system).toMatch(/yaris|prado/i);
+    expect(system).not.toMatch(/El precio es \$14,990/i);
+    expect(system).not.toMatch(/hay que mandarla/i);
+    expect(result?.reply.mensaje).toMatch(/cuál toyota/i);
+    expect(result?.reply.mensaje).not.toMatch(/14,990/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('si el precio de patio es 0 no dice que vale cero', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

@@ -920,7 +920,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           argsJson,
           revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
-          canQuotePrice || askedPrice,
+          (canQuotePrice || askedPrice) && Boolean(revision.sendId),
           lexicon,
         ),
     });
@@ -1956,7 +1956,10 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           includePrice,
         );
       }
-      if (includePrice && cars.length > 0) {
+      const lineas = new Set(
+        cars.map((car) => modelFamily(car.model)).filter(Boolean),
+      );
+      if (includePrice && lineas.size === 1 && cars.length > 0) {
         return formatNamedUnits(
           preferCurrentYears(cars, yearFromThread, yearOnward),
           includePrice,
@@ -1971,7 +1974,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           cars,
           tresFilas: false,
           soloMarca: true,
-          includePrice,
+          includePrice: false,
         }),
         holdVehicle: true,
         sendId: null,

@@ -167,7 +167,7 @@ function isFactToken(token: string): boolean {
   if (isDriveFamily(token)) {
     return true;
   }
-  return /^(?:filas?|pasajeros?|fotos?|videos?|recorrido|kilometraje|precios?|valores?|cuota|entrada|ubicacion|direccion)$/.test(
+  return /^(?:filas?|pasajeros?|fotos?|videos?|recorrido|kilometraje|precios?|valores?|cuota|entrada|ubicacion|direccion|tiene|tienen|tengo|quiero|quieres|quisiera|busco|busca|buscando|hay|mas|informacion)$/.test(
     token,
   );
 }
