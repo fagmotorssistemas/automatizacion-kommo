@@ -1,6 +1,7 @@
 import {
   detectVehicleKind,
   formatPedidoVigente,
+  formatSoloTipoPedido,
   kindFromTypeBody,
   matchesVehicleKind,
   resolveVehicleKind,
@@ -136,5 +137,12 @@ describe('vehicle kind', () => {
     expect(text).toContain('Doble cabina');
     expect(formatPedidoVigente('suv')).toContain('Tipo: suv');
     expect(formatPedidoVigente(null)).toBe('');
+  });
+
+  it('solo el tipo pregunta marca y no manda una unidad', () => {
+    expect(formatSoloTipoPedido('camioneta', null)).toMatch(/SOLO TIPO/i);
+    expect(formatSoloTipoPedido('camioneta', null)).toMatch(/PROHIBIDO elegir/i);
+    expect(formatSoloTipoPedido('camioneta', 'mitsubishi')).toBe('');
+    expect(formatSoloTipoPedido(null, null)).toBe('');
   });
 });

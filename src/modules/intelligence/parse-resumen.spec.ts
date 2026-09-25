@@ -12,6 +12,11 @@ import {
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPideOtras,
+  resumenCajaCompra,
+  resumenEsToma,
+  resumenTomaFicha,
+  stripTomaFacts,
+  solicitudSinBanderas,
   resumenPrefiereContado,
   resumenAsksForImmediateDelivery,
   resumenRechazaAplicar,
@@ -244,6 +249,68 @@ describe('resumenPideOtras', () => {
       ),
     ).toBe(false);
     expect(resumenPideOtras('Q otras tienen porfabor')).toBe(false);
+  });
+});
+
+describe('resumenCajaCompra', () => {
+  it('lee la caja de compra del analizador, no la palabra del cliente', () => {
+    expect(
+      resumenCajaCompra(
+        'SOLICITUD ACTUAL:\nCliente quiere ver una camioneta y vendernos su Nativa automática.\nCaja de compra: no',
+      ),
+    ).toBe('no');
+    expect(
+      resumenCajaCompra(
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi manual para el campo.\nCaja de compra: manual',
+      ),
+    ).toBe('manual');
+    expect(
+      resumenCajaCompra(
+        'SOLICITUD ACTUAL:\nCliente quiere una Hilux automática.\nCaja de compra: automática',
+      ),
+    ).toBe('automatica');
+    expect(
+      resumenCajaCompra(
+        'SOLICITUD ACTUAL:\nCliente quiere una camioneta usada y vendo automático.',
+      ),
+    ).toBeNull();
+  });
+
+  it('la solicitud sin banderas no arrastra caja de compra', () => {
+    expect(
+      solicitudSinBanderas(
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nPide otras: no',
+      ),
+    ).toBe('Cliente quiere Mitsubishi.');
+  });
+});
+
+describe('resumenEsToma', () => {
+  it('lee la toma del analizador, no una frase del cliente', () => {
+    expect(
+      resumenEsToma(
+        'SOLICITUD ACTUAL:\nCliente quiere ver una camioneta y vendernos su Nativa 2011.\nToma: sí\nToma ficha: Nativa 2011 automática',
+      ),
+    ).toBe(true);
+    expect(
+      resumenEsToma(
+        'SOLICITUD ACTUAL:\nCliente quiere una Hilux.\nToma: no\nToma ficha: no',
+      ),
+    ).toBe(false);
+    expect(
+      resumenEsToma(
+        'SOLICITUD ACTUAL:\nCliente quiere ver una camioneta usada y vendernos su Nativa 2011 automática.\nCaja de compra: no',
+      ),
+    ).toBe(true);
+    expect(resumenTomaFicha(
+      'SOLICITUD ACTUAL:\nCliente quiere ver camioneta y vendernos su Nativa 2011 automática.\nToma: sí',
+    )).toBe('Nativa 2011 automática');
+    expect(
+      stripTomaFacts(
+        'Quiero una camioneta usada y vendo un nativa año 2011 automático',
+        'Nativa 2011 automática',
+      ),
+    ).toBe('Quiero una camioneta usada y vendo un año');
   });
 });
 

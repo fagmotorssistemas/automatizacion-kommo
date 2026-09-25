@@ -22,6 +22,8 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'ford', model: 'f-150' },
   { brand: 'volkswagen', model: 't-cross' },
   { brand: 'great wall', model: 'poer 2.0' },
+  { brand: 'great wall', model: 'hunter ac 2.4 cd' },
+  { brand: 'mitsubishi', model: 'l200 2.4 cd' },
   { brand: 'peugeot', model: '2008 fin' },
   { brand: 'peugeot', model: '3008n' },
 ]);

@@ -2,6 +2,7 @@ import { modelFamily, StockCar } from '../catalog/clasificar-filas';
 import { kindFromTypeBody, VehicleKind } from './vehicle-kind';
 import { detectBrandFromModel } from './vehicle-brand';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
+import type { CajaCompra } from '../intelligence/parse-resumen';
 
 export type Gearbox = 'manual' | 'automatica';
 
@@ -63,7 +64,14 @@ export function resolveGearbox(input: {
   customerText: string;
   remembered: Gearbox | null;
   lexicon?: VehicleLexicon;
+  cajaCompra?: CajaCompra | null;
 }): Gearbox | null {
+  if (input.cajaCompra === 'no') {
+    return input.remembered;
+  }
+  if (input.cajaCompra === 'manual' || input.cajaCompra === 'automatica') {
+    return input.cajaCompra;
+  }
   const lexicon = input.lexicon ?? emptyLexicon();
   const saidNow = detectGearbox(input.customerText, lexicon);
   if (saidNow) {
@@ -80,6 +88,15 @@ export function resolveGearbox(input: {
     }
   }
   return gearbox;
+}
+
+/** Quita tokens de caja del pedido guardado cuando el analizador dijo que no son de compra. */
+export function stripGearboxWords(text: string): string {
+  return text
+    .replace(/\bautom[aá]tic[oa]s?\b/gi, ' ')
+    .replace(/\b(?:manual(?:es)?|mec[aá]nic[oa]s?)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function gearboxLabel(gearbox: Gearbox): string {
@@ -185,6 +202,73 @@ export function pickGearboxAlternatives(input: {
     return { cars: suv, widenedToSuv: suv.length > 0, sameModel: false };
   }
   return { cars: [], widenedToSuv: false, sameModel: false };
+}
+
+/** Hasta 3 unidades de la caja pedida, priorizando marcas distintas. */
+export function pickDiverseByBrand(
+  cars: StockCar[],
+  gearbox: Gearbox,
+  group: BodyGroup | null,
+  limit = 3,
+): StockCar[] {
+  const matching = cars.filter((car) => {
+    if (gearboxOf(car) !== gearbox) {
+      return false;
+    }
+    if (group && carBodyGroup(car.typeBody) !== group) {
+      return false;
+    }
+    return true;
+  });
+  const picked: StockCar[] = [];
+  const seen = new Set<string>();
+  for (const car of matching) {
+    const brand = car.brand.trim().toLowerCase();
+    if (seen.has(brand)) {
+      continue;
+    }
+    seen.add(brand);
+    picked.push(car);
+    if (picked.length >= limit) {
+      return picked;
+    }
+  }
+  for (const car of matching) {
+    if (picked.some((row) => row.id === car.id)) {
+      continue;
+    }
+    picked.push(car);
+    if (picked.length >= limit) {
+      break;
+    }
+  }
+  return picked;
+}
+
+export function formatOtherBrandGearboxList(input: {
+  gearbox: Gearbox;
+  askedBrand: string | null;
+  cars: StockCar[];
+  includePrice: boolean;
+}): { text: string; holdVehicle: boolean; sendId: string | null } {
+  const label = gearboxLabel(input.gearbox);
+  const other = input.gearbox === 'manual' ? 'automática' : 'manual';
+  const brand = input.askedBrand || 'esa marca';
+  if (input.cars.length === 0) {
+    return {
+      text: `De ${brand} no hay ${label} en patio ni otras ${label} del mismo tipo. Dilo y pregunta qué otra línea de ese tipo quiere. vehiculo null.`,
+      holdVehicle: true,
+      sendId: null,
+    };
+  }
+  const lines = input.cars.map((car) => carLabel(car, input.includePrice));
+  return {
+    text: `De ${brand} no hay ${label}. PRIMERO dilo. DESPUÉS nombra estas ${label} del mismo tipo (marcas distintas) para que elija. vehiculo null.
+${lines.join('\n')}
+No mandes una sola unidad. No te quedes en una línea china si hay otras. Prohibido ofrecer la caja ${other}.`,
+    holdVehicle: true,
+    sendId: null,
+  };
 }
 
 function carLabel(car: StockCar, includePrice: boolean): string {

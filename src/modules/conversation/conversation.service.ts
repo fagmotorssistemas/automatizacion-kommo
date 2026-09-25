@@ -10,6 +10,7 @@ import {
   memoryKey,
   concreteAskKey,
   gearboxKey,
+  lastSeenKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
@@ -199,6 +200,44 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar el pedido concreto contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadLastSeen(contactId: string): Promise<number | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(lastSeenKey(contactId));
+      const ms = value ? Number(value) : NaN;
+      return Number.isFinite(ms) && ms > 0 ? ms : null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer last-seen contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveLastSeen(contactId: string, at = Date.now()): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        lastSeenKey(contactId),
+        String(at),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar last-seen contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

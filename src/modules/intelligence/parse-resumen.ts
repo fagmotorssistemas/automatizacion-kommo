@@ -4,6 +4,10 @@ export type ParsedResumen = {
   solicitudActual: string | null;
 };
 
+export function solicitudSinBanderas(resumen: string): string {
+  return stripResumenFlags(parseResumen(resumen).solicitudActual ?? '').trim();
+}
+
 export function parseResumen(resumen: string): ParsedResumen {
   const texto = resumen || '';
   const vehiculoMatch = texto.match(/Vehículo:\s*(.+?)(?:\n|$)/i);
@@ -71,6 +75,9 @@ function stripResumenFlags(text: string): string {
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
+    .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
+    .replace(/toma\s+ficha:\s*.+/gi, '')
+    .replace(/toma:\s*(s[ií]|no|[^\n]+)/gi, '')
     .replace(/es\s+acuse:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+cortes[ií]a:\s*(s[ií]|no)/gi, '');
 }
@@ -324,6 +331,106 @@ export function resumenPideNegociar(resumen: string): boolean {
 /** Pidió otra unidad: es cambio de vehículo. Lo decide el resumen, no una frase del cliente. */
 export function resumenPideOtras(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+otras') === true;
+}
+
+export type CajaCompra = 'manual' | 'automatica' | 'no';
+
+/**
+ * Caja del carro que quiere COMPRAR. Lo decide el analizador.
+ * `no` = mencionó caja del suyo (toma) o no pidió caja para patio.
+ */
+export function resumenCajaCompra(resumen: string): CajaCompra | null {
+  const match = resumen.match(
+    /caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)(?:\s|$)/i,
+  );
+  if (!match) {
+    return null;
+  }
+  const value = fold(match[1]);
+  if (value === 'no') {
+    return 'no';
+  }
+  if (value.startsWith('manual')) {
+    return 'manual';
+  }
+  return 'automatica';
+}
+
+function tomaFichaLine(resumen: string): string | null {
+  const match = resumen.match(/toma\s+ficha:\s*(.+?)(?:\n|$)/i);
+  if (!match) {
+    return null;
+  }
+  const value = match[1].trim();
+  if (!value || /^no$/i.test(value)) {
+    return null;
+  }
+  return value;
+}
+
+/** El analizador leyó que habla del carro SUYO (toma), no de uno de patio. */
+export function resumenEsToma(resumen: string): boolean {
+  const flag = flagSiNo(resumen, 'toma');
+  if (flag === true) {
+    return true;
+  }
+  if (flag === false) {
+    return false;
+  }
+  if (tomaFichaLine(resumen)) {
+    return true;
+  }
+  return /vendernos su|quiere vender su/.test(
+    fold(solicitudSinBanderas(resumen)),
+  );
+}
+
+/**
+ * Ficha del carro que nos vende/deja, según el analizador.
+ * `null` = no hay toma o dijo Toma ficha: no.
+ */
+export function resumenTomaFicha(resumen: string): string | null {
+  const explicit = tomaFichaLine(resumen);
+  if (explicit) {
+    return explicit;
+  }
+  if (!resumenEsToma(resumen)) {
+    return null;
+  }
+  const solicitud = solicitudSinBanderas(resumen);
+  const match = solicitud.match(
+    /(?:vendernos su|quiere vender su)\s+(.+?)(?:\.|$)/i,
+  );
+  return match?.[1]?.trim() || null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Quita del texto los datos del carro de la toma que el analizador ya separó.
+ * Sin ficha no se usa el mensaje actual como pedido de compra.
+ */
+export function stripTomaFacts(text: string, ficha: string | null): string {
+  if (!ficha) {
+    return '';
+  }
+  let out = text;
+  const tokens = ficha.split(/[^\p{L}\p{N}]+/u).filter((token) => {
+    if (/^(?:19|20)\d{2}$/.test(token)) {
+      return true;
+    }
+    return token.length >= 3;
+  });
+  for (const token of tokens) {
+    out = out.replace(new RegExp(`\\b${escapeRegExp(token)}\\b`, 'gi'), ' ');
+  }
+  return out
+    .replace(/\bautom[aá]tic[oa]s?\b/gi, ' ')
+    .replace(/\b(?:manual(?:es)?|mec[aá]nic[oa]s?)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**

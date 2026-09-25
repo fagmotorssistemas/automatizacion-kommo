@@ -20,13 +20,10 @@ Extraer:
   null  -> no menciona nada relacionado
 
 2. INTERCAMBIO / RETOMA (trade_in)
-Detectar SOLO si menciona:
-- "dejar mi carro"
-- "parte de pago"
-- "intercambio"
-- "retoma"
+Lee el sentido, no una frase fija. Es trade_in si el cliente habla del carro que ES SUYO y nos lo vende, deja, intercambia, pone a cuenta o pide cuánto le damos.
+NO es trade_in el carro que quiere COMPRAR o ver de patio.
 NO es trade_in si vende una casa, terreno, departamento o negocio para pagar.
-Extraer:
+Extraer SOLO datos del SUYO:
 - brand: marca o null
 - model: modelo o null
 - year: ano (YYYY) o null

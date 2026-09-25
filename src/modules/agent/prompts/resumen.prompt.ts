@@ -57,6 +57,7 @@ Si menciona o cuestiona el km de la unidad YA mostrada (un número, "tiene X km"
 Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que también pida el valor de contado.
 Si pregunta o duda si hay que pagar, depositar o dar la entrada ANTES de que le den la dirección, la ubicación o para ir a ver: SOLICITUD: quiere la ubicación para visitar. Tiene duda: sí. NO es que aceptó pagar primero. La visita y la dirección no se condicionan a la entrada.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
+Toma: sí SOLO si en este turno habla del carro que ES SUYO (lo vende, deja, intercambia, pone a cuenta, o pide cuánto le damos). Lo decides por el sentido, no por una frase fija. Toma: no si el carro del que habla es el que quiere ver/comprar de patio, o si vende casa/terreno/negocio. Si Toma: sí, Toma ficha debe nombrar marca/modelo/año/caja/km que dijo del SUYO. Si Toma: no, Toma ficha: no.
 Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
 Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.
 Si el bot YA ofreció caminos de financiamiento (directo / banco o cooperativa) y AHORA elige uno, SOLICITUD: eligió ese camino para ESA unidad. Pide precio: no. Pide crédito: sí. Acepta crédito: no (aún no es “ver si aplica”). No pidas otra ficha. Falta que diga con cuánto de entrada y a qué plazo.
@@ -68,7 +69,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -116,14 +117,24 @@ Rechaza aplicar: sí|no
 Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
+Caja de compra: automática|manual|no
+Toma: sí|no
+Toma ficha: [marca modelo año caja km del suyo, o no]
 Tiene duda: sí|no
 Es despedida: sí|no
 
+REGLA DE CAJA DE COMPRA (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿La transmisión que mencionó es del carro que nos VENDE/deja, o del que quiere COMPRAR en patio?
+- Caja de compra: automática o manual SOLO si está pidiendo esa caja para el vehículo que quiere ver/comprar de nosotros.
+- Caja de compra: no si no pidió caja para patio, o si automática/manual/mecánica describe SU carro (el que tiene, nos vende, deja, intercambia o pone a cuenta). Esa caja del suyo NO es filtro de compra.
+- Si en el mismo turno quiere ver algo nuestro Y nos habla del suyo, la SOLICITUD separa las dos cosas: quiere ver [tipo o marca de patio] y vendernos el suyo. La caja del suyo no pasa a Caja de compra.
+
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
-Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, parte de pago, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
+Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.
 El km o el año de la unidad que YA le mostramos no es su carro.
 Si dice que venderá una casa, terreno, departamento o negocio para pagar al contado, NO es su vehículo ni toma. Es contexto de cómo pagará. SOLICITUD: sigue con la unidad mostrada; comprará al contado cuando venda eso. Es despedida: no.
-Si además nombra otro carro que quiere ver o comprar en la concesionaria, dilo en la misma oración: cuál es el suyo y cuál quiere ver.
+Si además quiere ver un carro o un tipo nuestro (camioneta, SUV, una marca), dilo en la misma oración con "quiere ver": cuál quiere ver de patio y cuál es el suyo. No uses la ficha del suyo (caja, año, marca) como pedido de compra.
+Toma: sí. Toma ficha: solo los datos del SUYO. Esos datos no se guardan como marca, año, caja ni pedido de compra.
 
 REGLA DE LA CUOTA YA DICHA (OBLIGATORIA):
 Lee qué quiere AHORA. Si el historial ya trajo la cuota mensual de esa unidad, no vuelvas a pedir la proforma.

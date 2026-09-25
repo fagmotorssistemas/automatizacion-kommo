@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
-import { getDealershipClock } from '../intelligence/dealership-hours';
+import { getDealershipClock, hourInGuayaquil } from '../intelligence/dealership-hours';
 import { formatVisitHourHint, isMoneyNotVisit, PRECIO_NO_HORARIO } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
@@ -48,6 +48,7 @@ import { salesSystemPrompt } from './prompts/sales.prompt';
 import {
   detectVehicleKind,
   formatPedidoVigente,
+  formatSoloTipoPedido,
   kindFromTypeBody,
   matchesVehicleKind,
   parseVehicleKind,
@@ -72,10 +73,13 @@ import {
   detectGearbox,
   formatGearboxAlternatives,
   formatGearboxPedido,
+  formatOtherBrandGearboxList,
   gearboxOf,
   Gearbox,
+  pickDiverseByBrand,
   pickGearboxAlternatives,
   resolveGearbox,
+  stripGearboxWords,
 } from '../conversation/gearbox';
 import {
   asksClosestByFacts,
@@ -83,6 +87,11 @@ import {
   isConcreteAsk,
   resolveConcreteAsk,
 } from '../conversation/concrete-ask';
+import {
+  askWhichCarMessage,
+  formatGreetingPedido,
+  shouldOfferGreeting,
+} from '../conversation/day-greeting';
 import {
   appendUnloadedPrice,
   asksForPlate,
@@ -113,6 +122,10 @@ import {
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPideOtras,
+  resumenCajaCompra,
+  resumenEsToma,
+  resumenTomaFicha,
+  stripTomaFacts,
   resumenAsksForLocation,
   resumenPrefiereContado,
   resumenAsksForImmediateDelivery,
@@ -120,7 +133,7 @@ import {
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
-  parseResumen,
+  solicitudSinBanderas,
   resumenHasPendingDoubt,
   resumenIsCourtesy,
   resumenIsThreadAck,
@@ -244,6 +257,17 @@ type BrandReview = {
   vehicleKind?: VehicleKind | null;
   photoQueue?: PhotoQueueItem[];
 };
+
+/** "La 2018" no es un Peugeot 2008: el año dicho no es esa familia. */
+function familyIsOtherYear(text: string, family: string): boolean {
+  if (!/^(?:19|20)\d{2}$/.test(family)) {
+    return false;
+  }
+  const years = [...text.matchAll(/\b((?:19|20)\d{2})\b/g)].map(
+    (match) => match[1],
+  );
+  return years.length > 0 && !years.includes(family);
+}
 
 function kindOfNamedUnits(cars: StockCar[]): VehicleKind | null {
   const kinds = [
@@ -390,6 +414,15 @@ export class AgentService {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
     }
     const history = await this.recentDialogue(input.contactId);
+    const lastSeenAt = await this.conversation.loadLastSeen(input.contactId);
+    const offerGreeting = shouldOfferGreeting({
+      lastSeenAt,
+      hasHistory: history.length > 0,
+    });
+    const saludoHint = formatGreetingPedido(
+      offerGreeting,
+      hourInGuayaquil(),
+    );
     const interested = await this.persistence.latestInterestedCar(
       input.contactId,
     );
@@ -398,23 +431,6 @@ export class AgentService {
       history,
       input.customerText,
       kindFromTypeBody(interested?.typeBody),
-    );
-    const brand = await this.rememberBrand(
-      input.contactId,
-      history,
-      input.customerText,
-      lexicon,
-    );
-    const concreteAsk = await this.rememberConcreteAsk(
-      input.contactId,
-      history,
-      input.customerText,
-    );
-    const gearbox = await this.rememberGearbox(
-      input.contactId,
-      history,
-      input.customerText,
-      lexicon,
     );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
@@ -433,6 +449,36 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
+    const cajaCompra = resumenCajaCompra(resumen);
+    const esToma = resumenEsToma(resumen);
+    const purchaseText = esToma
+      ? stripTomaFacts(input.customerText, resumenTomaFicha(resumen))
+      : input.customerText;
+    const brand = await this.rememberBrand(
+      input.contactId,
+      history,
+      purchaseText,
+      lexicon,
+    );
+    let concreteAsk = await this.rememberConcreteAsk(
+      input.contactId,
+      history,
+      esToma ? '' : purchaseText,
+    );
+    const gearbox = await this.rememberGearbox(
+      input.contactId,
+      history,
+      input.customerText,
+      lexicon,
+      cajaCompra,
+    );
+    if (cajaCompra === 'no' && concreteAsk) {
+      const cleaned = stripGearboxWords(concreteAsk);
+      if (cleaned && cleaned !== concreteAsk) {
+        concreteAsk = cleaned;
+        await this.conversation.saveConcreteAsk(input.contactId, cleaned);
+      }
+    }
     const askedListedPrice = textAsksForListedPrice(input.customerText);
     const mentionsPrice =
       resumenAsksForListedPrice(resumen) || askedListedPrice;
@@ -568,12 +614,14 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                     family: modelFamily(interested.model),
                     color: interested.color ?? null,
                     inventoryId: interested.inventoryId,
+                    brand: interested.brand ?? null,
                   }
                 : null,
               lexicon,
               spaceAsk,
               askedOtherColor,
               resumen,
+              cajaCompra,
             );
     if (stayOnShown && interested && specTopic(input.customerText)) {
       const notes = await this.specNotesForShown(
@@ -654,7 +702,12 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             },
           )
         : '';
-    const saidBoxNow = detectGearbox(input.customerText, lexicon);
+    const saidBoxNow =
+      cajaCompra === 'no'
+        ? null
+        : cajaCompra === 'manual' || cajaCompra === 'automatica'
+          ? cajaCompra
+          : detectGearbox(input.customerText, lexicon);
     if (revision.switchedModel) {
       if (!saidBoxNow) {
         await this.conversation.clearGearbox(input.contactId);
@@ -823,6 +876,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const pedidoVigente = (
       stayOnShown
         ? [
+            saludoHint,
             anuncioHint,
             revision.text,
             interestedText,
@@ -844,6 +898,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             precioHint,
           ]
         : [
+            saludoHint,
             anuncioHint,
             formatPedidoVigente(
               spaceAsk
@@ -851,6 +906,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
                 : revision.switchedModel
                   ? (revision.vehicleKind ?? null)
                   : vehicleKind,
+            ),
+            formatSoloTipoPedido(
+              spaceAsk
+                ? null
+                : revision.switchedModel
+                  ? (revision.vehicleKind ?? null)
+                  : vehicleKind,
+              detectBrand(input.customerText, lexicon) ||
+                detectNamedModelAsk(input.customerText, lexicon)?.brand ||
+                (cajaCompra === 'no' ? null : brand),
             ),
             formatGearboxPedido(
               revision.switchedModel && !saidBoxNow ? null : gearbox,
@@ -1110,6 +1175,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       human: input.customerText,
       ai: serializeAgentTurn(parsed),
     });
+    await this.conversation.saveLastSeen(input.contactId);
 
     this.logger.log(
       `Agente listo contactId=${input.contactId} inventory=${parsed.meta.vehiculo?.inventory_id ?? 'ninguno'}`,
@@ -1123,7 +1189,15 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     contactId: string,
     customerText: string,
   ): Promise<AgentTurnResult> {
-    const mensaje = 'Claro. ¿Qué carro le interesa?';
+    const history = await this.recentDialogue(contactId);
+    const lastSeenAt = await this.conversation.loadLastSeen(contactId);
+    const mensaje = askWhichCarMessage(
+      shouldOfferGreeting({
+        lastSeenAt,
+        hasHistory: history.length > 0,
+      }),
+      hourInGuayaquil(),
+    );
     const reply: ParsedAgentOutput = {
       mensaje,
       meta: {
@@ -1146,6 +1220,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       human: customerText,
       ai: serializeAgentTurn(reply),
     });
+    await this.conversation.saveLastSeen(contactId);
     return { reply, resumen: customerText };
   }
 
@@ -1208,13 +1283,23 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     history: { role: string; content: string }[],
     customerText: string,
     lexicon: VehicleLexicon,
+    cajaCompra: ReturnType<typeof resumenCajaCompra>,
   ): Promise<Gearbox | null> {
     const remembered = await this.conversation.loadGearbox(contactId);
+    if (cajaCompra === 'no') {
+      const said = detectGearbox(customerText, lexicon);
+      if (said && remembered === said) {
+        await this.conversation.clearGearbox(contactId);
+        return null;
+      }
+      return remembered;
+    }
     const gearbox = resolveGearbox({
       history,
       customerText,
       remembered,
       lexicon,
+      cajaCompra,
     });
     if (gearbox && gearbox !== remembered) {
       await this.conversation.saveGearbox(contactId, gearbox);
@@ -1235,11 +1320,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       family: string | null;
       color?: string | null;
       inventoryId?: string | null;
+      brand?: string | null;
     } | null,
     lexicon: VehicleLexicon,
     spaceAsk = false,
     askedOtherColor = false,
     resumen = '',
+    cajaCompra: ReturnType<typeof resumenCajaCompra> = null,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const listedFollowUp = looksLikeUnitList(
@@ -1247,18 +1334,28 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         ?.content ?? '',
     );
     const fromText = detectNamedModelAsk(customerText, lexicon);
-    const fromSolicitud = detectNamedModelAsk(
-      parseResumen(resumen).solicitudActual ?? '',
-      lexicon,
-    );
+    const fromSolicitud =
+      cajaCompra === 'no'
+        ? null
+        : detectNamedModelAsk(solicitudSinBanderas(resumen), lexicon);
     const named =
-      (fromText && !isDriveFamily(fromText.family) ? fromText : null) ??
+      (fromText &&
+      !isDriveFamily(fromText.family) &&
+      !familyIsOtherYear(customerText, fromText.family)
+        ? fromText
+        : null) ??
       (fromSolicitud && !isDriveFamily(fromSolicitud.family)
         ? fromSolicitud
         : null);
-    const yearSaidNow = detectYearInText(customerText);
+    const rawYear = detectYearInText(customerText);
+    const yearSaidNow =
+      cajaCompra === 'no' && !named
+        ? null
+        : named && rawYear && String(rawYear) === named.family
+          ? null
+          : rawYear;
     const asked = named
-      ? { ...named, year: yearSaidNow }
+      ? { ...named, year: yearSaidNow ?? named.year }
       : null;
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
@@ -1303,7 +1400,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
-    const solicitud = parseResumen(resumen).solicitudActual ?? '';
+    const solicitud = solicitudSinBanderas(resumen);
     const saidKind =
       detectVehicleKind(customerText) ||
       detectVehicleKind(solicitud) ||
@@ -1477,7 +1574,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
         yearOnward ||
         asksClosestByFacts(solicitud));
     const yearFromThread = asked
-      ? yearSaidNow
+      ? yearSaidNow ??
+        asked.year ??
+        lastYearInUserTexts(priorUserTexts, lexicon)
       : (yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon));
     const threadBudget = lastCashBudgetInTexts([
       ...priorUserTexts,
@@ -1884,7 +1983,41 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     }
 
     let stock = listed;
-    if (gearbox && reference?.family && !askingOther) {
+    const leftoverShownBrand = Boolean(
+      reference?.brand &&
+        targetBrand &&
+        reference.brand.trim().toLowerCase() !==
+          targetBrand.trim().toLowerCase(),
+    );
+    if (gearbox && leftoverShownBrand) {
+      const group = bodyGroupOf(kindForAsk);
+      const inBrand = listed.filter(
+        (car) =>
+          gearboxOf(car) === gearbox &&
+          (!kindForAsk || matchesVehicleKind(car.typeBody, kindForAsk)),
+      );
+      if (inBrand.length === 0) {
+        const others = await this.catalog.listAvailableExcept(
+          targetBrand || '_',
+        );
+        return {
+          ...formatOtherBrandGearboxList({
+            gearbox,
+            askedBrand: targetBrand,
+            cars: pickDiverseByBrand(
+              [...listed, ...others],
+              gearbox,
+              group,
+              3,
+            ),
+            includePrice,
+          }),
+          switchedModel: true,
+          vehicleKind: kindForAsk,
+        };
+      }
+      stock = inBrand;
+    } else if (gearbox && reference?.family && !askingOther) {
       const group = bodyGroupOf(kindForAsk);
       const inBrand = pickGearboxAlternatives({
         cars: listed,

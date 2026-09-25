@@ -57,6 +57,9 @@ function lastModelHit(
     if (!family || isDriveFamily(family)) {
       continue;
     }
+    if (looksLikeMoneyAmount(text, hit.index, hit.name)) {
+      continue;
+    }
     const row = { brand: hit.brand, family, index: hit.index };
     if (isYearLikeFamily(family)) {
       if (!numeric || hit.index >= numeric.index) {
@@ -161,7 +164,7 @@ function isFactToken(token: string): boolean {
   if (detectTrimInText(token)) {
     return true;
   }
-  if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?)$/.test(token)) {
+  if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?|caja)$/.test(token)) {
     return true;
   }
   if (isDriveFamily(token)) {

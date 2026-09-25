@@ -175,6 +175,9 @@ describe('marca y tres filas', () => {
     ).toBeNull();
     expect(detectNamedModelAsk('Nissan automático', TEST_LEXICON)).toBeNull();
     expect(
+      detectNamedModelAsk('Cliente da 2000 de entrada a 6 años.', TEST_LEXICON),
+    ).toBeNull();
+    expect(
       detectNamedModelAsk('Nisan\nPrecio por favor', TEST_LEXICON),
     ).toBeNull();
     expect(

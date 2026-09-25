@@ -14,3 +14,9 @@ export const concreteAskKey = (contactId: string) =>
 
 export const gearboxKey = (contactId: string) =>
   `conversation:gearbox:${contactId}`;
+
+export const lastSeenKey = (contactId: string) =>
+  `conversation:last-seen:${contactId}`;
+
+/** Volvió después de esto: un saludo. Menos: no saludar otra vez. */
+export const GREET_AFTER_MS = 2 * 24 * 60 * 60 * 1000;

@@ -166,3 +166,14 @@ Doble cabina, cabina doble y cabina simple son camioneta. PROHIBIDO un SUV o jee
 "Parecida" u "otra" es otro vehículo del mismo tipo.
 En buscarvehiuclo pasa siempre tipo="${kind}".`;
 }
+
+/** Solo dijo el tipo: preguntar marca, no mandar una unidad. */
+export function formatSoloTipoPedido(
+  kind: VehicleKind | null,
+  brand: string | null,
+): string {
+  if (!kind || brand) {
+    return '';
+  }
+  return `SOLO TIPO: pidió ${LABELS[kind]}, no una marca ni un modelo. Pregunta qué marca o línea quiere. PROHIBIDO elegir una unidad y mandarla.`;
+}

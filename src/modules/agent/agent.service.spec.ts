@@ -32,6 +32,8 @@ describe('AgentService', () => {
     saveGearbox: jest.fn(),
     clearGearbox: jest.fn(),
     clearConcreteAsk: jest.fn(),
+    loadLastSeen: jest.fn(),
+    saveLastSeen: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -85,6 +87,9 @@ describe('AgentService', () => {
     conversation.saveGearbox.mockReset();
     conversation.clearGearbox.mockReset();
     conversation.clearConcreteAsk.mockReset();
+    conversation.loadLastSeen.mockReset();
+    conversation.loadLastSeen.mockResolvedValue(null);
+    conversation.saveLastSeen.mockReset();
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);
@@ -132,13 +137,17 @@ describe('AgentService', () => {
       customerText: '¡Hola! Quiero más información',
     });
 
-    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(result?.reply.mensaje).toMatch(
+      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+    );
+    expect(result?.reply.mensaje).not.toMatch(/Claro\./);
     expect(result?.reply.meta.vehiculo).toBeNull();
     expect(openai.complete).not.toHaveBeenCalled();
     expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(conversation.saveLastSeen).toHaveBeenCalledWith('59099901');
     expect(conversation.appendMessage).toHaveBeenCalledWith('59099901', {
       role: 'assistant',
-      content: 'Claro. ¿Qué carro le interesa?',
+      content: result?.reply.mensaje,
     });
   });
 
@@ -149,8 +158,43 @@ describe('AgentService', () => {
         '¡Hola! Me gustaría conseguir más información sobre esto {Chatea con nosotros}',
     });
 
-    expect(result?.reply.mensaje).toBe('Claro. ¿Qué carro le interesa?');
+    expect(result?.reply.mensaje).toMatch(
+      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+    );
     expect(openai.runSalesAgent).not.toHaveBeenCalled();
+  });
+
+  it('si ya hay hilo de hoy no vuelve a saludar', async () => {
+    conversation.loadLastSeen.mockResolvedValue(Date.now() - 60 * 60 * 1000);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'busco SUV' },
+      { role: 'assistant', content: 'Tenemos Escape y Grand Vitara.' },
+    ]);
+
+    const result = await service.handleTurn({
+      contactId: '59099901',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    expect(result?.reply.mensaje).toBe('Con gusto. ¿Qué carro le interesa?');
+  });
+
+  it('si volvió después de días sí saluda otra vez', async () => {
+    conversation.loadLastSeen.mockResolvedValue(
+      Date.now() - 3 * 24 * 60 * 60 * 1000,
+    );
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'busco SUV' },
+    ]);
+
+    const result = await service.handleTurn({
+      contactId: '59099901',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    expect(result?.reply.mensaje).toMatch(
+      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+    );
   });
 
   it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
@@ -179,6 +223,9 @@ describe('AgentService', () => {
       expect.objectContaining({
         user: expect.stringContaining('Fiat 500 2017'),
       }),
+    );
+    expect(openai.runSalesAgent.mock.calls[0][0].system).toMatch(
+      /SALUDO: Buenos (días|tardes|noches)|SALUDO: Buenas (tardes|noches)/,
     );
   });
 
@@ -437,6 +484,114 @@ describe('AgentService', () => {
       }),
     );
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'fiat500' });
+  });
+
+  it('la caja de la toma no se guarda ni se inyecta', async () => {
+    conversation.loadVehicleKind.mockResolvedValue('camioneta');
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere ver una camioneta usada y vendernos su Nativa 2011 automática.\nCaja de compra: no\nToma: sí\nToma ficha: Nativa 2011 automática\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra","tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '¿Qué marca de camioneta le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Quiero una camioneta usada y vendo cómo parte de pago un nativa año 2011 perfectas condiciones automático',
+    });
+
+    expect(conversation.saveGearbox).not.toHaveBeenCalled();
+    expect(conversation.saveVehicleBrand).not.toHaveBeenCalled();
+    const savedAsk = conversation.saveConcreteAsk.mock.calls.map(
+      (call) => call[1] as string,
+    );
+    expect(savedAsk.join(' ')).not.toMatch(/nativa|2011|autom[aá]tic/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toContain('CAJA VIGENTE');
+    expect(system).toMatch(/SOLO TIPO/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('si pide Mitsubishi manual no manda la Hunter por la Ranger anterior', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('mitsubishi');
+    conversation.loadVehicleKind.mockResolvedValue('camioneta');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'ranger-1',
+      brand: 'ford',
+      model: 'ranger xlt ac 2.0 cd 4x4 ta',
+      year: 2026,
+      price: 44990,
+      typeBody: 'doble cabina',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'l200-ta',
+        brand: 'mitsubishi',
+        model: 'l200 2.4 cd 4x4 ta',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'hunter-1',
+        brand: 'great wall',
+        model: 'hunter ac 2.4 cd 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'doble cabina',
+      },
+      {
+        id: 'hilux-1',
+        brand: 'toyota',
+        model: 'hilux cd 2.4 4x4 tm',
+        year: 2021,
+        price: 32990,
+        typeBody: 'doble cabina',
+      },
+      {
+        id: 'dmax-1',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm',
+        year: 2022,
+        price: 28990,
+        typeBody: 'doble cabina',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay Mitsubishi manual. Tenemos Hilux, D-Max y Hunter.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'No automático para el campo manual',
+    });
+
+    expect(conversation.saveGearbox).toHaveBeenCalledWith('1', 'manual');
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('CAJA VIGENTE: manual');
+    expect(system).toMatch(/De mitsubishi no hay manual/i);
+    expect(system).toContain('hilux-1');
+    expect(system).toContain('dmax-1');
+    expect(system).toContain('No mandes una sola unidad');
+    expect(system).not.toMatch(/hay que mandarlo/i);
   });
 
   it('si ya mostramos el Sportage automático el precio no salta a otro', async () => {

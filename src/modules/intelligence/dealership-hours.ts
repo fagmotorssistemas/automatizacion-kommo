@@ -36,6 +36,11 @@ function partsInGuayaquil(now: Date) {
   };
 }
 
+/** Hora 0–23 en America/Guayaquil. */
+export function hourInGuayaquil(now = new Date()): number {
+  return partsInGuayaquil(now).hora;
+}
+
 /** fechaactual de n8n. Horarios en config, no en el prompt del agente. */
 export function getDealershipClock(now = new Date()): DealershipClock {
   const { diaActual, hora, minuto } = partsInGuayaquil(now);

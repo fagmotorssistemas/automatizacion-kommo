@@ -1,9 +1,12 @@
 import {
   detectGearbox,
   formatGearboxAlternatives,
+  formatOtherBrandGearboxList,
   gearboxOf,
+  pickDiverseByBrand,
   pickGearboxAlternatives,
   resolveGearbox,
+  stripGearboxWords,
 } from './gearbox';
 import { StockCar } from '../catalog/clasificar-filas';
 import { TEST_LEXICON } from './test-lexicon';
@@ -54,6 +57,90 @@ describe('caja', () => {
         remembered: null,
       }),
     ).toBe('manual');
+  });
+
+  it('si el analizador dice que la caja es de la toma, no filtra patio', () => {
+    expect(
+      resolveGearbox({
+        history: [],
+        customerText:
+          'Quiero una camioneta usada y vendo cómo parte de pago un nativa año 2011 automático',
+        remembered: null,
+        cajaCompra: 'no',
+      }),
+    ).toBeNull();
+    expect(
+      resolveGearbox({
+        history: [
+          {
+            role: 'user',
+            content: 'vendo mi nativa automática',
+          },
+        ],
+        customerText: 'Me gusta la Mitsubishi',
+        remembered: null,
+        cajaCompra: 'no',
+      }),
+    ).toBeNull();
+    expect(
+      resolveGearbox({
+        history: [],
+        customerText: 'No automático para el campo manual',
+        remembered: null,
+        cajaCompra: 'manual',
+      }),
+    ).toBe('manual');
+  });
+
+  it('limpia la caja del pedido cuando era de la toma', () => {
+    expect(
+      stripGearboxWords(
+        'Quiero una camioneta usada y vendo un nativa 2011 automático',
+      ),
+    ).toBe('Quiero una camioneta usada y vendo un nativa 2011');
+  });
+
+  it('si cambia de marca lista varias cajas, no manda una sola', () => {
+    const hunter: StockCar = {
+      id: 'hunter',
+      brand: 'great wall',
+      model: 'hunter ac 2.4 cd 4x2 tm',
+      year: 2023,
+      price: 18990,
+      typeBody: 'doble cabina',
+    };
+    const hilux: StockCar = {
+      id: 'hilux',
+      brand: 'toyota',
+      model: 'hilux cd 2.4 4x4 tm',
+      year: 2021,
+      price: 32990,
+      typeBody: 'doble cabina',
+    };
+    const dmax: StockCar = {
+      id: 'dmax',
+      brand: 'chevrolet',
+      model: 'd-max 4x4 tm',
+      year: 2022,
+      price: 28990,
+      typeBody: 'doble cabina',
+    };
+    const cars = pickDiverseByBrand([hunter, hilux, dmax], 'manual', 'camioneta');
+    expect(cars.map((car) => car.brand)).toEqual([
+      'great wall',
+      'toyota',
+      'chevrolet',
+    ]);
+    const listed = formatOtherBrandGearboxList({
+      gearbox: 'manual',
+      askedBrand: 'mitsubishi',
+      cars,
+      includePrice: false,
+    });
+    expect(listed.sendId).toBeNull();
+    expect(listed.text).toMatch(/no hay manual/i);
+    expect(listed.text).toContain('hilux');
+    expect(listed.text).toContain('No mandes una sola unidad');
   });
 
   it('si no hay ese modelo manual, ofrece otro chico de precio parecido', () => {

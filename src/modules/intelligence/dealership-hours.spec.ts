@@ -1,4 +1,4 @@
-import { getDealershipClock } from './dealership-hours';
+import { getDealershipClock, hourInGuayaquil } from './dealership-hours';
 
 describe('getDealershipClock', () => {
   it('domingo está cerrado', () => {
@@ -7,6 +7,11 @@ describe('getDealershipClock', () => {
     expect(clock.estaAbierto).toBe(false);
     expect(clock.puedeVenirHoy).toBe(false);
     expect(clock.mensaje).toMatch(/lunes/i);
+  });
+
+  it('la hora de Cuenca no se confunde con UTC', () => {
+    expect(hourInGuayaquil(new Date('2026-09-25T16:06:00Z'))).toBe(11);
+    expect(hourInGuayaquil(new Date('2026-09-26T01:00:00Z'))).toBe(20);
   });
 
   it('lunes a media mañana está abierto', () => {
