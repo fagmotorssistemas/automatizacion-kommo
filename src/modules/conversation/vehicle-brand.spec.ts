@@ -38,6 +38,11 @@ describe('marca y tres filas', () => {
       family: '2008',
       year: null,
     });
+    expect(detectNamedModelAsk('O si tiene un peugeot 208', TEST_LEXICON)).toEqual({
+      brand: 'peugeot',
+      family: '208',
+      year: null,
+    });
     expect(
       detectNamedModelAsk('Peugeot 2008 2022', TEST_LEXICON),
     ).toEqual({

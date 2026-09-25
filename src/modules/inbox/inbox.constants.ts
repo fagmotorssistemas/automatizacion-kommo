@@ -39,6 +39,9 @@ export const turnRetryFlushMessageId = (messageId: string, attempt: number) =>
 /** afterReply no puede bloquear el siguiente mensaje del cliente. */
 export const INTELLIGENCE_TIMEOUT_MS = 15_000;
 
+/** handleTurn no puede retener el candado 180 s si OpenAI se cuelga. */
+export const AGENT_TURN_TIMEOUT_MS = 45_000;
+
 /** Ya se mandó una respuesta de arranque; un “sí” no vuelve a listar. */
 export const RECENT_OUTBOUND_TTL_SECONDS = 120;
 export const recentOutboundKey = (contactId: string) =>

@@ -385,5 +385,10 @@ describe('resumenIsCourtesy', () => {
         'SOLICITUD ACTUAL:\nCliente no quiere seguir.\nEs despedida: sí\nTiene duda: no',
       ),
     ).toBe(false);
+    expect(
+      resumenIsCourtesy(
+        'SOLICITUD ACTUAL:\nCliente no quiere financiamiento ni visita ahora; sigue con ESA unidad.\nPide precio: no\nEs cortesía: sí\nEs despedida: no',
+      ),
+    ).toBe(false);
   });
 });

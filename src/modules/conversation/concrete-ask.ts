@@ -11,9 +11,15 @@ export function isConcreteAsk(text: string): boolean {
   return text.split(/[^\p{L}]+/u).some((word) => looksLikeCamioneta(word));
 }
 
-/** Año desde X, no “solo el 2023”. */
+/** Año desde X, no “solo el 2023”. Tolera “en edelante / adelnte”. */
 export function asksYearOnward(text: string): boolean {
-  return /\b(?:en adelante|o m[aá]s|desde|a partir)\b/i.test(text);
+  return (
+    /\ben\s+[ae]?d+[ea]?l[ae]?nte\b/i.test(text) ||
+    /\b(?:en\s+)?adelante\b/i.test(text) ||
+    /\bo\s+m[aá]s\b/i.test(text) ||
+    /\bdesde\b/i.test(text) ||
+    /\ba\s+partir\b/i.test(text)
+  );
 }
 
 /** Pedido con ficha (4x2, gasolina, cabina, desde un año): embedding, no filtro exacto. */

@@ -16,6 +16,7 @@ import { InboxService } from './inbox.service';
 import { InboxDebounceJobData } from './inbox-debounce.queue';
 import { isBareConfirmation } from './first-touch';
 import {
+  AGENT_TURN_TIMEOUT_MS,
   INTELLIGENCE_TIMEOUT_MS,
   turnRetryFlushMessageId,
 } from './inbox.constants';
@@ -245,18 +246,23 @@ export class InboxFlushRunner {
 
     let turn;
     try {
-      turn = await this.agentService.handleTurn({
-        contactId: data.contactId,
-        customerText,
-      });
+      turn = await withTimeout(
+        this.agentService.handleTurn({
+          contactId: data.contactId,
+          customerText,
+        }),
+        AGENT_TURN_TIMEOUT_MS,
+        'handleTurn',
+      );
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       await this.runLog.record({
         ...ctx,
         step: 'agent',
         status: 'error',
-        reason: 'openai_o_agente',
+        reason: message.includes('tardó más') ? 'timeout' : 'openai_o_agente',
         detail: { texto: customerText.slice(0, 500) },
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
       return null;
     }

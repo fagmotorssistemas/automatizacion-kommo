@@ -78,6 +78,7 @@ import {
 } from '../conversation/gearbox';
 import {
   asksClosestByFacts,
+  asksYearOnward,
   isConcreteAsk,
   resolveConcreteAsk,
 } from '../conversation/concrete-ask';
@@ -93,11 +94,7 @@ import {
 } from '../conversation/negotiate-in-person';
 import { ungateLocationReply } from '../conversation/location-without-entrada';
 import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
-import {
-  CONTESTA_DUDA,
-  isPoliteThanks,
-  SEGUIR_VENTA,
-} from '../conversation/polite-thanks';
+import { salesFollowHint } from '../conversation/polite-thanks';
 import {
   historyAlreadyGaveCuota,
   historyHasListedPrice,
@@ -144,6 +141,7 @@ import {
   pickLargePassengerCars,
 } from '../conversation/large-passenger';
 import {
+  carsFromYearOnward,
   carsShownInHistory,
   formatRevisionMarca,
   formatMissingNamedModel,
@@ -164,6 +162,7 @@ import {
   carsInBudget,
   detectCashBudget,
   formatBudgetRevision,
+  lastCashBudgetInTexts,
   shouldAskBudgetFinancing,
   shouldAskWhichShown,
 } from '../conversation/budget';
@@ -248,10 +247,16 @@ function matchUnitFacts(
   yearAsk: number | null,
   colorAsk: string | null,
   trimAsk: string | null,
+  yearOnward = false,
 ): StockCar[] {
   return cars.filter((car) => {
-    if (yearAsk && car.year !== yearAsk) {
-      return false;
+    if (yearAsk) {
+      if (car.year == null) {
+        return false;
+      }
+      if (yearOnward ? car.year < yearAsk : car.year !== yearAsk) {
+        return false;
+      }
     }
     if (colorAsk && car.color && !colorMatches(car.color, colorAsk)) {
       return false;
@@ -280,10 +285,9 @@ function lastYearInUserTexts(
 
 /** Si pidió un año y no está, no ofrezcas uno 20 años más viejo. */
 function carsNearYear(cars: StockCar[], year: number, delta = 3): StockCar[] {
-  const near = cars.filter(
+  return cars.filter(
     (car) => car.year != null && Math.abs(car.year - year) <= delta,
   );
-  return near.length > 0 ? near : cars;
 }
 
 const MODEL_STOP = new Set([
@@ -448,12 +452,16 @@ export class AgentService {
     const askedOtherColor =
       resumenAsksForOtherColor(resumen) ||
       textAsksForOtherColor(input.customerText);
-    const thanksHint = resumenHasPendingDoubt(resumen)
-      ? CONTESTA_DUDA
-      : (isPoliteThanks(input.customerText) || resumenIsCourtesy(resumen)) &&
-          !resumenIsFarewell(resumen)
-        ? SEGUIR_VENTA
-        : '';
+    const lastAssistantText =
+      [...history].reverse().find((item) => item.role === 'assistant')
+        ?.content ?? '';
+    const thanksHint = salesFollowHint({
+      customerText: input.customerText,
+      lastAssistant: lastAssistantText,
+      hasDoubt: resumenHasPendingDoubt(resumen),
+      isFarewell: resumenIsFarewell(resumen),
+      isCourtesy: resumenIsCourtesy(resumen),
+    });
 
     const spaceText = `${input.customerText}\n${resumen}\n${history
       .filter((item) => item.role === 'user')
@@ -1359,11 +1367,25 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const yearAsk = asked ? asked.year : detectYearInText(customerText);
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
-    const wantsClosest = Boolean(asked) && asksClosestByFacts(customerText);
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
+    const solicitud = parseResumen(resumen).solicitudActual ?? '';
+    const yearOnward =
+      asksYearOnward(customerText) ||
+      asksYearOnward(solicitud) ||
+      priorUserTexts.some((text) => asksYearOnward(text));
+    const wantsClosest =
+      Boolean(asked) &&
+      (asksClosestByFacts(customerText) ||
+        yearOnward ||
+        asksClosestByFacts(solicitud));
     const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon);
+    const threadBudget = lastCashBudgetInTexts([
+      ...priorUserTexts,
+      customerText,
+      solicitud,
+    ]);
     const threadText = shownThreadText(history, resumen);
     const alreadyOffered = carsShownInHistory(history, listed, resumen);
     if (!asked && wantsListedPrices && alreadyOffered.length > 0) {
@@ -1492,12 +1514,16 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
     }
     const saidBox = detectGearbox(customerText, lexicon);
     if (wantsClosest && asked) {
-      const fromEmbed = await this.lookupNamedByEmbedding(
-        customerText,
-        asked.family,
-        asked.brand || targetBrand || '',
-        listed,
-        includePrice,
+      const fromEmbed = this.filterByAskedYear(
+        await this.lookupNamedByEmbedding(
+          customerText,
+          asked.family,
+          asked.brand || targetBrand || '',
+          listed,
+          includePrice,
+        ),
+        yearFromThread,
+        yearOnward,
       );
       if (fromEmbed.length > 0) {
         return this.namedModelFound(
@@ -1506,6 +1532,7 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
           true,
           true,
           yearFromThread,
+          yearOnward,
         );
       }
     }
@@ -1536,7 +1563,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       let offer = preferCurrentYears(
         boxed.length > 0 ? boxed : namedNow,
         yearFromThread,
+        yearOnward,
       );
+      if (!(yearOnward && offer.length === 0)) {
       if (wantsClosest) {
         return this.namedModelFound(
           offer,
@@ -1544,9 +1573,10 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           false,
           true,
           yearFromThread,
+          yearOnward,
         );
       }
-      if (yearFromThread) {
+      if (yearFromThread && !yearOnward) {
         const exactYear = offer.filter((car) => car.year === yearFromThread);
         if (exactYear.length > 0) {
           offer = exactYear;
@@ -1608,15 +1638,22 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         false,
         false,
         yearFromThread,
+        yearOnward,
       );
+      }
     }
     if (asked) {
-      const fromEmbed = await this.lookupNamedByEmbedding(
-        customerText,
-        asked.family,
-        asked.brand,
-        listed,
-        includePrice,
+      const floorYear = yearFromThread ?? asked.year;
+      const fromEmbed = this.filterByAskedYear(
+        await this.lookupNamedByEmbedding(
+          customerText,
+          asked.family,
+          asked.brand,
+          listed,
+          includePrice,
+        ),
+        floorYear,
+        yearOnward,
       );
       if (fromEmbed.length > 0) {
         return this.namedModelFound(
@@ -1624,13 +1661,18 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           includePrice,
           true,
           false,
-          asked.year,
+          floorYear,
+          yearOnward,
         );
       }
-      const elsewhere = await this.familyInOtherBrands(
-        asked.family,
-        asked.year,
-        targetBrand,
+      const elsewhere = this.filterByAskedYear(
+        await this.familyInOtherBrands(
+          asked.family,
+          yearOnward ? null : asked.year,
+          targetBrand,
+        ),
+        floorYear,
+        yearOnward,
       );
       if (elsewhere.length > 0) {
         return this.namedModelFound(
@@ -1638,41 +1680,77 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           includePrice,
           false,
           false,
-          asked.year,
+          floorYear,
+          yearOnward,
         );
       }
       const sameFamily = listed.filter((car) =>
         textMentionsModel(car.model, asked.family),
       );
-      let alternatives =
-        asked.year && sameFamily.length > 0
+      const yearOk = yearOnward && floorYear
+        ? carsFromYearOnward(sameFamily, floorYear)
+        : asked.year && sameFamily.length > 0
           ? carsNearYear(sameFamily, asked.year)
           : sameFamily;
+      const inBudget =
+        yearOnward && threadBudget
+          ? yearOk.filter(
+              (car) =>
+                car.price == null || car.price <= threadBudget * 1.2,
+            )
+          : yearOk;
+      if (yearOnward && inBudget.length > 0) {
+        return this.namedModelFound(
+          inBudget,
+          includePrice,
+          false,
+          true,
+          floorYear,
+          true,
+        );
+      }
+      let alternatives = yearOnward ? [] : yearOk;
       if (alternatives.length === 0) {
         const except = {
           inventoryId: reference?.inventoryId,
           family: reference?.family,
+          ids: alreadyOffered.map((car) => car.id),
+        };
+        const pickOpts = {
+          minYear: yearOnward ? floorYear : null,
+          budget: threadBudget,
         };
         alternatives = pickClosestToMissingModel(
           listed,
           asked.family,
           except,
+          pickOpts,
         );
         if (alternatives.length === 0) {
           const patio = await this.catalog.listAvailableExcept('_');
+          const shownPatio = carsShownInHistory(history, patio, resumen);
           alternatives = pickClosestToMissingModel(
             patio,
             asked.family,
-            except,
+            {
+              ...except,
+              ids: shownPatio.map((car) => car.id),
+            },
+            pickOpts,
           );
         }
       }
-      alternatives = preferCurrentYears(alternatives, asked.year);
+      alternatives = preferCurrentYears(
+        alternatives,
+        floorYear,
+        yearOnward,
+      );
       const missing = formatMissingNamedModel(
         asked.family,
-        asked.year,
+        yearOnward ? floorYear : asked.year,
         alternatives,
         includePrice,
+        yearOnward,
       );
       return {
         ...missing,
@@ -1767,13 +1845,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       if (namedNow.length > 0) {
         return formatNamedUnits(
-          preferCurrentYears(namedNow, yearFromThread),
+          preferCurrentYears(namedNow, yearFromThread, yearOnward),
           includePrice,
         );
       }
       if (includePrice && cars.length > 0) {
         return formatNamedUnits(
-          preferCurrentYears(cars, yearFromThread),
+          preferCurrentYears(cars, yearFromThread, yearOnward),
           includePrice,
         );
       }
@@ -1971,14 +2049,28 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     return facts;
   }
 
+  private filterByAskedYear(
+    cars: StockCar[],
+    year: number | null | undefined,
+    onward: boolean,
+  ): StockCar[] {
+    if (year == null) {
+      return cars;
+    }
+    return onward
+      ? carsFromYearOnward(cars, year)
+      : cars.filter((car) => car.year === year);
+  }
+
   private namedModelFound(
     cars: StockCar[],
     includePrice: boolean,
     fromEmbed: boolean,
     closest = false,
     askedYear?: number | null,
+    onward = false,
   ): BrandReview {
-    const shown = preferCurrentYears(cars, askedYear);
+    const shown = preferCurrentYears(cars, askedYear, onward);
     const named = formatNamedUnits(shown, includePrice);
     const via = fromEmbed ? ' (búsqueda por inventario)' : '';
     const rule = closest

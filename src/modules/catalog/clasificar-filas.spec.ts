@@ -163,6 +163,47 @@ describe('clasificar filas', () => {
     expect(close.map((car) => car.id)).toEqual(['seltos-1']);
   });
 
+  it('si no hay 208 no ofrece el 3008 ya visto ni un Matrix 2003', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'p3008-2022',
+          brand: 'peugeot',
+          model: '3008',
+          year: 2022,
+          price: 19990,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'matrix-2003',
+          brand: 'hyundai',
+          model: 'matrix',
+          year: 2003,
+          price: 7990,
+          typeBody: 'hatchback',
+        },
+        {
+          id: 'rio-2018',
+          brand: 'kia',
+          model: 'rio lx',
+          year: 2018,
+          price: 9800,
+          typeBody: 'sedan',
+        },
+      ],
+      '208',
+      { ids: ['p3008-2022'] },
+      { minYear: 2012, budget: 12000 },
+    );
+    expect(close.map((car) => car.id)).toEqual(['rio-2018']);
+  });
+
+  it('si no hay Corolla 2012 en adelante lo dice así', () => {
+    const missing = formatMissingNamedModel('corolla', 2012, [], false, true);
+    expect(missing.text).toMatch(/Corolla 2012 en adelante/i);
+    expect(missing.text).not.toMatch(/No hay Corolla 2012\./);
+  });
+
   it('X-Trail no se nombra X-Trail TRAIL', () => {
     const named = formatNamedUnits(
       [
@@ -435,6 +476,17 @@ describe('preferCurrentYears', () => {
   it('si pide 2016 no lo trata como antiguo', () => {
     expect(
       preferCurrentYears([montero1984, montero2016, sport2022], 2016).map(
+        (car) => car.year,
+      ),
+    ).toEqual([2022, 2016]);
+  });
+
+  it('2012 en adelante no revive un 2003', () => {
+    expect(
+      preferCurrentYears([montero1984, { id: 'm-2003', year: 2003 }], 2012, true),
+    ).toEqual([]);
+    expect(
+      preferCurrentYears([montero1984, montero2016, sport2022], 2012, true).map(
         (car) => car.year,
       ),
     ).toEqual([2022, 2016]);

@@ -345,14 +345,28 @@ export function describeUnit(car: StockCar, includePrice = false): string {
 /** Del 2010 en adelante se ofrece. Un 2016 no es antiguo. */
 const ANIO_VIGENTE_DESDE = 2010;
 
+export function carsFromYearOnward<T extends { year?: number | null }>(
+  cars: T[],
+  minYear: number,
+): T[] {
+  return cars.filter((car) => car.year == null || car.year >= minYear);
+}
+
 /**
  * Si hay unidades del 2010 en adelante, no mezcla las anteriores.
  * Si solo hay antiguas, se quedan. Si pidió ese año antiguo, se presenta ese.
+ * Si pidió “2012 en adelante”, no vuelve un 2003.
  */
 export function preferCurrentYears<T extends { year?: number | null }>(
   cars: T[],
   askedYear?: number | null,
+  onward = false,
 ): T[] {
+  if (onward && askedYear != null) {
+    const kept = carsFromYearOnward(cars, askedYear);
+    const vigentes = kept.filter((car) => car.year != null);
+    return vigentes.length === 0 ? [] : [...kept].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  }
   if (askedYear != null && askedYear < ANIO_VIGENTE_DESDE) {
     const exact = cars.filter((car) => car.year === askedYear);
     return exact.length > 0 ? exact : cars;
@@ -404,20 +418,63 @@ export function isCityLetterCode(family: string): boolean {
   return /^[iy]\d{1,2}$/i.test(family);
 }
 
+/** 208 / i10: compacto. 2008 / 3008 (4 dígitos) es SUV. */
+export function isCompactAskFamily(family: string): boolean {
+  return isCityLetterCode(family) || /^\d{3}$/.test(family);
+}
+
+const BUDGET_SLACK = 1.2;
+
+function nearestToBudget(cars: StockCar[], budget: number): StockCar[] {
+  const priced = cars.filter(
+    (car) => car.price != null && car.price > 0,
+  );
+  if (priced.length === 0) {
+    return cars.slice(0, 1);
+  }
+  const ranked = [...priced].sort((a, b) => {
+    const aOver = (a.price ?? 0) > budget ? 1 : 0;
+    const bOver = (b.price ?? 0) > budget ? 1 : 0;
+    if (aOver !== bOver) {
+      return aOver - bOver;
+    }
+    return Math.abs((a.price ?? 0) - budget) - Math.abs((b.price ?? 0) - budget);
+  });
+  const best = ranked[0];
+  if (best.price != null && best.price > budget * BUDGET_SLACK) {
+    return [];
+  }
+  return [best];
+}
+
 /**
  * Si el pedido no está en patio, el más cercano en tamaño.
  * Un i10 no se sustituye por un Kona; el Sportage ya rechazado no vuelve.
+ * Si hay presupuesto, redondea a ese tope y no revive un SUV ya mostrado.
  */
 export function pickClosestToMissingModel(
   cars: StockCar[],
   family: string,
-  except?: { inventoryId?: string | null; family?: string | null },
+  except?: { inventoryId?: string | null; family?: string | null; ids?: string[] },
+  opts?: { minYear?: number | null; budget?: number | null },
 ): StockCar[] {
+  const excluded = new Set(
+    [except?.inventoryId, ...(except?.ids ?? [])].filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
   const pool = cars.filter((car) => {
-    if (except?.inventoryId && car.id === except.inventoryId) {
+    if (excluded.has(car.id)) {
       return false;
     }
     if (except?.family && textMentionsModel(car.model, except.family)) {
+      return false;
+    }
+    if (
+      opts?.minYear != null &&
+      car.year != null &&
+      car.year < opts.minYear
+    ) {
       return false;
     }
     return true;
@@ -425,20 +482,35 @@ export function pickClosestToMissingModel(
   const byPrice = (a: StockCar, b: StockCar) =>
     (a.price ?? Number.POSITIVE_INFINITY) -
     (b.price ?? Number.POSITIVE_INFINITY);
-  if (isCityLetterCode(family)) {
-    const hatches = pool
-      .filter((car) => kindFromTypeBody(car.typeBody) === 'hatchback')
-      .sort(byPrice);
-    if (hatches.length > 0) {
-      return [hatches[0]];
+  const pickFrom = (candidates: StockCar[]): StockCar[] => {
+    if (candidates.length === 0) {
+      return [];
     }
-    const sedans = pool
-      .filter((car) => kindFromTypeBody(car.typeBody) === 'sedan')
-      .sort(byPrice);
+    if (opts?.budget != null) {
+      return nearestToBudget(candidates, opts.budget);
+    }
+    return [[...candidates].sort(byPrice)[0]];
+  };
+  if (isCompactAskFamily(family)) {
+    const hatches = pool.filter(
+      (car) => kindFromTypeBody(car.typeBody) === 'hatchback',
+    );
+    if (hatches.length > 0) {
+      return pickFrom(hatches);
+    }
+    const sedans = pool.filter(
+      (car) => kindFromTypeBody(car.typeBody) === 'sedan',
+    );
     if (sedans.length > 0) {
-      return [sedans[0]];
+      return pickFrom(sedans);
+    }
+    if (opts?.budget != null) {
+      return pickFrom(pool);
     }
     return [];
+  }
+  if (opts?.budget != null) {
+    return pickFrom(pool);
   }
   const suvs = pool
     .filter((car) => kindFromTypeBody(car.typeBody) === 'suv')
@@ -454,9 +526,15 @@ function sameAskedUnit(
   car: StockCar,
   family: string,
   year: number | null,
+  onward = false,
 ): boolean {
-  if (year != null && car.year !== year) {
-    return false;
+  if (year != null) {
+    if (car.year == null) {
+      return false;
+    }
+    if (onward ? car.year < year : car.year !== year) {
+      return false;
+    }
   }
   return (
     textMentionsModel(car.model, family) ||
@@ -470,18 +548,25 @@ export function formatMissingNamedModel(
   year: number | null,
   alternatives: StockCar[],
   includePrice = false,
+  onward = false,
 ): {
   text: string;
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice: number | null;
 } {
-  const same = alternatives.filter((car) => sameAskedUnit(car, family, year));
+  const same = alternatives.filter((car) =>
+    sameAskedUnit(car, family, year, onward),
+  );
   if (same.length > 0) {
     return formatNamedUnits(same, includePrice);
   }
   const pretty = family.charAt(0).toUpperCase() + family.slice(1);
-  const asked = year ? `${pretty} ${year}` : pretty;
+  const asked = year
+    ? onward
+      ? `${pretty} ${year} en adelante`
+      : `${pretty} ${year}`
+    : pretty;
   const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA (lo más cercano en tamaño). Prohibido presentarla como si fuera el ${pretty}. Prohibido volver al carro que el cliente ya dejó.`;
   if (alternatives.length === 1) {
     const car = alternatives[0];

@@ -1,5 +1,6 @@
 import {
   formatNamedUnits,
+  preferCurrentYears,
   type StockCar,
 } from '../catalog/clasificar-filas';
 import { kindFromTypeBody, type VehicleKind } from './vehicle-kind';
@@ -38,7 +39,15 @@ function parseBudgetAmount(text: string): number | null {
     const value = Number(plain[1] ?? plain[2]);
     return Number.isFinite(value) ? value : null;
   }
-  return null;
+  const bare = [...n.matchAll(/\b(\d{4,6})\b/g)]
+    .map((match) => Number(match[1]))
+    .find(
+      (value) =>
+        Number.isFinite(value) &&
+        value >= 3000 &&
+        (value < 1990 || value > 2035),
+    );
+  return bare ?? null;
 }
 
 /**
@@ -54,11 +63,26 @@ export function detectCashBudget(text: string): number | null {
     /\b(?:dispongo|cuento con|presupuesto|hasta|maximo)\b/.test(n) ||
     /\b(?:tengo|tenemos)\s+\$?\s*\d/.test(n) ||
     /\b(?:que|cual(?:es)?)\s+vehicul/.test(n) ||
-    /\bpor\s+\$?\s*\d/.test(n);
+    /\bpor\s+\$?\s*\d/.test(n) ||
+    /\bunos?\b/.test(n) ||
+    /\balrededor\b/.test(n) ||
+    /\balgun(?:os)?\s+(?:auto|carro|vehiculo)/.test(n);
   if (!talksBudget) {
     return null;
   }
   return parseBudgetAmount(text);
+}
+
+/** Último tope de contado que el cliente dijo en el hilo. */
+export function lastCashBudgetInTexts(texts: string[]): number | null {
+  let budget: number | null = null;
+  for (const text of texts) {
+    const found = detectCashBudget(text);
+    if (found) {
+      budget = found;
+    }
+  }
+  return budget;
 }
 
 export function carsInBudget(
@@ -90,9 +114,9 @@ export function carsInBudget(
     }
   }
   if (picked.length === 0) {
-    return [...pool].sort(byPrice).slice(0, 3);
+    return preferCurrentYears([...pool].sort(byPrice).slice(0, 3));
   }
-  return picked.slice(0, 6);
+  return preferCurrentYears(picked.slice(0, 6));
 }
 
 export const BUDGET_FINANCING_ASK =

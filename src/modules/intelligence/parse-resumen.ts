@@ -366,13 +366,19 @@ export function resumenIsCourtesy(resumen: string): boolean {
   if (resumenIsFarewell(resumen) || resumenHasPendingDoubt(resumen)) {
     return false;
   }
+  const solicitud = fold(
+    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
+  );
+  if (
+    /\bno quiere (?:financi\w*|visita|mas info|la oferta)\b/.test(solicitud) ||
+    (/\brechaz/.test(solicitud) && /\b(?:financi\w*|visita)\b/.test(solicitud))
+  ) {
+    return false;
+  }
   const flag = flagSiNo(resumen, 'es\\s+cortes[ií]a');
   if (flag != null) {
     return flag;
   }
-  const solicitud = fold(
-    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
-  );
   return /\bagradece\b|\bcortesia\b/.test(solicitud);
 }
 

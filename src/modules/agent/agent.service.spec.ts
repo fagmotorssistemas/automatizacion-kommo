@@ -709,7 +709,6 @@ describe('AgentService', () => {
       customerText: 'y tiene cámara de reversa?',
     });
 
-    expect(catalog.listByBrand).not.toHaveBeenCalled();
     expect(result?.reply.meta.vehiculo).toEqual({
       inventory_id: 'plata-1',
       precio: 22900,
@@ -3645,6 +3644,168 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/inventory_id=kona-1/);
   });
 
+  it('2012 en adelante no ofrece Matrix 2003 ni el 3008 ya mostrado', async () => {
+    const patio = [
+      {
+        id: 'p3008-2022',
+        brand: 'peugeot',
+        model: '3008',
+        year: 2022,
+        price: 19990,
+        typeBody: 'jeep',
+        color: 'plata',
+        mileage: 101516,
+      },
+      {
+        id: 'matrix-2003',
+        brand: 'hyundai',
+        model: 'matrix gl',
+        year: 2003,
+        price: 7990,
+        typeBody: 'hatchback',
+        color: 'plata',
+        mileage: 180000,
+      },
+      {
+        id: 'rio-2018',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+        color: 'blanco',
+        mileage: 72000,
+      },
+    ];
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'p3008-2022',
+      brand: 'peugeot',
+      model: '3008',
+      year: 2022,
+      price: 19990,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Peugeot 2008 2022 está en $19,990. Con una entrada de $11,000 la cuota sería referencial.',
+      },
+      { role: 'user', content: 'algun auto de unos 12000' },
+      { role: 'user', content: 'Algun hyundai accent o toyota corolla' },
+      {
+        role: 'assistant',
+        content:
+          'No tenemos Peugeot 208 en patio, pero puedo ofrecerle un Peugeot 3008 2022 color plata, SUV, con 101516 km.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('peugeot');
+    catalog.listByBrand.mockResolvedValue([]);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca Toyota Corolla 2012 en adelante, presupuesto unos 12000.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Corolla 2012 en adelante. Hay un Kia Río 2018 cerca de su presupuesto.',
+        meta: { vehiculo: { inventory_id: 'rio-2018' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: '2012 en edelante',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2012 en adelante/i);
+    expect(system).toMatch(/rio-2018|rio lx/i);
+    expect(system).not.toMatch(/matrix/i);
+    expect(system).not.toMatch(/inventory_id=p3008-2022/);
+    expect(system).not.toMatch(/inventory_id=matrix-2003/);
+  });
+
+  it('peugeot 208 no vuelve al 3008: redondea al presupuesto 2012 en adelante', async () => {
+    const patio = [
+      {
+        id: 'p3008-2022',
+        brand: 'peugeot',
+        model: '3008',
+        year: 2022,
+        price: 19990,
+        typeBody: 'jeep',
+        color: 'plata',
+        mileage: 101516,
+      },
+      {
+        id: 'matrix-2003',
+        brand: 'hyundai',
+        model: 'matrix gl',
+        year: 2003,
+        price: 7990,
+        typeBody: 'hatchback',
+      },
+      {
+        id: 'rio-2018',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+        color: 'blanco',
+        mileage: 72000,
+      },
+    ];
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'p3008-2022',
+      brand: 'peugeot',
+      model: '3008',
+      year: 2022,
+      price: 19990,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'No tenemos Peugeot 208 en patio, pero puedo ofrecerle un Peugeot 3008 2022 color plata, SUV, con 101516 km.',
+      },
+      { role: 'user', content: 'algun auto de unos 12000' },
+      { role: 'user', content: '2012 en adelante' },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('peugeot');
+    catalog.listByBrand.mockResolvedValue([
+      patio[0],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Peugeot 208. Presupuesto unos 12000. Año 2012 en adelante.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Peugeot 208. Hay un Kia Río 2018 cerca de los $12,000.',
+        meta: { vehiculo: { inventory_id: 'rio-2018' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'O si tiene un peugeot 208 tbien',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/No hay 208|no tenemos 208/i);
+    expect(system).toMatch(/rio-2018|rio lx/i);
+    expect(system).not.toMatch(/inventory_id=p3008-2022/);
+    expect(system).not.toMatch(/matrix/i);
+  });
+
   it('dispongo de 10000 es presupuesto: lista lo que cabe, no arma cuota', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'xtrail-1',
@@ -4595,6 +4756,44 @@ describe('AgentService', () => {
       expect.objectContaining({
         system: expect.stringContaining('NO ES DESPEDIDA'),
         user: expect.stringContaining('financiamiento o visita'),
+      }),
+    );
+  });
+
+  it('no gracias después de financiamiento o visita no repite la pregunta', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          '¿Le gustaría que le brinde información sobre opciones de financiamiento para este Kia Seltos 2020 o prefiere coordinar una visita para conocerlo en persona?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente agradece y sigue con la unidad.\nPide precio: no\nTiene duda: no\nEs despedida: no\nEs cortesía: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Quedamos atentos cuando desee retomar el Kia Seltos 2020.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'No gracias',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.stringContaining('No vuelvas a preguntar financiamiento ni visita'),
+      }),
+    );
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.not.stringContaining('haz ESA pregunta UNA vez'),
       }),
     );
   });

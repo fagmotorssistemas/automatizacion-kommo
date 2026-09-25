@@ -173,7 +173,7 @@ function isFactToken(token: string): boolean {
 }
 
 const FAMILY_TOKEN =
-  /\b((?:19|20)\d{2}|[a-z][a-z0-9]+|[0-9]+[a-z][a-z0-9]*)\b/gi;
+  /\b((?:19|20)\d{2}|[a-z][a-z0-9]+|[0-9]+[a-z][a-z0-9]*|\d{3})\b/gi;
 
 function tokenAfter(tail: string, from: number): string | null {
   const re = new RegExp(FAMILY_TOKEN.source, 'gi');
@@ -229,7 +229,7 @@ function familyAfterLastBrand(
         index: brand.index + brand.name.length + (match.index ?? 0),
       };
     }
-    if (family.length >= 4) {
+    if (family.length >= 4 || /^\d{3}$/.test(family)) {
       const next = tokenAfter(tail, (match.index ?? 0) + match[0].length);
       if (next && isFactToken(next)) {
         if (/[0-9]/.test(family) && (match.index ?? 0) <= 12) {
@@ -267,7 +267,9 @@ export function detectNamedModelAsk(
     afterBrand != null &&
     (!winner ||
       afterBrand.family === winner.family ||
-      winner.index < (lastBrand?.index ?? 0));
+      winner.index < (lastBrand?.index ?? 0) ||
+      (/^\d{3}$/.test(afterBrand.family) &&
+        afterBrand.family !== winner.family));
   const picked = useAfter ? afterBrand : winner;
   if (picked) {
     const near = brandBeforeModel(text, picked.index, lexicon);

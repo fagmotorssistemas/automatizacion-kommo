@@ -47,6 +47,18 @@ describe('vehículo de interés', () => {
         car: sportage,
       }),
     ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'y tiene cámara de reversa?',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Sportage plateado\nSOLICITUD ACTUAL:\nCliente quiere saber si tiene cámara.',
+        history: [
+          { role: 'assistant', content: 'Le mandé las fotos del Sportage plateado.' },
+        ],
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
     expect(followsShownCar({ text: 'puedo ir el sábado?', car: sportage })).toBe(
       true,
     );

@@ -125,7 +125,18 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).not.toMatch(/32,990|1,000/);
     expect(clean).not.toMatch(/tiene un\s*\./i);
     expect(clean).not.toMatch(/con de entrada/i);
-    expect(clean).toMatch(/962\.39/);
+    expect(clean).not.toMatch(/962\.39/);
+    expect(clean).toMatch(/d-max/i);
+  });
+
+  it('quita la cuota 280.05 y el hueco “está en.” si no pidió precio', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'El Peugeot 2008 2022 está en $19,990. Con una entrada de $11,000 la cuota aproximada sería de $280.05.',
+    );
+    expect(clean).not.toMatch(/19,990|19990|11,000|11000|280\.05/);
+    expect(clean).not.toMatch(/\$/);
+    expect(clean).not.toMatch(/está en\./i);
+    expect(clean).toMatch(/Peugeot 2008 2022/i);
   });
 
   it('detecta fuga de precio', () => {

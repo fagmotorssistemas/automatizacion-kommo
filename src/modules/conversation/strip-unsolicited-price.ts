@@ -68,6 +68,7 @@ export function stripUnsolicitedPriceAndPlate(
     );
     out = out.replace(/\$\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/g, '');
     out = out.replace(/\$\s*\d{4,6}(?:[.,]\d{2})?\b/g, '');
+    out = out.replace(/\$\s*\d{1,4}[.,]\d{2}\b/g, '');
     out = out.replace(/\b(?:y\s+)?precio\s+de\b/gi, '');
     out = tidyStrippedPriceHoles(out);
   }
@@ -132,10 +133,22 @@ function tidyStrippedPriceHoles(text: string): string {
     .replace(/\bpor\s+al\s+contado\b/gi, '')
     .replace(/\b(?:el\s+)?precio\s+de\s+contado\s+es\s+de\s*[.,]?\s*/gi, '')
     .replace(/\b(?:el\s+)?precio(?:\s+registrado)?\s+es\s*[.,]?\s*/gi, '')
+    .replace(/\best[aá]\s+en\s*[.,]/gi, '.')
+    .replace(
+      /\bcon\s+una\s+entrada\s+de(?:\s+la)?(?:\s+cuota[^.?!]*)?[.?!]?/gi,
+      '',
+    )
+    .replace(
+      /\bla\s+cuota(?:\s+aproximada)?(?:\s+ser[ií]a)?(?:\s+de)?\s*[.,]?\s*/gi,
+      '',
+    )
     .replace(/\bentrada\s+de\s+y\b/gi, 'entrada y')
+    .replace(/\bentrada\s+de(?:\s+la)?\s*/gi, '')
     .replace(/\bes\s+de\s*[.,]/gi, '.')
     .replace(/\btiene\s+un\s*[.,]\s*/gi, '')
     .replace(/\bcon\s+de\s+entrada\b/gi, '')
+    .replace(/\bpara\s+financiar(?:\s+a\s+\d+\s+a[nñ]os)?\s*/gi, '')
+    .replace(/\bmensuales\b/gi, '')
     .replace(/\bde\s+[.,]/g, '.')
     .replace(/\bpor\s+[.,]/gi, '.')
     .replace(/\bcontado\s+del\b[^.]*\s+[.,]/gi, '')

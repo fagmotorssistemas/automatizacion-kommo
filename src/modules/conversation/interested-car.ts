@@ -34,6 +34,7 @@ import {
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
 import { detectCashBudget } from './budget';
+import { parseResumen } from '../intelligence/parse-resumen';
 import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
@@ -124,7 +125,8 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return true;
   }
   const budget =
-    detectCashBudget(input.text) ?? detectCashBudget(input.resumen ?? '');
+    detectCashBudget(input.text) ??
+    detectCashBudget(parseResumen(input.resumen ?? '').solicitudActual ?? '');
   if (budget && (!car.price || budget < car.price)) {
     return true;
   }

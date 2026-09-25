@@ -22,7 +22,7 @@ SECUENCIA:
 - Si Ficha ya presentada: no y pide info o precio → "compra" (primera ficha).
 
 Reglas especiales:
-- catalogo: usar solo cuando el cliente pide ver el catalogo o el cliente esté indeciso, o dice no gracias. Nunca como primera opción.
+- catalogo: solo si pide ver el catalogo, está indeciso SIN unidad en hilo, o dice "no gracias" SIN haber rechazado recién financiamiento/visita de una unidad ya mostrada. Nunca como primera opción. Si acaba de rechazar esa pregunta de ESA unidad, no uses catalogo.
 - Si menciona un modelo directo (“tucson 2023 precio”) → compra.
 - Si menciona “caro” o que en otro lugar lo vio más barato o que quiere rebajas o descuentos → manejocaro.
 - Si usa insultos (“chatarra”, “basura”, “carro feo”, etc.) → insultos.

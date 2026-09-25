@@ -23,6 +23,8 @@ describe('pedido concreto', () => {
       ),
     ).toBe(true);
     expect(asksYearOnward('año 2023 en adelante')).toBe(true);
+    expect(asksYearOnward('2012 en edelante')).toBe(true);
+    expect(asksYearOnward('2012 en adelnte')).toBe(true);
     expect(asksClosestByFacts('tienen el Sportage?')).toBe(false);
   });
 

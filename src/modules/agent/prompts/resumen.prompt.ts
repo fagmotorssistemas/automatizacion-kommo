@@ -81,13 +81,15 @@ Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SO
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
-- "gracias" o "ahí nomás gracias", si ya se le mostró un vehículo, NO es despedida por sí solo.
-- Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito), NO es despedida. SOLICITUD ACTUAL debe decir ESA duda para que se conteste. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
+- CIERRE (la primera que aplique gana; no mezcles banderas):
+  1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
+  2) Despedida dura SOLO si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda: Es despedida: sí.
+  3) Si el bot acaba de preguntar financiamiento y/o visita y el cliente dice "no", "no gracias" o "no por ahora": NO es despedida. NO es cortesía. Pide otras: no. SOLICITUD: no quiere financiamiento ni visita ahora; sigue con ESA unidad y no insistas con esa pregunta.
+  4) Si dice que siguen en contacto o que aún no (visita, más info): Es despedida: no. Es cortesía: no. SOLICITUD: sigue interesado en ESA unidad, pero no ahora.
+  5) "gracias" o "ahí nomás gracias" SIN "no", si ya se le mostró un vehículo: NO es despedida. Es cortesía: sí.
 - Si pide furgoneta, van o muchos pasajeros (17, 20, varias personas), SOLICITUD debe decir que quiere un vehículo GRANDE de pasajeros. No lo conviertas en camioneta ni en un carro chico.
-- Si dice que siguen en contacto o que aún no (visita, más info), no es despedida. Es despedida: no. Sigue interesado en ESA unidad, pero no ahora.
-- Solo es despedida si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda pendiente.
 - Después de Pide negociar agrega: Tiene duda: sí|no   y   Es despedida: sí|no
-- Si ya entendió y no pide ficha ni cuota de nuevo: Es acuse: sí. Si solo agradece y sigue: Es cortesía: sí. Si no aplica, no las pongas.
+- Si ya entendió y no pide ficha ni cuota de nuevo: Es acuse: sí. Si solo agradece y sigue (regla 5): Es cortesía: sí. Si no aplica, no las pongas.
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
