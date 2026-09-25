@@ -21,5 +21,8 @@ export const lastSeenKey = (contactId: string) =>
 export const tomaChecklistKey = (contactId: string) =>
   `conversation:toma-checklist:${contactId}`;
 
+export const cashBudgetKey = (contactId: string) =>
+  `conversation:cash-budget:${contactId}`;
+
 /** Volvió después de esto: un saludo. Menos: no saludar otra vez. */
 export const GREET_AFTER_MS = 2 * 24 * 60 * 60 * 1000;

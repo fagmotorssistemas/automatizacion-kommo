@@ -1,6 +1,7 @@
 import { AgentService } from './agent.service';
 import { TEST_LEXICON } from '../conversation/test-lexicon';
-import { carsInBudget, detectCashBudget } from '../conversation/budget';
+import { carsInBudget } from '../conversation/budget';
+import { parseTopeAmount, resumenTopeContado } from '../intelligence/parse-resumen';
 import { preferCurrentYears, type StockCar } from '../catalog/clasificar-filas';
 import { leftShownCar } from '../conversation/interested-car';
 import { textAsksForCredit } from '../intelligence/parse-resumen';
@@ -107,6 +108,8 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     saveLastSeen: jest.fn(),
     loadTomaChecklist: jest.fn(),
     saveTomaChecklist: jest.fn(),
+    loadCashBudget: jest.fn(),
+    saveCashBudget: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -168,6 +171,9 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     conversation.loadTomaChecklist.mockReset();
     conversation.loadTomaChecklist.mockResolvedValue(null);
     conversation.saveTomaChecklist.mockReset();
+    conversation.loadCashBudget.mockReset();
+    conversation.loadCashBudget.mockResolvedValue(null);
+    conversation.saveCashBudget.mockReset();
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue('peugeot');
     conversation.loadConcreteAsk.mockResolvedValue(null);
@@ -232,7 +238,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     const { system } = await turn({
       text: 'Sube casi 8000 dando 11000 de entrada',
       resumen:
-        'SOLICITUD ACTUAL:\nCliente da 11000 de entrada para el Peugeot 2008.\nPide precio: sí\nPide crédito: sí',
+        'SOLICITUD ACTUAL:\nCliente da 11000 de entrada para el Peugeot 2008.\nPide precio: sí\nPide crédito: sí\nTope de contado: no',
       reply:
         'Con $11,000 de entrada a 60 meses la cuota referencial del 2008 sería de $280.05.',
       history: [
@@ -244,7 +250,11 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     expect(system).toMatch(/HILO SIGUE|2008/i);
     expect(system).not.toMatch(/PRESUPUESTO DE CONTADO/i);
     expect(system).not.toMatch(/matrix/i);
-    expect(detectCashBudget('Sube casi 8000 dando 11000 de entrada')).toBeNull();
+    expect(
+      resumenTopeContado(
+        'SOLICITUD ACTUAL:\nCliente da 11000 de entrada.\nTope de contado: no',
+      ),
+    ).toBeNull();
     expect(textAsksForCredit('Sube casi 8000 dando 11000 de entrada')).toBe(true);
   });
 
@@ -252,7 +262,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     const { system } = await turn({
       text: 'Disculpe y algun auto de unos 12000',
       resumen:
-        'SOLICITUD ACTUAL:\nCliente quiere ver autos de unos 12000.\nPide precio: no\nPide crédito: no',
+        'SOLICITUD ACTUAL:\nCliente quiere ver autos de unos 12000.\nPide precio: no\nPide crédito: no\nTope de contado: 12000',
       reply: 'En ese presupuesto hay un Río y un Picanto.',
       history: [
         { role: 'assistant', content: ficha2008 },
@@ -278,7 +288,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     const { system } = await turn({
       text: '2012 en edelante',
       resumen:
-        'SOLICITUD ACTUAL:\nCliente busca Toyota Corolla o Hyundai Accent 2012 en adelante, presupuesto unos 12000.',
+        'SOLICITUD ACTUAL:\nCliente busca Toyota Corolla o Hyundai Accent 2012 en adelante, presupuesto unos 12000.\nTope de contado: 12000',
       reply: 'No tenemos Corolla 2012 en adelante. Hay un Kia Río 2018 cerca de su presupuesto.',
       history,
       interested: peugeot2008,
@@ -324,7 +334,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     const { system } = await turn({
       text: 'O si tiene un peugeot 208 tbien',
       resumen:
-        'SOLICITUD ACTUAL:\nCliente pregunta si hay Peugeot 208. Presupuesto unos 12000. Año 2012 en adelante.',
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Peugeot 208. Presupuesto unos 12000. Año 2012 en adelante.\nTope de contado: 12000',
       reply: 'No tenemos Peugeot 208. Hay un Kia Río 2018 cerca de los $12,000.',
       history: [
         { role: 'assistant', content: ficha2008 },
@@ -381,9 +391,17 @@ describe('choques de reglas y datos inventados (hoy)', () => {
   });
 
   it('entrada no es presupuesto; unos 12000 sí; 2012 no', () => {
-    expect(detectCashBudget('Sube casi 8000 dando 11000 de entrada')).toBeNull();
-    expect(detectCashBudget('algun auto de unos 12000')).toBe(12000);
-    expect(detectCashBudget('2012 en edelante')).toBeNull();
+    expect(
+      resumenTopeContado(
+        'SOLICITUD ACTUAL:\nCliente da 11000 de entrada.\nTope de contado: no',
+      ),
+    ).toBeNull();
+    expect(
+      resumenTopeContado(
+        'SOLICITUD ACTUAL:\nCliente quiere autos de unos 12000.\nTope de contado: 12000',
+      ),
+    ).toBe(12000);
+    expect(parseTopeAmount('2012')).toBeNull();
     expect(asksYearOnward('2012 en edelante')).toBe(true);
     expect(detectNamedModelAsk('O si tiene un peugeot 208', TEST_LEXICON)?.family).toBe(
       '208',

@@ -58,7 +58,7 @@ Si pregunta cuota, entrada o visita, dilo así; no pongas precio salvo que tambi
 Si pregunta o duda si hay que pagar, depositar o dar la entrada ANTES de que le den la dirección, la ubicación o para ir a ver: SOLICITUD: quiere la ubicación para visitar. Tiene duda: sí. NO es que aceptó pagar primero. La visita y la dirección no se condicionan a la entrada.
 Si da entrada, plazo o años para financiar, SOLICITUD debe decir que quiere la cuota. Pide crédito: sí. Pide precio: sí (hace falta el contado para armar la cuota).
 Toma: sí SOLO si en este turno habla del carro que ES SUYO (lo vende, deja, intercambia, pone a cuenta, o pide cuánto le damos). Lo decides por el sentido, no por una frase fija. Toma: no si el carro del que habla es el que quiere ver/comprar de patio, o si vende casa/terreno/negocio. Si Toma: sí, Toma ficha debe nombrar marca/modelo/año/caja/km que dijo del SUYO. Si Toma: no, Toma ficha: no.
-Si dice cuánto dinero tiene o pide carros por un tope (“dispongo de 10.000”, “qué vehículo por 10.000$”) y NO dijo entrada/cuota/plazo, es PRESUPUESTO de contado, no crédito. SOLICITUD: quiere ver qué hay en ese tope. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
+Si el sentido es un tope de contado para ver/comprar (el dinero que no quiere superar) y NO es entrada/cuota/plazo, es PRESUPUESTO. SOLICITUD: quiere ver qué hay en ese tope. Tope de contado: el monto. Pide crédito: no. Pide precio: no. Prefiere contado: no (aún no rechazó el crédito; solo pidió ver qué hay).
 Si el hilo YA ofreció crédito o contado (disponemos financiamiento) y AHORA acepta crédito, Pide crédito: sí. Prefiere contado: no. SOLICITUD: acepta financiamiento de una de las unidades mostradas.
 Si el bot YA ofreció caminos de financiamiento (directo / banco o cooperativa) y AHORA elige uno, SOLICITUD: eligió ese camino para ESA unidad. Pide precio: no. Pide crédito: sí. Acepta crédito: no (aún no es “ver si aplica”). No pidas otra ficha. Falta que diga con cuánto de entrada y a qué plazo.
 Si el hilo YA ofreció crédito o contado y AHORA se queda de contado (lo interpreta el mensaje, no una palabra fija), Prefiere contado: sí. Pide crédito: no. SOLICITUD: prefiere de contado; elige de las unidades ya mostradas.
@@ -69,7 +69,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -118,6 +118,7 @@ Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
 Caja de compra: automática|manual|no
+Tope de contado: [23000 o no]
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]
 Toma ya: marca=...; color=...; año=...; km=... | no
@@ -125,6 +126,13 @@ Toma falta: modelo, placa, monto | no
 Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
+
+REGLA DE TOPE DE CONTADO (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Este turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?
+- Tope de contado: el monto (23000, 23.000, 10 mil) SOLO si pide ver qué cabe en ese dinero, o que no lo supere.
+- Tope de contado: no si el número es entrada, cuota, plazo, el precio de una unidad ya mostrada, o no habló de techo.
+- Si viene TOPE DE CONTADO YA GUARDADO y este turno no cambia el techo, repite ese mismo monto.
+- La SOLICITUD debe decir que quiere unidades en ese tope. No lo conviertas en crédito.
 
 REGLA DE CAJA DE COMPRA (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿La transmisión que mencionó es del carro que nos VENDE/deja, o del que quiere COMPRAR en patio?

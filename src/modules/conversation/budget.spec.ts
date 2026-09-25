@@ -4,9 +4,7 @@ import {
   BUDGET_FINANCING_ASK,
   BUDGET_PICK_SHOWN,
   carsInBudget,
-  detectCashBudget,
   formatBudgetRevision,
-  lastCashBudgetInTexts,
   shouldAskBudgetFinancing,
   shouldAskWhichShown,
 } from './budget';
@@ -48,21 +46,6 @@ const patio: StockCar[] = [
 ];
 
 describe('presupuesto de contado', () => {
-  it('dispongo de 10.000$ es tope, no entrada', () => {
-    expect(detectCashBudget('Dispongo de 10.000$')).toBe(10000);
-    expect(detectCashBudget('Qué vehículo tiene por 10.000$')).toBe(10000);
-    expect(detectCashBudget('2 mil de entrada')).toBeNull();
-    expect(detectCashBudget('Para 6 años')).toBeNull();
-    expect(detectCashBudget('algun auto de unos 12000')).toBe(12000);
-    expect(detectCashBudget('2012 en adelante')).toBeNull();
-    expect(
-      lastCashBudgetInTexts([
-        'El Peugeot 2008 está en 19990',
-        'algun auto de unos 12000',
-        '2012 en adelante',
-      ]),
-    ).toBe(12000);
-  });
 
   it('en 10000 no entra el Kona ni el X-Trail', () => {
     const hits = carsInBudget(patio, 10000, 'xtrail-1');

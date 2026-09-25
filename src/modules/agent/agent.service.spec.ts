@@ -36,6 +36,8 @@ describe('AgentService', () => {
     saveLastSeen: jest.fn(),
     loadTomaChecklist: jest.fn(),
     saveTomaChecklist: jest.fn(),
+    loadCashBudget: jest.fn(),
+    saveCashBudget: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -95,6 +97,9 @@ describe('AgentService', () => {
     conversation.loadTomaChecklist.mockReset();
     conversation.loadTomaChecklist.mockResolvedValue(null);
     conversation.saveTomaChecklist.mockReset();
+    conversation.loadCashBudget.mockReset();
+    conversation.loadCashBudget.mockResolvedValue(null);
+    conversation.saveCashBudget.mockReset();
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);
@@ -4124,7 +4129,7 @@ describe('AgentService', () => {
     catalog.listAvailableExcept.mockResolvedValue(patio);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente busca Toyota Corolla 2012 en adelante, presupuesto unos 12000.',
+        'SOLICITUD ACTUAL:\nCliente busca Toyota Corolla 2012 en adelante, presupuesto unos 12000.\nTope de contado: 12000',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -4203,7 +4208,7 @@ describe('AgentService', () => {
     catalog.listAvailableExcept.mockResolvedValue(patio);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente pregunta si hay Peugeot 208. Presupuesto unos 12000. Año 2012 en adelante.',
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Peugeot 208. Presupuesto unos 12000. Año 2012 en adelante.\nTope de contado: 12000',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -4280,7 +4285,7 @@ describe('AgentService', () => {
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente dispone de 10000 de contado.\nPide precio: no\nPide crédito: no',
+        'SOLICITUD ACTUAL:\nCliente dispone de 10000 de contado.\nPide precio: no\nPide crédito: no\nTope de contado: 10000',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -4302,7 +4307,7 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
     expect(system).not.toMatch(/inventory_id=kona-1/);
     expect(system).not.toMatch(/inventory_id=xtrail-1/);
-    expect(result?.reply.mensaje).toMatch(/disponemos de financiamiento/i);
+    expect(result?.reply.mensaje).toMatch(/puede financiar/i);
     expect(result?.reply.mensaje).not.toMatch(/cuota/i);
   });
 
@@ -4318,7 +4323,7 @@ describe('AgentService', () => {
       {
         role: 'assistant',
         content:
-          'En ese presupuesto hay un Picanto y un Río. También disponemos de financiamiento. ¿Le gustaría que le ayudemos con crédito para llevarse el que más le guste, o prefiere de contado?',
+          'En ese presupuesto hay un Picanto y un Río. Recuerde que lo puede financiar para un carro que se acomode a lo que más le guste. ¿Le ayudamos con crédito o prefiere de contado?',
       },
     ]);
     openai.complete
@@ -4378,7 +4383,7 @@ describe('AgentService', () => {
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente pregunta qué hay por 10000.\nPide precio: no\nPide crédito: no',
+        'SOLICITUD ACTUAL:\nCliente pregunta qué hay por 10000.\nPide precio: no\nPide crédito: no\nTope de contado: 10000',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -4398,6 +4403,90 @@ describe('AgentService', () => {
     expect(system).toMatch(/rio/i);
     expect(system).not.toMatch(/inventory_id=kona-1/);
     expect(system).toMatch(/Prohibido decir que no hay un tipo/i);
+  });
+
+  it('tope 23000 no lista SUV automática más cara ni la última fuera de tope', async () => {
+    conversation.loadVehicleKind.mockResolvedValue('suv');
+    conversation.loadGearbox.mockResolvedValue('automatica');
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'rio-1',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+      {
+        id: 't1-1',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 38990,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'explorer-1',
+        brand: 'ford',
+        model: 'explorer xlt',
+        year: 2018,
+        price: 28990,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere SUV automática que no supere 23000.\nPide precio: no\nPide crédito: no\nPide otras: sí\nCaja de compra: automática\nTope de contado: 23000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En ese tope no hay SUV automática.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Por favor gracias que no supere los 23.000',
+    });
+
+    const first = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(first).toMatch(/PRESUPUESTO DE CONTADO: \$23000/);
+    expect(first).not.toMatch(/inventory_id=t1-1/);
+    expect(first).not.toMatch(/inventory_id=explorer-1/);
+    expect(conversation.saveCashBudget).toHaveBeenCalledWith('1', 23000);
+
+    conversation.loadCashBudget.mockResolvedValue(23000);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Le presento Explorer 2018, X-Trail 2024 y T1 2026.',
+      },
+    ]);
+    openai.complete.mockReset();
+    openai.runSalesAgent.mockReset();
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere la última unidad (T1).\nPide precio: sí\nTope de contado: 23000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Esa queda por encima del tope.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'La última',
+    });
+
+    const second = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(second).not.toMatch(/inventory_id=t1-1/);
+    expect(second).toMatch(/23000|tope/i);
   });
 
   it('los precios de las que ya listó sí salen, sin placa', async () => {

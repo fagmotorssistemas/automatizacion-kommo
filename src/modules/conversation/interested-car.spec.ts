@@ -112,12 +112,16 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'Dispongo de 10.000$',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere ver qué cabe en 10000.\nTope de contado: 10000',
         car: { ...sportage, price: 22900 },
       }),
     ).toBe(true);
     expect(
       leftShownCar({
         text: 'Qué vehículo tiene por 10.000$',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta qué hay por 10000.\nTope de contado: 10000',
         car: { ...sportage, price: 22900 },
       }),
     ).toBe(true);

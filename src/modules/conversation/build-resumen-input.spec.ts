@@ -10,6 +10,16 @@ describe('buildResumenInput', () => {
     ).toBe('MENSAJE ACTUAL:\nme interesa una hilux');
   });
 
+  it('pasa el tope de contado ya guardado al analizador', () => {
+    expect(
+      buildResumenInput({
+        history: [],
+        customerText: 'la última',
+        cashBudget: 23000,
+      }),
+    ).toMatch(/TOPE DE CONTADO YA GUARDADO: 23000/);
+  });
+
   it('pasa el checklist de toma ya guardado al analizador', () => {
     expect(
       buildResumenInput({

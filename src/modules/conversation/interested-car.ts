@@ -33,8 +33,7 @@ import {
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
-import { detectCashBudget } from './budget';
-import { parseResumen } from '../intelligence/parse-resumen';
+import { resumenTopeContado } from '../intelligence/parse-resumen';
 import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
@@ -124,9 +123,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (namedOtherUnit(input.text, car, lexicon)) {
     return true;
   }
-  const budget =
-    detectCashBudget(input.text) ??
-    detectCashBudget(parseResumen(input.resumen ?? '').solicitudActual ?? '');
+  const budget = resumenTopeContado(input.resumen ?? '');
   if (budget && (!car.price || budget < car.price)) {
     return true;
   }
@@ -188,8 +185,9 @@ export function refersToInterestedCar(
   text: string,
   car: InterestedCarSnapshot,
   lexicon?: VehicleLexicon,
+  resumen?: string | null,
 ): boolean {
-  return followsShownCar({ text, car, lexicon });
+  return followsShownCar({ text, car, lexicon, resumen });
 }
 
 /**

@@ -13,6 +13,8 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  resumenTopeContado,
+  parseTopeAmount,
   resumenEsToma,
   resumenTomaFicha,
   stripTomaFacts,
@@ -279,9 +281,30 @@ describe('resumenCajaCompra', () => {
   it('la solicitud sin banderas no arrastra caja de compra', () => {
     expect(
       solicitudSinBanderas(
-        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
       ),
     ).toBe('Cliente quiere Mitsubishi.');
+  });
+});
+
+describe('resumenTopeContado', () => {
+  it('lee el monto del analizador, no una frase del cliente', () => {
+    expect(
+      resumenTopeContado(
+        'SOLICITUD ACTUAL:\nCliente no quiere que supere 23000.\nTope de contado: 23.000',
+      ),
+    ).toBe(23000);
+    expect(
+      resumenTopeContado(
+        'SOLICITUD ACTUAL:\nCliente da 11000 de entrada.\nTope de contado: no',
+      ),
+    ).toBeNull();
+    expect(resumenTopeContado('Por favor gracias que no supere los 23.000')).toBe(
+      null,
+    );
+    expect(parseTopeAmount('23.000')).toBe(23000);
+    expect(parseTopeAmount('10 mil')).toBe(10000);
+    expect(parseTopeAmount('2012')).toBeNull();
   });
 });
 

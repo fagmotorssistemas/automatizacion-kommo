@@ -458,7 +458,7 @@ export function detectAskedDrive(text: string): '4x2' | '4x4' | null {
   return '4x2';
 }
 
-const BUDGET_SLACK = 1.2;
+const BUDGET_SLACK = 1;
 
 function nearestToBudget(cars: StockCar[], budget: number): StockCar[] {
   const priced = cars.filter(

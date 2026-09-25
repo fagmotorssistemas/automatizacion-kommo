@@ -3,8 +3,13 @@ import {
   preferCurrentYears,
   type StockCar,
 } from '../catalog/clasificar-filas';
-import { kindFromTypeBody, type VehicleKind } from './vehicle-kind';
-import { textAsksForCredit } from '../intelligence/parse-resumen';
+import {
+  kindFromTypeBody,
+  matchesVehicleKind,
+  type VehicleKind,
+} from './vehicle-kind';
+import type { Gearbox } from './gearbox';
+import { gearboxOf } from './gearbox';
 
 function fold(text: string): string {
   return text
@@ -13,76 +18,11 @@ function fold(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-/** Entrada / cuota / plazo: no es tope de contado. */
-function looksLikeDownPayment(text: string): boolean {
-  return textAsksForCredit(text);
-}
-
-function parseBudgetAmount(text: string): number | null {
-  const n = fold(text);
-  const mil = n.match(/\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)\s*mil\b/);
-  if (mil) {
-    const raw = mil[1].replace(/[.,]/g, '');
-    const value = Number(raw);
-    return Number.isFinite(value) ? value * (raw.length <= 3 ? 1000 : 1) : null;
-  }
-  const dotted = n.match(
-    /\$\s*(\d{1,3}(?:[.\s]\d{3})+|\d{4,6})(?:[.,]\d{2})?|(\d{1,3}(?:\.\d{3})+)\s*\$/,
-  );
-  if (dotted) {
-    const raw = (dotted[1] ?? dotted[2]).replace(/[.\s]/g, '');
-    const value = Number(raw);
-    return Number.isFinite(value) && value >= 1000 ? value : null;
-  }
-  const plain = n.match(/\$\s*(\d{4,6})\b|\b(\d{4,6})\s*\$/);
-  if (plain) {
-    const value = Number(plain[1] ?? plain[2]);
-    return Number.isFinite(value) ? value : null;
-  }
-  const bare = [...n.matchAll(/\b(\d{4,6})\b/g)]
-    .map((match) => Number(match[1]))
-    .find(
-      (value) =>
-        Number.isFinite(value) &&
-        value >= 3000 &&
-        (value < 1990 || value > 2035),
-    );
-  return bare ?? null;
-}
-
-/**
- * Dinero que tiene para el carro de contado.
- * “Dispongo de 10.000$” / “por 10.000$” no es entrada.
- */
-export function detectCashBudget(text: string): number | null {
-  if (!text.trim() || looksLikeDownPayment(text)) {
-    return null;
-  }
-  const n = fold(text);
-  const talksBudget =
-    /\b(?:dispongo|cuento con|presupuesto|hasta|maximo)\b/.test(n) ||
-    /\b(?:tengo|tenemos)\s+\$?\s*\d/.test(n) ||
-    /\b(?:que|cual(?:es)?)\s+vehicul/.test(n) ||
-    /\bpor\s+\$?\s*\d/.test(n) ||
-    /\bunos?\b/.test(n) ||
-    /\balrededor\b/.test(n) ||
-    /\balgun(?:os)?\s+(?:auto|carro|vehiculo)/.test(n);
-  if (!talksBudget) {
-    return null;
-  }
-  return parseBudgetAmount(text);
-}
-
-/** Último tope de contado que el cliente dijo en el hilo. */
-export function lastCashBudgetInTexts(texts: string[]): number | null {
-  let budget: number | null = null;
-  for (const text of texts) {
-    const found = detectCashBudget(text);
-    if (found) {
-      budget = found;
-    }
-  }
-  return budget;
+export function carFitsBudget(
+  car: { price?: number | null },
+  budget: number,
+): boolean {
+  return car.price != null && car.price > 0 && car.price <= budget;
 }
 
 export function carsInBudget(
@@ -119,15 +59,41 @@ export function carsInBudget(
   return preferCurrentYears(picked.slice(0, 6));
 }
 
+export function carsMatchingAskInBudget(
+  cars: StockCar[],
+  budget: number,
+  opts?: {
+    exceptId?: string | null;
+    kind?: VehicleKind | null;
+    gearbox?: Gearbox | null;
+  },
+): StockCar[] {
+  return cars.filter((car) => {
+    if (opts?.exceptId && car.id === opts.exceptId) {
+      return false;
+    }
+    if (!carFitsBudget(car, budget)) {
+      return false;
+    }
+    if (opts?.kind && !matchesVehicleKind(car.typeBody, opts.kind)) {
+      return false;
+    }
+    if (opts?.gearbox && gearboxOf(car) !== opts.gearbox) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export const BUDGET_FINANCING_ASK =
-  'También disponemos de financiamiento. ¿Le gustaría que le ayudemos con crédito para llevarse el que más le guste, o prefiere de contado?';
+  'Recuerde que lo puede financiar para un carro que se acomode a lo que más le guste. ¿Le ayudamos con crédito o prefiere de contado?';
 
 export const BUDGET_PICK_SHOWN =
   '¿Cuál de las unidades que le mostramos le gusta más?';
 
 export function replyAskedBudgetFinancing(text: string): boolean {
   const n = fold(text);
-  return /disponemos de financiamiento/.test(n) && /prefiere de contado/.test(n);
+  return /puede financiar/.test(n) && /se acomode/.test(n);
 }
 
 export function historyAskedBudgetFinancing(

@@ -12,6 +12,7 @@ import {
   gearboxKey,
   lastSeenKey,
   tomaChecklistKey,
+  cashBudgetKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
@@ -117,6 +118,44 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar la caja contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadCashBudget(contactId: string): Promise<number | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(cashBudgetKey(contactId));
+      const amount = value ? Number(value) : NaN;
+      return Number.isFinite(amount) && amount >= 1000 ? amount : null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer tope de contado contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveCashBudget(contactId: string, budget: number): Promise<void> {
+    if (!contactId || !Number.isFinite(budget) || budget < 1000) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        cashBudgetKey(contactId),
+        String(Math.round(budget)),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar tope de contado contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

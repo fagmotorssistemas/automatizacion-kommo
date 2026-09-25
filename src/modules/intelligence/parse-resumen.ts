@@ -76,6 +76,7 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
+    .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
     .replace(/toma\s+ya:\s*.+/gi, '')
     .replace(/toma\s+falta:\s*.+/gi, '')
@@ -357,6 +358,45 @@ export function resumenCajaCompra(resumen: string): CajaCompra | null {
     return 'manual';
   }
   return 'automatica';
+}
+
+/** El analizador leyó un tope de contado. El número, no una frase del cliente. */
+export function parseTopeAmount(text: string): number | null {
+  const n = fold(text);
+  if (!n || /^no$/.test(n.trim())) {
+    return null;
+  }
+  const mil = n.match(/\$?\s*(\d{1,3}(?:[.,]\d{3})*|\d+)\s*mil\b/);
+  if (mil) {
+    const raw = mil[1].replace(/[.,]/g, '');
+    const value = Number(raw);
+    return Number.isFinite(value) ? value * (raw.length <= 3 ? 1000 : 1) : null;
+  }
+  const thousands = n.match(/(\d{1,3})[.,](\d{3})\b/);
+  if (thousands) {
+    const value = Number(`${thousands[1]}${thousands[2]}`);
+    return Number.isFinite(value) && value >= 1000 ? value : null;
+  }
+  const plain = n.match(/(\d{4,6})/);
+  if (!plain) {
+    return null;
+  }
+  const value = Number(plain[1]);
+  if (!Number.isFinite(value) || value < 3000) {
+    return null;
+  }
+  if (value >= 1990 && value <= 2035) {
+    return null;
+  }
+  return value;
+}
+
+export function resumenTopeContado(resumen: string): number | null {
+  const match = resumen.match(/tope\s+de\s+contado:\s*(.+?)(?:\n|$)/i);
+  if (!match) {
+    return null;
+  }
+  return parseTopeAmount(match[1]);
 }
 
 function tomaFichaLine(resumen: string): string | null {

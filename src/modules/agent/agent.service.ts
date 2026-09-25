@@ -123,6 +123,7 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  resumenTopeContado,
   resumenEsToma,
   resumenTomaFicha,
   stripTomaFacts,
@@ -185,10 +186,10 @@ import {
 import {
   appendBudgetFinancingAsk,
   appendBudgetPickShown,
+  carFitsBudget,
   carsInBudget,
-  detectCashBudget,
+  carsMatchingAskInBudget,
   formatBudgetRevision,
-  lastCashBudgetInTexts,
   shouldAskBudgetFinancing,
   shouldAskWhichShown,
 } from '../conversation/budget';
@@ -443,6 +444,9 @@ export class AgentService {
     const rememberedToma = await this.conversation.loadTomaChecklist(
       input.contactId,
     );
+    const rememberedBudget = await this.conversation.loadCashBudget(
+      input.contactId,
+    );
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
       content: input.customerText,
@@ -453,11 +457,17 @@ export class AgentService {
       customerText: input.customerText,
       handoffBrief,
       tomaChecklist: rememberedToma,
+      cashBudget: rememberedBudget,
     });
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
     const cajaCompra = resumenCajaCompra(resumen);
+    const topeNow = resumenTopeContado(resumen);
+    const cashBudget = topeNow ?? rememberedBudget;
+    if (topeNow) {
+      await this.conversation.saveCashBudget(input.contactId, topeNow);
+    }
     const esToma = resumenEsToma(resumen);
     const tomaChecklist = mergeTomaChecklist(
       rememberedToma,
@@ -516,12 +526,11 @@ export class AgentService {
       confirmingCashOrDelivery
         ? false
         : mentionsPrice;
-    const cashBudget = detectCashBudget(input.customerText);
     const aceptaVerSiAplica =
       resumenAceptaCredito(resumen) &&
       (historyAskedIfApplies(history) || historyHasShownCuota(history));
     const askedCredit =
-      cashBudget ||
+      topeNow ||
       aceptaVerSiAplica ||
       resumenRechazaAplicar(resumen) ||
       resumenPrefiereContado(resumen)
@@ -552,13 +561,17 @@ export class AgentService {
     );
     const stayOnShown = lastAssistantListed
       ? false
-      : followsShownCar({
-          text: input.customerText,
-          resumen,
-          history,
-          car: interested,
-          lexicon,
-        });
+      : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
+          !resumenPideOtras(resumen) &&
+          !resumenTopeContado(resumen)
+        ? true
+        : followsShownCar({
+            text: input.customerText,
+            resumen,
+            history,
+            car: interested,
+            lexicon,
+          });
     const fichaAlreadyGiven = historyPresentedFicha(
       history,
       interested?.model,
@@ -640,6 +653,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               askedOtherColor,
               resumen,
               cajaCompra,
+              cashBudget,
             );
     if (stayOnShown && interested && specTopic(input.customerText)) {
       const notes = await this.specNotesForShown(
@@ -700,7 +714,12 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const interestedText =
       interested &&
       (stayOnShown ||
-        refersToInterestedCar(input.customerText, interested, lexicon)) &&
+        refersToInterestedCar(
+          input.customerText,
+          interested,
+          lexicon,
+          resumen,
+        )) &&
       !shownOtherBox
         ? formatInterestedCar(
             interested,
@@ -748,7 +767,12 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           interested.price &&
           interested.price > 0 &&
           (stayOnShown ||
-            refersToInterestedCar(input.customerText, interested, lexicon))),
+            refersToInterestedCar(
+              input.customerText,
+              interested,
+              lexicon,
+              resumen,
+            ))),
     );
     const lastAssistantMsg = [...history]
       .reverse()
@@ -823,7 +847,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       revision.sendId ||
         (interested &&
           (stayOnShown ||
-            refersToInterestedCar(input.customerText, interested, lexicon))),
+            refersToInterestedCar(
+              input.customerText,
+              interested,
+              lexicon,
+              resumen,
+            ))),
     );
     const priceUnloadedHint =
       askedPrice &&
@@ -885,7 +914,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             ? 'YA hubo cuota. Lee el RESUMEN: qué pide AHORA. No pidas cédula si no aceptó ver si aplica.'
             : resumenPrefiereContado(resumen) && !confirmingCashOrDelivery
               ? 'El RESUMEN dice que prefiere de contado. PROHIBIDO crédito, entrada o cuota. El sistema pregunta cuál de las unidades ya mostradas le gusta. Quédate en esas. No insistas con financiamiento.'
-              : cashBudget
+              : topeNow
                 ? 'PRESUPUESTO: lista las unidades que caben. El sistema pregunta si quieren crédito o contado. PROHIBIDO armar cuota. PROHIBIDO pregunta de visita en este turno.'
                 : '';
     const anuncioHint = adVehicle
@@ -1110,7 +1139,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parsed.mensaje = appendFinancingDecline(parsed.mensaje);
       }
       const listedBudgetNow =
-        Boolean(cashBudget) && revision.text.includes('PRESUPUESTO DE CONTADO');
+        Boolean(topeNow) && revision.text.includes('PRESUPUESTO DE CONTADO');
       if (
         shouldAskBudgetFinancing({
           listedBudgetNow,
@@ -1346,6 +1375,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     askedOtherColor = false,
     resumen = '',
     cajaCompra: ReturnType<typeof resumenCajaCompra> = null,
+    cashBudget: number | null = null,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const listedFollowUp = looksLikeUnitList(
@@ -1377,7 +1407,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? { ...named, year: yearSaidNow ?? named.year }
       : null;
     const pideOtras = resumenPideOtras(resumen);
-    const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
+    const cashBudgetEarly = asked ? null : cashBudget;
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
     const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);
@@ -1443,13 +1473,26 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       listedPool.length >= 2 &&
       !askedOutsideListed(asked?.family, listedPool)
     ) {
-      const picked = pickListedUnit(listedPool, customerText, lexicon);
-      if (picked) {
+      const pool = cashBudget
+        ? listedPool.filter((car) => carFitsBudget(car, cashBudget))
+        : listedPool;
+      if (cashBudget && pool.length === 0) {
+        listedPool = [];
+      } else {
+      const picked = pickListedUnit(
+        pool.length > 0 ? pool : listedPool,
+        customerText,
+        lexicon,
+      );
+      if (picked && (!cashBudget || carFitsBudget(picked, cashBudget))) {
         return {
           ...formatNamedUnits([picked], includePrice),
           switchedModel: true,
           vehicleKind: kindFromTypeBody(picked.typeBody),
         };
+      }
+      if (cashBudget && pool.length > 0) {
+        listedPool = pool;
       }
       if (wantsPhotosOfListed(customerText)) {
         return formatListedPhotoQueue(listedPool);
@@ -1460,6 +1503,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         sendId: null,
         switchedModel: true,
       };
+      }
     }
     if (spaceAsk && !asked) {
       let pool = pickLargePassengerCars(listed);
@@ -1477,20 +1521,33 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         sendId: null,
       };
     }
-    const cashBudget = asked ? null : detectCashBudget(customerText);
-    if (cashBudget) {
+    if (cashBudgetEarly) {
       const patio = await this.catalog.listAvailableExcept('_');
-      const hits = carsInBudget(patio, cashBudget, reference?.inventoryId);
+      const tight = carsMatchingAskInBudget(patio, cashBudgetEarly, {
+        exceptId: reference?.inventoryId,
+        kind: kindForAsk,
+        gearbox,
+      });
+      const hits =
+        tight.length > 0
+          ? preferCurrentYears(tight.slice(0, 6))
+          : carsInBudget(patio, cashBudgetEarly, reference?.inventoryId);
+      const missAsk =
+        tight.length === 0 && (kindForAsk || gearbox)
+          ? `No hay ${kindForAsk ?? 'unidad'}${gearbox ? ` ${gearbox}` : ''} en ese tope. No ofrezcas más caras. `
+          : '';
+      const revision = formatBudgetRevision({
+        budget: cashBudgetEarly,
+        cars: hits,
+        over: reference
+          ? { family: reference.family, price: reference.price }
+          : undefined,
+      });
       return {
-        ...formatBudgetRevision({
-          budget: cashBudget,
-          cars: hits,
-          over: reference
-            ? { family: reference.family, price: reference.price }
-            : undefined,
-        }),
+        ...revision,
+        text: `${missAsk}${revision.text}`,
         switchedModel: true,
-        vehicleKind: kindOfNamedUnits(hits),
+        vehicleKind: kindOfNamedUnits(hits) ?? kindForAsk,
       };
     }
     if (pideOtras && !asked) {
@@ -1504,6 +1561,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         if (typed.length > 0) {
           pool = typed;
         }
+      }
+      if (cashBudget) {
+        pool = pool.filter((car) => carFitsBudget(car, cashBudget));
       }
       const refPrice = reference?.price ?? 0;
       pool.sort(
@@ -1597,11 +1657,7 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
         asked.year ??
         lastYearInUserTexts(priorUserTexts, lexicon)
       : (yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon));
-    const threadBudget = lastCashBudgetInTexts([
-      ...priorUserTexts,
-      customerText,
-      solicitud,
-    ]);
+    const threadBudget = cashBudget;
     const threadText = shownThreadText(history, resumen);
     const alreadyOffered = carsShownInHistory(history, listed, resumen);
     if (!asked && wantsListedPrices && alreadyOffered.length > 0) {
@@ -1891,14 +1947,19 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         yearOnward,
       );
       if (elsewhere.length > 0) {
-        return this.namedModelFound(
-          elsewhere,
-          includePrice,
-          false,
-          false,
-          floorYear,
-          yearOnward,
-        );
+        const fit = threadBudget
+          ? elsewhere.filter((car) => carFitsBudget(car, threadBudget))
+          : elsewhere;
+        if (fit.length > 0) {
+          return this.namedModelFound(
+            fit,
+            includePrice,
+            false,
+            false,
+            floorYear,
+            yearOnward,
+          );
+        }
       }
       const sameFamily = listed.filter((car) =>
         textMentionsModel(car.model, asked.family),
@@ -1908,13 +1969,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         : asked.year && sameFamily.length > 0
           ? carsNearYear(sameFamily, asked.year)
           : sameFamily;
-      const inBudget =
-        yearOnward && threadBudget
-          ? yearOk.filter(
-              (car) =>
-                car.price == null || car.price <= threadBudget * 1.2,
-            )
-          : yearOk;
+      const inBudget = threadBudget
+        ? yearOk.filter((car) => carFitsBudget(car, threadBudget))
+        : yearOk;
       if (yearOnward && inBudget.length > 0) {
         return this.namedModelFound(
           inBudget,
@@ -1925,7 +1982,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           true,
         );
       }
-      let alternatives = yearOnward ? [] : yearOk;
+      let alternatives = yearOnward ? [] : inBudget;
       if (alternatives.length === 0) {
         const except = {
           inventoryId: reference?.inventoryId,

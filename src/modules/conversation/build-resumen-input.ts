@@ -26,6 +26,7 @@ export function buildResumenInput(input: {
   customerText: string;
   handoffBrief?: string | null;
   tomaChecklist?: TomaChecklist | null;
+  cashBudget?: number | null;
 }): string {
   const parts: string[] = [];
   if (input.handoffBrief?.trim()) {
@@ -34,6 +35,9 @@ export function buildResumenInput(input: {
   const tomaPrev = formatTomaForResumen(input.tomaChecklist ?? null);
   if (tomaPrev) {
     parts.push(`CHECKLIST TOMA YA GUARDADO:\n${tomaPrev}`);
+  }
+  if (input.cashBudget != null && input.cashBudget > 0) {
+    parts.push(`TOPE DE CONTADO YA GUARDADO: ${input.cashBudget}`);
   }
 
   const historial = formatDialogueForResumen(input.history);
