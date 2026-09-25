@@ -284,6 +284,8 @@ describe('marca y tres filas', () => {
     expect(askedModelPhrase('Mazda 3', lexicon)).toBe('3');
     expect(modelPhraseMatchesCar('3', 'mx3')).toBe(false);
     expect(modelPhraseMatchesCar('sportage', 'sportage r gti')).toBe(true);
+    expect(askedModelPhrase('motor 2.0', lexicon)).toBe('');
+    expect(askedModelPhrase('opciones con motor 2.0', lexicon)).toBe('');
   });
 
   it('recuerda que pidió tres filas', () => {

@@ -119,6 +119,11 @@ export function askedModelPhrase(
   rest = normalizeModelText(rest);
   rest = rest.replace(/\b(?:19|20)\d{2}\b/g, ' ');
   rest = rest.replace(/\b\d+\s*km\b/g, ' ');
+  rest = rest.replace(/\b\d+\.\d+\b/g, ' ');
+  rest = rest.replace(
+    /\b(?:motor(?:es)?|opciones|disponibles|vehiculos?|especificos?|patio|estas|estos|tenemos|con)\b/g,
+    ' ',
+  );
   for (const row of COLORS) {
     rest = rest.replace(new RegExp(`\\b${row.name}\\b`, 'gi'), ' ');
   }
@@ -216,7 +221,7 @@ function isFactToken(token: string): boolean {
   if (detectTrimInText(token)) {
     return true;
   }
-  if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?|caja)$/.test(token)) {
+  if (/^(?:autom[aá]tic[oa]s?|manual(?:es)?|mecanic[oa]s?|caja|motor(?:es)?)$/.test(token)) {
     return true;
   }
   if (isDriveFamily(token)) {

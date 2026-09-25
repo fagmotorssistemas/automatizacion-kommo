@@ -3360,6 +3360,89 @@ Falta vehículo: sí`,
     expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
   });
 
+  it('tiene fotos tras un párrafo 2.0 manda esas unidades y no niega el patio', async () => {
+    const patio = [
+      {
+        id: 'couper',
+        brand: 'changan',
+        model: 'couper ac 1.6',
+        year: 2012,
+        price: 8000,
+        typeBody: 'hatchback',
+        color: 'blanco',
+        mileage: 60746,
+      },
+      {
+        id: 'tunland',
+        brand: 'foton',
+        model: 'tunland g ac 2.0',
+        year: 2023,
+        price: 20000,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 113692,
+      },
+      {
+        id: 'poer',
+        brand: 'foton',
+        model: 'poer ac 2.0',
+        year: 2022,
+        price: 18000,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 82103,
+      },
+      {
+        id: 'sportage-extra',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29000,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 10000,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadPreviousResumen.mockResolvedValue(
+      'Vehículo: opciones con motor 2.0\nSOLICITUD: fotos de esos modelos',
+    );
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos estas opciones con motor 2.0 disponibles: Couper AC 1.6 3p 4x2 automática blanco 2012 con 60746 km, Tunland G AC 2.0 CD 4x4 manual plateado 2023 con 113692 km, Poer AC 2.0 CD 4x2 manual plateado 2022 con 82103 km. ¿Cuál le interesa para darle más detalles?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide fotos.\nFalta vehículo: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos en patio vehículos con motor 2.0 específicos.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A68915',
+      customerText: 'Tiene fotos',
+    });
+
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/una por una/i);
+    expect(result?.reply.mensaje).not.toMatch(/no tenemos/i);
+    expect(result?.photoQueue?.map((item) => item.inventoryId)).toEqual([
+      'couper',
+      'tunland',
+      'poer',
+    ]);
+  });
+
   it('sí por favor tras un listado de varios carros no manda la cola de fotos', async () => {
     const patio = [
       {

@@ -80,6 +80,60 @@ describe('listed photos', () => {
     );
   });
 
+  it('un párrafo con año y km también es listado', () => {
+    const prose =
+      'Tenemos estas opciones con motor 2.0 disponibles: Couper AC 1.6 automática blanco 2012 con 60746 km, Tunland G AC 2.0 manual plateado 2023 con 113692 km, Poer AC 2.0 plateado 2022 con 82103 km. ¿Cuál le interesa?';
+    expect(looksLikeUnitList(prose)).toBe(true);
+    expect(wantsPhotosOfListed('Tiene fotos')).toBe(true);
+    const patio: StockCar[] = [
+      {
+        id: 'couper',
+        brand: 'changan',
+        model: 'couper ac 1.6',
+        year: 2012,
+        price: 8000,
+        typeBody: 'hatchback',
+        color: 'blanco',
+        mileage: 60746,
+      },
+      {
+        id: 'tunland',
+        brand: 'foton',
+        model: 'tunland g ac 2.0',
+        year: 2023,
+        price: 20000,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 113692,
+      },
+      {
+        id: 'poer',
+        brand: 'foton',
+        model: 'poer ac 2.0',
+        year: 2022,
+        price: 18000,
+        typeBody: 'camioneta',
+        color: 'plateado',
+        mileage: 82103,
+      },
+      {
+        id: 'otra',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29000,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 10000,
+      },
+    ];
+    expect(
+      lastListedUnits([{ role: 'assistant', content: prose }], patio).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['couper', 'tunland', 'poer']);
+  });
+
   it('ok y envíeme fotos piden las del listado', () => {
     expect(wantsPhotosOfListed('Si mi estimado ok\nEnvíeme fotos por favor')).toBe(
       true,

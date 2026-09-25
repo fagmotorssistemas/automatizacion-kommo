@@ -23,10 +23,39 @@ export type PhotoQueueItem = {
 
 const MAX_PHOTO_PACKS = 6;
 
-/** El bot ya enumeró varias unidades (1) 2) 3)). */
+/** El bot ya enumeró varias unidades: 1) 2) 3), o un párrafo con año y km. */
 export function looksLikeUnitList(text: string): boolean {
   const marks = text.match(/\b[1-9]\)/g) ?? [];
-  return marks.length >= 2;
+  if (marks.length >= 2) {
+    return true;
+  }
+  return proseUnitItems(text).length >= 2;
+}
+
+/**
+ * Párrafo sin números: "Couper ... 2012 con 60746 km, Tunland ... 2023 con 113692 km".
+ * La coma de miles (60,746) no parte la unidad.
+ */
+function proseUnitItems(text: string): string[] {
+  const head = text.split('?')[0] ?? text;
+  const colon = head.lastIndexOf(':');
+  const body = colon >= 0 ? head.slice(colon + 1) : head;
+  return body
+    .split(/,(?!\d)\s+/)
+    .map((chunk) => chunk.trim())
+    .filter(
+      (chunk) =>
+        /\b(?:19|20)\d{2}\b/.test(chunk) &&
+        (/\d{3,7}\s*km\b/i.test(chunk) || /\bkilometraje\b/i.test(chunk)),
+    );
+}
+
+function listItems(text: string): string[] {
+  const marks = text.match(/\b[1-9]\)/g) ?? [];
+  if (marks.length >= 2) {
+    return text.split(/\b[1-9]\)/).slice(1);
+  }
+  return proseUnitItems(text);
 }
 
 /** Cola de fotos solo si el último mensaje del bot ya listó unidades. */
@@ -89,7 +118,7 @@ export function carsNamedInList(text: string, cars: StockCar[]): StockCar[] {
   if (!looksLikeUnitList(text)) {
     return [];
   }
-  const items = text.split(/\b[1-9]\)/).slice(1);
+  const items = listItems(text);
   const found: StockCar[] = [];
   const used = new Set<string>();
   for (const item of items) {

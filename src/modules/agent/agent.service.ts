@@ -1575,6 +1575,18 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         modelPhraseMatchesCar(phrase, car.model),
       );
       if (hits.length === 0) {
+        if (listedFollowUp && wantsPhotosOfListed(customerText)) {
+          const pool = lastListedUnits(
+            history,
+            await this.catalog.listAvailableExcept('_'),
+          );
+          if (
+            pool.length >= 2 &&
+            !askedOutsideListed(asked?.family, pool)
+          ) {
+            return formatListedPhotoQueue(pool);
+          }
+        }
         return {
           text: `PEDIDO: ${pedido}
 Ese modelo no está en patio. Di primero que no lo tenemos, con el nombre que pidió.
