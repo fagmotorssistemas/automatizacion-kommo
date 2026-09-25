@@ -143,6 +143,33 @@ describe('AgentService', () => {
     expect(conversation.appendMessage).not.toHaveBeenCalled();
   });
 
+  it('clic de Facebook A75239 no busca patio ni manda fotos', async () => {
+    const result = await service.handleTurn({
+      contactId: 'A75239',
+      customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue).toBeUndefined();
+    expect(openai.complete).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(catalog.searchByQuery).not.toHaveBeenCalled();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+  });
+
+  it('clic de Facebook con sí pegado sigue preguntando cuál', async () => {
+    const result = await service.handleTurn({
+      contactId: 'A75239b',
+      customerText:
+        'Hola. ¿Puedo obtener más información sobre esto?\nSí, por favor',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
+    expect(result?.photoQueue).toBeUndefined();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+  });
+
   it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
     const result = await service.handleTurn({
       contactId: '59099901',
@@ -266,6 +293,19 @@ describe('AgentService', () => {
     expect(system).toMatch(/Tipo: suv/);
     expect(result?.reply.mensaje).toMatch(/Tracker/i);
     expect(conversation.saveVehicleKind).toHaveBeenCalledWith('1', 'suv');
+  });
+
+  it('clic de Facebook con catálogo de varios carros no lista ni manda fotos', async () => {
+    const result = await service.handleTurn({
+      contactId: 'A75239c',
+      customerText:
+        'Hola. ¿Puedo obtener más información sobre esto {Ranger 2026 Tracker 2022 Santa Fe 2018}',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
+    expect(result?.photoQueue).toBeUndefined();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
   });
 
   it('clic de Facebook con botón no usa ese título como carro', async () => {

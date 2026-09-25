@@ -10,7 +10,8 @@ Debes devolver EXACTAMENTE el formato indicado abajo. No añadas líneas extra.
 
 REGLA CRITICA (OBLIGATORIA):
 SIEMPRE QUE INCLUYA EL MENSAJE DEL CLIENTE: HOLA ME INTERESA ...., es una primera ineteración, toma en cuenta eso. 
-Si Contexto = "Primera interacción" Y el cliente muestra interés en un vehículo (menciona un vehículo o pide información de uno), entonces la línea de SOLICITUD ACTUAL debe incluir SIEMPRE al final: " y solicita fotos." 
+Si Contexto = "Primera interacción" Y el cliente YA nombró un vehículo (marca, modelo o la unidad del anuncio), entonces la línea de SOLICITUD ACTUAL debe incluir al final: " y solicita fotos."
+Si el clic pide “más información sobre esto” y NO hay marca/modelo/tipo ni unidad del anuncio, NO agregues “solicita fotos”. Falta vehículo: sí. Pide otras: no. La SOLICITUD: no especificó qué carro; hay que preguntarle.
 Si no cumples esto, la respuesta es incorrecta.
 
 ACLARACION SOBRE "PRIMERA INTERACCIÓN" (IMPORTANTE):
@@ -142,6 +143,7 @@ Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aú
 - Falta vehículo: sí si pide info, precio o ver unidades y no hay un carro/tipo concreto. La SOLICITUD: no especificó qué carro; hay que preguntarle.
 - Falta vehículo: no si nombró marca, modelo o tipo, o sigue con la unidad ya mostrada, o el turno no necesita carro (dirección, horario).
 - Un clic de anuncio sin carro + otro pedido (precio, info) sin nombrar unidad: Falta vehículo: sí.
+- El clic “más información sobre esto” sin marca/modelo/tipo: Falta vehículo: sí. Pide otras: no. No es ver todo el patio ni pedir fotos.
 
 REGLA DE TOPE DE CONTADO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?

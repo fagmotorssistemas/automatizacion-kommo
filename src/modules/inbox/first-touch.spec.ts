@@ -24,6 +24,11 @@ describe('first-touch', () => {
     ).toBe(true);
     expect(
       isFacebookMoreInfoOpener(
+        'Hola. ¿Puedo obtener más información sobre esto {Ranger 2026 Tracker 2022}',
+      ),
+    ).toBe(true);
+    expect(
+      isFacebookMoreInfoOpener(
         'Hola. Quiero más información sobre el Kia Sportage 2019',
       ),
     ).toBe(false);
@@ -31,7 +36,7 @@ describe('first-touch', () => {
       isFacebookMoreInfoOpener(
         '¡Hola! Me gustaría conseguir más información sobre esto.\nSí, por favor',
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       hasFacebookMoreInfoClick(
         '¡Hola! Quiero más información\nA cómo sale',

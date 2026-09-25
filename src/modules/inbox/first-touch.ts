@@ -24,10 +24,15 @@ export function isMoreInfoOpenerLine(line: string): boolean {
   );
 }
 
-/** Todo el turno es solo el clic de Facebook, sin otro pedido. */
+function isConfirmationLine(line: string): boolean {
+  return /^(si|ok|okay|okey|vale)(?:\s+por\s+favor)?$/.test(line);
+}
+
+/** Todo el turno es el clic de Facebook. Un “sí/ok” pegado no es un carro. */
 export function isFacebookMoreInfoOpener(text: string): boolean {
   const lines = linesOf(text);
-  return lines.length > 0 && lines.every(isMoreInfoOpenerLine);
+  const rest = lines.filter((line) => !isConfirmationLine(line));
+  return rest.length > 0 && rest.every(isMoreInfoOpenerLine);
 }
 
 /** El debounce pegó el clic con otra línea: igual hubo clic de Facebook. */

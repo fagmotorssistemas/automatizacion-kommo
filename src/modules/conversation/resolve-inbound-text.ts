@@ -1,4 +1,8 @@
-import { hasFacebookMoreInfoClick } from '../inbox/first-touch';
+import {
+  adLabelLooksLikeVehicle,
+  hasFacebookMoreInfoClick,
+  isCtaAdLabel,
+} from '../inbox/first-touch';
 import { CtwaMatch } from '../persistence/lead.types';
 
 /** cumple_rango_tiempo: |mensaje - clic| <= 60 s */
@@ -76,9 +80,13 @@ export function resolveInboundText(input: {
     return unmatched;
   }
 
+  const headline = input.ctwa.adHeadline?.trim() ?? '';
   const attachHeadline =
     !input.alreadyInConversation &&
-    Boolean(input.ctwa.adHeadline) &&
+    Boolean(headline) &&
+    !isCtaAdLabel(headline) &&
+    adLabelLooksLikeVehicle(headline) &&
+    (headline.match(/\b(?:19|20)\d{2}\b/g) ?? []).length < 2 &&
     hasFacebookMoreInfoClick(buffer);
   if (!attachHeadline) {
     return { ...unmatched, withinWindow: true };

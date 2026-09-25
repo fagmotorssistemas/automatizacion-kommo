@@ -360,7 +360,12 @@ const MODEL_STOP = new Set([
   'hay',
 ]);
 
-/** Título del anuncio si nombra un carro. Vacío si es solo el clic o un botón. */
+/** Dos años en el título = catálogo/carrusel, no una unidad. */
+function adLabelIsCatalog(label: string): boolean {
+  return (label.match(/\b(?:19|20)\d{2}\b/g) ?? []).length >= 2;
+}
+
+/** Título del anuncio si nombra UN carro. Vacío si es clic, botón o catálogo. */
 function facebookOpenerVehicle(
   text: string,
   lexicon: VehicleLexicon,
@@ -369,7 +374,7 @@ function facebookOpenerVehicle(
     return null;
   }
   const label = facebookAdLabel(text);
-  if (!label || isCtaAdLabel(label)) {
+  if (!label || isCtaAdLabel(label) || adLabelIsCatalog(label)) {
     return null;
   }
   if (
@@ -1578,6 +1583,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(hits) ?? kindForAsk,
       };
+    }
+    if (pideOtras && !asked && !kindForAsk && !targetBrand && !reference) {
+      return empty;
     }
     if (pideOtras && !asked) {
       const patio = await this.catalog.listAvailableExcept('_');

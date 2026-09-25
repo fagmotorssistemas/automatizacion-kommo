@@ -37,6 +37,33 @@ describe('resolveInboundText', () => {
     ).toBe('buffer');
   });
 
+  it('un botón o catálogo del anuncio no se pega como carro', () => {
+    expect(
+      resolveInboundText({
+        joinedText: opener,
+        createdAtUnix: '1000',
+        alreadyInConversation: false,
+        ctwa: {
+          matched: true,
+          adHeadline: 'Chatea con nosotros',
+          capturedAt: click.capturedAt,
+        },
+      }).message,
+    ).toBe(opener);
+    expect(
+      resolveInboundText({
+        joinedText: opener,
+        createdAtUnix: '1000',
+        alreadyInConversation: false,
+        ctwa: {
+          matched: true,
+          adHeadline: 'Ranger 2026 Tracker 2022 X-Trail 2024',
+          capturedAt: click.capturedAt,
+        },
+      }).vehicle,
+    ).toBeNull();
+  });
+
   it('el primer clic de Facebook anota el título del anuncio', () => {
     expect(
       resolveInboundText({

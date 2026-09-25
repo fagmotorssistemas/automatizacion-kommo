@@ -302,8 +302,9 @@ export class InboxFlushRunner {
       : false;
     const wantsPhotos =
       Boolean(turn.photoQueue?.length) ||
-      asksForPhotos(customerText) ||
-      resumenAsksForPhotos(turn.resumen);
+      (Boolean(inventoryId) &&
+        (asksForPhotos(customerText) ||
+          resumenAsksForPhotos(turn.resumen)));
     if (turn.photoQueue && turn.photoQueue.length > 0) {
       const last = turn.photoQueue[turn.photoQueue.length - 1];
       turn.reply.meta.vehiculo = {
