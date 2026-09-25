@@ -3443,6 +3443,88 @@ Falta vehículo: sí`,
     ]);
   });
 
+  it('precio sigue la unidad del resumen y no salta a la otra Sportage R', async () => {
+    const patio = [
+      {
+        id: 'lx-plata',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+        year: 2019,
+        price: 21500,
+        typeBody: 'jeep',
+        color: 'plateado',
+        transmission: 'automática',
+        mileage: 113170,
+      },
+      {
+        id: 'rojo-gti',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0 5p 4x2',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'rojo',
+        transmission: 'manual',
+        mileage: 91096,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'rojo-gti',
+      brand: 'kia',
+      model: 'sportage r gti ac 2.0 5p 4x2',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'rojo',
+      transmission: 'manual',
+      mileage: 91096,
+    });
+    conversation.loadPreviousResumen.mockResolvedValue(
+      'Vehículo: Sportage R automático plateado\nSOLICITUD: eligió esa unidad',
+    );
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos un Sportage R GTI LX automática plateado 2019 con 113170 km y un Sportage R GTI manual rojo 2019 con 91096 km. ¿Cuál le interesa?',
+      },
+      {
+        role: 'user',
+        content: 'Sportage R automático plateado',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Kia Sportage R GTI LX automática plateado 2019, con 113170 km, transmisión automática.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la unidad que ya eligió.\nPide precio: sí\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Kia Sportage R GTI manual rojo 2019, con 91096 km y precio de $22900.',
+        meta: { vehiculo: { inventory_id: 'rojo-gti' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75296',
+      customerText: 'Precio',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('lx-plata');
+    expect(system).not.toContain('rojo-gti');
+    expect(system).toMatch(/PROHIBIDO otra versión/i);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('lx-plata');
+  });
+
   it('sí por favor tras un listado de varios carros no manda la cola de fotos', async () => {
     const patio = [
       {

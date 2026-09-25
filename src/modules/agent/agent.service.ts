@@ -168,6 +168,7 @@ import {
   formatInterestedCar,
   historyPresentedFicha,
   refersToInterestedCar,
+  vehicleLabelFitsCar,
 } from '../conversation/interested-car';
 import {
   asksForLargePassengerSpace,
@@ -1570,10 +1571,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     let listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
+    let pedidoPinned = false;
     if (phrase) {
-      const hits = listed.filter((car) =>
-        modelPhraseMatchesCar(phrase, car.model),
+      const strict = listed.filter((car) =>
+        vehicleLabelFitsCar(pedido ?? '', car, lexicon),
       );
+      const hits =
+        strict.length > 0
+          ? strict
+          : listed.filter((car) => modelPhraseMatchesCar(phrase, car.model));
+      pedidoPinned = strict.length > 0;
       if (hits.length === 0) {
         if (listedFollowUp && wantsPhotosOfListed(customerText)) {
           const pool = lastListedUnits(
@@ -1869,15 +1876,21 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const threadBudget = cashBudget;
     const threadText = shownThreadText(history, resumen);
     const alreadyOffered = carsShownInHistory(history, listed, resumen);
-    if (!asked && wantsListedPrices && alreadyOffered.length > 0) {
-      const named = formatNamedUnits(alreadyOffered, true);
+    const pricePool =
+      pedidoPinned && listed.length > 0 ? listed : alreadyOffered;
+    if (!asked && wantsListedPrices && pricePool.length > 0) {
+      const named = formatNamedUnits(pricePool, true);
+      const one = pricePool.length === 1;
       return {
         ...named,
-        holdVehicle: alreadyOffered.length !== 1,
-        sendId: alreadyOffered.length === 1 ? alreadyOffered[0].id : null,
+        holdVehicle: !one,
+        sendId: one ? pricePool[0].id : null,
         switchedModel: true,
-        vehicleKind: kindOfNamedUnits(alreadyOffered),
-        text: `${named.text}
+        vehicleKind: kindOfNamedUnits(pricePool),
+        text: one
+          ? `${named.text}
+El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro color u otra caja.`
+          : `${named.text}
 PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }

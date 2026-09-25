@@ -4,6 +4,7 @@ import {
   historyPresentedFicha,
   leftShownCar,
   refersToInterestedCar,
+  vehicleLabelFitsCar,
 } from './interested-car';
 import { TEST_LEXICON } from './test-lexicon';
 import { KM_PER_YEAR, yearsOfUse } from '../catalog/mileage';
@@ -471,6 +472,48 @@ describe('vehículo de interés', () => {
       followsShownCar({
         text: 'tiene cámara de reversa?',
         car: picanto,
+      }),
+    ).toBe(true);
+  });
+
+  it('el resumen plateado automático no cabe en la GTI roja manual', () => {
+    const label = 'Sportage R automático plateado';
+    expect(
+      vehicleLabelFitsCar(
+        label,
+        {
+          model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+          color: 'plateado',
+          transmission: 'automática',
+        },
+        TEST_LEXICON,
+      ),
+    ).toBe(true);
+    expect(
+      vehicleLabelFitsCar(
+        label,
+        {
+          model: 'sportage r gti ac 2.0 5p 4x2',
+          color: 'rojo',
+          transmission: 'manual',
+        },
+        TEST_LEXICON,
+      ),
+    ).toBe(false);
+    expect(
+      leftShownCar({
+        text: 'Precio',
+        pedido: label,
+        car: {
+          inventoryId: 'rojo',
+          brand: 'kia',
+          model: 'sportage r gti ac 2.0 5p 4x2',
+          year: 2019,
+          price: 22900,
+          color: 'rojo',
+          transmission: 'manual',
+        },
+        lexicon: TEST_LEXICON,
       }),
     ).toBe(true);
   });

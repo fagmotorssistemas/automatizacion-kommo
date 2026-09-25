@@ -22,7 +22,7 @@ import {
   isDriveFamily,
   modelHasTrim,
 } from './vehicle-brand';
-import { detectGearbox, gearboxOf } from './gearbox';
+import { detectGearbox, gearboxOf, stripGearboxWords } from './gearbox';
 import {
   asksForLargePassengerSpace,
   isLargePassengerCar,
@@ -113,6 +113,46 @@ function askedOtherUnitFacts(
   return false;
 }
 
+/**
+ * El vehículo del resumen cabe en esa unidad.
+ * Color, caja y la versión que el resumen sí nombró tienen que coincidir.
+ * No alcanza con que las dos sean de la misma familia.
+ */
+export function vehicleLabelFitsCar(
+  label: string,
+  car: { model: string; color?: string | null; transmission?: string | null },
+  lexicon: VehicleLexicon = emptyLexicon(),
+): boolean {
+  const color = detectColorInText(label);
+  const box = detectGearbox(label, lexicon);
+  const phrase = stripGearboxWords(askedModelPhrase(label, lexicon));
+  if (phrase && !modelPhraseMatchesCar(phrase, car.model)) {
+    return false;
+  }
+  if (color && car.color && !colorMatches(car.color, color)) {
+    return false;
+  }
+  const shownBox = gearboxOf(car);
+  if (box && shownBox && box !== shownBox) {
+    return false;
+  }
+  const family = modelFamily(phrase);
+  const modelNorm = normalizeModelText(car.model);
+  const extras = normalizeModelText(phrase)
+    .split(/[^a-z0-9]+/)
+    .filter(
+      (token) =>
+        token.length >= 2 &&
+        token !== family &&
+        !/^(?:tm|ta|cd|cs|4x2|4x4|5p|4p|3p|color|ano|caja|transmision|traccion|version|unidad|modelo)$/.test(token),
+    );
+  return extras.every((token) =>
+    new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(
+      modelNorm,
+    ),
+  );
+}
+
 /** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
 export function leftShownCar(input: ShownCarContext): boolean {
   const car = input.car;
@@ -147,8 +187,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {
     return true;
   }
-  const phrase = input.pedido ? askedModelPhrase(input.pedido, lexicon) : '';
-  if (phrase && !modelPhraseMatchesCar(phrase, car.model)) {
+  if (input.pedido && !vehicleLabelFitsCar(input.pedido, car, lexicon)) {
     return true;
   }
   if (askedOtherUnitFacts(input.text, car, lexicon)) {
