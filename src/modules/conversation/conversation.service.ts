@@ -13,6 +13,7 @@ import {
   lastSeenKey,
   tomaChecklistKey,
   cashBudgetKey,
+  previousResumenKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
@@ -171,6 +172,43 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar tope de contado contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadPreviousResumen(contactId: string): Promise<string | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const value = await this.redis.get(previousResumenKey(contactId));
+      return value?.trim() || null;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer el resumen anterior contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async savePreviousResumen(contactId: string, resumen: string): Promise<void> {
+    if (!contactId || !resumen.trim()) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        previousResumenKey(contactId),
+        resumen.trim().slice(0, 800),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar el resumen anterior contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }

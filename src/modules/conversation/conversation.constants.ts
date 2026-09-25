@@ -24,5 +24,8 @@ export const tomaChecklistKey = (contactId: string) =>
 export const cashBudgetKey = (contactId: string) =>
   `conversation:cash-budget:${contactId}`;
 
+export const previousResumenKey = (contactId: string) =>
+  `conversation:previous-resumen:${contactId}`;
+
 /** Volvió después de esto: un saludo. Menos: no saludar otra vez. */
 export const GREET_AFTER_MS = 2 * 24 * 60 * 60 * 1000;

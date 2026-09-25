@@ -39,6 +39,8 @@ describe('AgentService', () => {
     saveTomaChecklist: jest.fn(),
     loadCashBudget: jest.fn(),
     saveCashBudget: jest.fn(),
+    loadPreviousResumen: jest.fn(),
+    savePreviousResumen: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -102,6 +104,9 @@ describe('AgentService', () => {
     conversation.loadCashBudget.mockReset();
     conversation.loadCashBudget.mockResolvedValue(null);
     conversation.saveCashBudget.mockReset();
+    conversation.loadPreviousResumen.mockReset();
+    conversation.loadPreviousResumen.mockResolvedValue(null);
+    conversation.savePreviousResumen.mockReset();
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);
@@ -2670,6 +2675,63 @@ describe('AgentService', () => {
     });
 
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'rio-1' });
+  });
+
+  it('el resumen anterior mantiene el Mazda 3 y no lo cambia por el MX-3', async () => {
+    conversation.loadPreviousResumen.mockResolvedValue(
+      'Vehículo: Mazda 3\nContexto: el bot mostró un MX3\nSOLICITUD: Cliente quiere un Mazda 3.',
+    );
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Quiero un Mazda. 3' },
+      {
+        role: 'assistant',
+        content: 'Tenemos disponible un Mazda Mx3 1993 color verde.',
+      },
+    ]);
+    conversation.loadLastSeen.mockResolvedValue(Date.now());
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'mx3',
+      brand: 'mazda',
+      model: 'mx3',
+      year: 1993,
+      price: 3000,
+      typeBody: 'hatchback',
+      color: 'verde',
+      mileage: 0,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        `RESUMEN PREVIO:
+Vehículo: No aplica
+SOLICITUD ACTUAL:
+Cliente no especificó qué carro.
+Falta vehículo: sí`,
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos un Mazda 3.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A74992',
+      customerText: 'No amigo un Mazda 3 busco',
+    });
+
+    expect(openai.complete.mock.calls[0][1]).toMatch(
+      /RESUMEN DEL TURNO ANTERIOR:[\s\S]*Mazda 3/,
+    );
+    expect(result?.reply.mensaje).not.toMatch(/Qué carro le interesa/);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/Mazda 3/);
+    expect(system).toMatch(/no está en patio/i);
+    expect(system).not.toMatch(/inventory_id=mx3/);
+    expect(conversation.savePreviousResumen).toHaveBeenCalledWith(
+      'A74992',
+      expect.stringMatching(/Vehículo: Mazda 3/),
+    );
   });
 
   it('el RESUMEN PREVIO recibe el hilo cliente-bot', async () => {

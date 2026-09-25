@@ -3,7 +3,9 @@ export const RESUMEN_SYSTEM_PROMPT = `Analiza la conversación y determina qué 
 
 ENTRADA:
 - Resumen breve del contexto (si existe)
+- RESUMEN DEL TURNO ANTERIOR (si existe): el Vehículo y la SOLICITUD que el cliente YA pidió
 - Mensaje actual del cliente
+Si viene RESUMEN DEL TURNO ANTERIOR, no lo borres ni lo cambies por la unidad que el bot mostró.
 
 SALIDA (máx. 4 líneas):
 Debes devolver EXACTAMENTE el formato indicado abajo. No añadas líneas extra.
@@ -152,6 +154,13 @@ REGLA DE HORARIO (OBLIGATORIA):
 Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?
 - Pide horario: sí. La SOLICITUD dice qué día preguntó. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
 - Pide horario: no si habla de un vehículo (precio, fotos, esa unidad).
+
+REGLA DEL TURNO ANTERIOR (OBLIGATORIA):
+Si hay RESUMEN DEL TURNO ANTERIOR con un vehículo, ese es el carro que el cliente pidió, salvo que AHORA nombre otro.
+Si corrige lo que el bot mostró, Vehículo y SOLICITUD quedan en lo que ÉL pidió, no en la unidad ofrecida.
+Un modelo parecido de la misma marca no es el mismo: no lo sustituyas.
+Falta vehículo: no. No escribas que hay que preguntarle qué carro.
+Solo sueltas ese vehículo si nombra otro, o si el turno no es de un carro (horario, dirección).
 
 REGLA DE FALTA VEHÍCULO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aún no hay uno (ni lo nombró, ni sigue con el ya mostrado)?

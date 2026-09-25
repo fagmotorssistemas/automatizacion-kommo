@@ -1,5 +1,6 @@
 import {
   historyHasListedPrice,
+  mergeResumenForNext,
   parseResumen,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
@@ -18,6 +19,7 @@ import {
   resumenPideHorario,
   resumenAsientos,
   resumenTipoPatio,
+  vehicleQueSigue,
   parseTopeAmount,
   resumenEsToma,
   resumenTomaFicha,
@@ -89,6 +91,18 @@ Cliente quiere el precio.
 Pide precio: sí`);
     expect(parsed.vehiculo).toBe('Optra 2012');
     expect(parsed.solicitudActual).toMatch(/quiere el precio/i);
+  });
+
+  it('si este turno suelta el vehículo, sigue el que ya había pedido', () => {
+    const previous =
+      'Vehículo: Mazda 3\nContexto: el bot mostró un MX3\nSOLICITUD: Cliente quiere un Mazda 3.';
+    const current = `RESUMEN PREVIO:
+Vehículo: No aplica
+SOLICITUD ACTUAL:
+Cliente no especificó qué carro.
+Falta vehículo: sí`;
+    expect(vehicleQueSigue(current, previous)).toBe('Mazda 3');
+    expect(mergeResumenForNext(current, previous)).toMatch(/Vehículo: Mazda 3/);
   });
 });
 

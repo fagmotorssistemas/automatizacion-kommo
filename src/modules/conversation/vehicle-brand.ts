@@ -105,6 +105,58 @@ export function detectBrand(
   );
 }
 
+/** Lo que queda del vehículo pedido después de quitar marca, año y color. */
+export function askedModelPhrase(
+  label: string,
+  lexicon: VehicleLexicon = emptyLexicon(),
+): string {
+  const brand = detectBrand(label, lexicon);
+  let rest = foldAccents(label);
+  if (brand) {
+    const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    rest = rest.replace(new RegExp(`\\b${escaped}\\b`, 'ig'), ' ');
+  }
+  rest = normalizeModelText(rest);
+  rest = rest.replace(/\b(?:19|20)\d{2}\b/g, ' ');
+  rest = rest.replace(/\b\d+\s*km\b/g, ' ');
+  for (const row of COLORS) {
+    rest = rest.replace(new RegExp(`\\b${row.name}\\b`, 'gi'), ' ');
+  }
+  return rest
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** El modelo pedido es esa línea, no otra que solo se le parece. */
+export function modelPhraseMatchesCar(phrase: string, model: string): boolean {
+  const asked = normalizeModelText(phrase).replace(/\s+/g, ' ').trim();
+  if (!asked) {
+    return false;
+  }
+  const askedFamily = modelFamily(asked);
+  const shownFamily = modelFamily(model);
+  if (askedFamily && shownFamily && askedFamily === shownFamily) {
+    return true;
+  }
+  const compact = asked.replace(/\s+/g, '');
+  if (shownFamily && (shownFamily === compact || shownFamily === asked)) {
+    return true;
+  }
+  const modelNorm = normalizeModelText(model);
+  const escaped = asked
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\s+/g, '\\s+');
+  if (new RegExp(`\\b${escaped}\\b`, 'i').test(modelNorm)) {
+    return true;
+  }
+  if (!askedFamily) {
+    return false;
+  }
+  const familyEscaped = askedFamily.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${familyEscaped}\\b`, 'i').test(modelNorm);
+}
+
 export type NamedModelAsk = {
   brand: string;
   family: string;

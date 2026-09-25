@@ -1,10 +1,12 @@
 import {
+  askedModelPhrase,
   detectBrand,
   detectColorInText,
   detectNamedModelAsk,
   detectTrimInText,
   detectTresFilas,
   detectYearInText,
+  modelPhraseMatchesCar,
   resolveBrand,
   resolveTresFilas,
 } from './vehicle-brand';
@@ -268,6 +270,20 @@ describe('marca y tres filas', () => {
       family: 'dmax',
       year: null,
     });
+  });
+
+  it('un 3 no es un MX3', () => {
+    const lexicon = {
+      ...TEST_LEXICON,
+      brands: [...TEST_LEXICON.brands, 'mazda'],
+      models: [
+        ...TEST_LEXICON.models,
+        { brand: 'mazda', family: 'mx3' },
+      ],
+    };
+    expect(askedModelPhrase('Mazda 3', lexicon)).toBe('3');
+    expect(modelPhraseMatchesCar('3', 'mx3')).toBe(false);
+    expect(modelPhraseMatchesCar('sportage', 'sportage r gti')).toBe(true);
   });
 
   it('recuerda que pidió tres filas', () => {

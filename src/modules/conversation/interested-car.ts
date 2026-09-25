@@ -14,8 +14,10 @@ import {
   colorMatches,
   detectBrand,
   detectColorInText,
+  askedModelPhrase,
   detectNamedModelAsk,
   detectTrimInText,
+  modelPhraseMatchesCar,
   detectYearInText,
   isDriveFamily,
   modelHasTrim,
@@ -44,6 +46,8 @@ export type ShownCarContext = {
   history?: { role: string; content: string }[];
   car: InterestedCarSnapshot | null;
   lexicon?: VehicleLexicon;
+  /** Vehículo que el resumen ya tiene como pedido del cliente. */
+  pedido?: string | null;
 };
 
 /** El nombre pedido (T1, Getours T1) es la misma línea que ya está en patio. */
@@ -141,6 +145,10 @@ export function leftShownCar(input: ShownCarContext): boolean {
     }
   }
   if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {
+    return true;
+  }
+  const phrase = input.pedido ? askedModelPhrase(input.pedido, lexicon) : '';
+  if (phrase && !modelPhraseMatchesCar(phrase, car.model)) {
     return true;
   }
   if (askedOtherUnitFacts(input.text, car, lexicon)) {

@@ -10,9 +10,72 @@ export function solicitudSinBanderas(resumen: string): string {
   return stripResumenFlags(parseResumen(resumen).solicitudActual ?? '').trim();
 }
 
+/** El vehículo que el cliente pidió. "No aplica" no cuenta. */
+export function vehicleClientePidio(
+  resumen: string | null | undefined,
+): string | null {
+  if (!resumen) {
+    return null;
+  }
+  const raw = parseResumen(resumen).vehiculo?.trim() ?? '';
+  if (!raw || /^(?:no aplica|no|s[ií])$/i.test(raw)) {
+    return null;
+  }
+  return raw;
+}
+
+/**
+ * Vehículo vigente: el de este turno, o el anterior si este no lo soltó
+ * a propósito (pidió otras y puso No aplica).
+ */
+export function vehicleQueSigue(
+  current: string,
+  previous: string | null,
+): string | null {
+  const curVehicle = vehicleClientePidio(current);
+  if (curVehicle) {
+    return curVehicle;
+  }
+  const namedNoAplica = /^no aplica$/i.test(
+    parseResumen(current).vehiculo?.trim() ?? '',
+  );
+  if (namedNoAplica && resumenPideOtras(current)) {
+    return null;
+  }
+  return vehicleClientePidio(previous);
+}
+
+/**
+ * Lo que el siguiente turno debe leer. Si este resumen soltó el vehículo
+ * sin pedir otro, se queda el que el cliente ya había pedido.
+ */
+export function mergeResumenForNext(
+  current: string,
+  previous: string | null,
+): string | null {
+  const vehiculo = vehicleQueSigue(current, previous);
+  const cur = parseResumen(current);
+  const prev = parseResumen(previous ?? '');
+  const contexto = (cur.contexto || prev.contexto || '').trim();
+  const solicitud = (
+    solicitudSinBanderas(current) || solicitudSinBanderas(previous ?? '')
+  ).trim();
+  if (!vehiculo && !solicitud && !contexto) {
+    return null;
+  }
+  const lines = [`Vehículo: ${vehiculo || 'No aplica'}`];
+  if (contexto) {
+    lines.push(`Contexto: ${contexto}`);
+  }
+  if (solicitud) {
+    lines.push(`SOLICITUD: ${solicitud}`);
+  }
+  return lines.join('\n').slice(0, 800);
+}
+
 export function parseResumen(resumen: string): ParsedResumen {
   const texto = resumen || '';
-  const vehiculoMatch = texto.match(/Vehículo:\s*(.+?)(?:\n|$)/i);
+  const vehiculoMatch = texto.match(/(?:^|\n)\s*Vehículo:\s*(.+?)(?:\n|$)/i);
   const contextoMatch = texto.match(/Contexto:\s*(.+?)(?:\n\n|\nSOLICITUD|$)/is);
   const solicitudMatch = texto.match(/SOLICITUD ACTUAL:\s*(.+?)$/is);
 

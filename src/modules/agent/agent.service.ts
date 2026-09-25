@@ -62,10 +62,12 @@ import {
   detectBrand,
   detectColorInText,
   detectNamedModelAsk,
+  askedModelPhrase,
   detectTrimInText,
   detectYearInText,
   isDriveFamily,
   modelHasTrim,
+  modelPhraseMatchesCar,
   resolveBrand,
   type VehicleLexicon,
 } from '../conversation/vehicle-brand';
@@ -126,7 +128,9 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  mergeResumenForNext,
   resumenFaltaVehiculo,
+  vehicleQueSigue,
   resumenPideHorario,
   resumenAsientos,
   resumenTipoPatio,
@@ -458,6 +462,9 @@ export class AgentService {
     const rememberedBudget = await this.conversation.loadCashBudget(
       input.contactId,
     );
+    const previousResumen = await this.conversation.loadPreviousResumen(
+      input.contactId,
+    );
 
     const resumenInput = buildResumenInput({
       history,
@@ -465,12 +472,20 @@ export class AgentService {
       handoffBrief,
       tomaChecklist: rememberedToma,
       cashBudget: rememberedBudget,
+      previousResumen,
     });
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
+    const pedido = detectNamedModelAsk(input.customerText, lexicon)
+      ? null
+      : vehicleQueSigue(resumen, previousResumen);
+    const nextResumen = mergeResumenForNext(resumen, previousResumen);
+    if (nextResumen) {
+      await this.conversation.savePreviousResumen(input.contactId, nextResumen);
+    }
     const cajaCompra = resumenCajaCompra(resumen);
-    if (resumenFaltaVehiculo(resumen) && !adVehicle) {
+    if (resumenFaltaVehiculo(resumen) && !adVehicle && !pedido) {
       return this.replyAskWhichCar(input.contactId, input.customerText, {
         wantsPrice: resumenAsksForListedPrice(resumen),
       });
@@ -602,6 +617,7 @@ export class AgentService {
             history,
             car: interested,
             lexicon,
+            pedido,
           });
     const fichaAlreadyGiven = historyPresentedFicha(
       history,
@@ -693,6 +709,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               resumen,
               cajaCompra,
               cashBudget,
+              pedido,
             );
     if (closing) {
       revision = {
@@ -777,7 +794,12 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           lexicon,
           resumen,
         )) &&
-      !shownOtherBox
+      !shownOtherBox &&
+      !(
+        pedido &&
+        askedModelPhrase(pedido, lexicon) &&
+        !modelPhraseMatchesCar(askedModelPhrase(pedido, lexicon), interested.model)
+      )
         ? formatInterestedCar(
             interested,
             (askedPrice || askedCredit) &&
@@ -1452,6 +1474,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     resumen = '',
     cajaCompra: ReturnType<typeof resumenCajaCompra> = null,
     cashBudget: number | null = null,
+    pedido: string | null = null,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const listedFollowUp = looksLikeUnitList(
@@ -1482,6 +1505,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const asked = named
       ? { ...named, year: yearSaidNow ?? named.year }
       : null;
+    const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : cashBudget;
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
@@ -1503,7 +1527,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !pideOtras &&
       !listedFollowUp &&
       !askedCab &&
-      !askedDriveEarly
+      !askedDriveEarly &&
+      !phrase
     ) {
       return empty;
     }
@@ -1542,9 +1567,26 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       return empty;
     }
 
-    const listed = targetBrand
+    let listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
+    if (phrase) {
+      const hits = listed.filter((car) =>
+        modelPhraseMatchesCar(phrase, car.model),
+      );
+      if (hits.length === 0) {
+        return {
+          text: `PEDIDO: ${pedido}
+Ese modelo no está en patio. Di primero que no lo tenemos, con el nombre que pidió.
+PROHIBIDO presentarlo como otra línea parecida de la misma marca.
+vehiculo null.`,
+          holdVehicle: true,
+          sendId: null,
+          switchedModel: true,
+        };
+      }
+      listed = hits;
+    }
     if (
       targetBrand &&
       namesBrandNow &&

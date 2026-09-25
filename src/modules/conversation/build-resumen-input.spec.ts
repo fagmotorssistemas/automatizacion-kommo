@@ -10,6 +10,19 @@ describe('buildResumenInput', () => {
     ).toBe('MENSAJE ACTUAL:\nme interesa una hilux');
   });
 
+  it('pasa el resumen del turno anterior al analizador', () => {
+    expect(
+      buildResumenInput({
+        history: [{ role: 'user', content: 'Quiero un Mazda. 3' }],
+        customerText: 'No amigo un Mazda 3 busco',
+        previousResumen:
+          'Vehículo: Mazda 3\nSOLICITUD: Cliente quiere un Mazda 3.',
+      }),
+    ).toMatch(
+      /RESUMEN DEL TURNO ANTERIOR:\nVehículo: Mazda 3\nSOLICITUD: Cliente quiere un Mazda 3\./,
+    );
+  });
+
   it('pasa el tope de contado ya guardado al analizador', () => {
     expect(
       buildResumenInput({
