@@ -14,6 +14,7 @@ import {
   resumenPideOtras,
   resumenCajaCompra,
   resumenTopeContado,
+  resumenFaltaVehiculo,
   parseTopeAmount,
   resumenEsToma,
   resumenTomaFicha,
@@ -281,7 +282,7 @@ describe('resumenCajaCompra', () => {
   it('la solicitud sin banderas no arrastra caja de compra', () => {
     expect(
       solicitudSinBanderas(
-        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nFalta vehículo: no\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
       ),
     ).toBe('Cliente quiere Mitsubishi.');
   });
@@ -305,6 +306,22 @@ describe('resumenTopeContado', () => {
     expect(parseTopeAmount('23.000')).toBe(23000);
     expect(parseTopeAmount('10 mil')).toBe(10000);
     expect(parseTopeAmount('2012')).toBeNull();
+  });
+});
+
+describe('resumenFaltaVehiculo', () => {
+  it('lee la bandera del analizador, no una frase del cliente', () => {
+    expect(
+      resumenFaltaVehiculo(
+        'SOLICITUD ACTUAL:\nCliente pide el valor pero no especificó qué carro.\nFalta vehículo: sí',
+      ),
+    ).toBe(true);
+    expect(
+      resumenFaltaVehiculo(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la X-Trail.\nFalta vehículo: no',
+      ),
+    ).toBe(false);
+    expect(resumenFaltaVehiculo('A cómo sale')).toBe(false);
   });
 });
 

@@ -39,6 +39,7 @@ import {
   facebookAdLabel,
   isBareConfirmation,
   isCtaAdLabel,
+  hasFacebookMoreInfoClick,
   isFacebookMoreInfoOpener,
 } from '../inbox/first-touch';
 import { intentsSystemPrompt } from './prompts/intents.prompt';
@@ -123,6 +124,7 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  resumenFaltaVehiculo,
   resumenTopeContado,
   resumenEsToma,
   resumenTomaFicha,
@@ -362,7 +364,7 @@ function facebookOpenerVehicle(
   text: string,
   lexicon: VehicleLexicon,
 ): string | null {
-  if (!isFacebookMoreInfoOpener(text)) {
+  if (!hasFacebookMoreInfoClick(text)) {
     return null;
   }
   const label = facebookAdLabel(text);
@@ -447,10 +449,6 @@ export class AgentService {
     const rememberedBudget = await this.conversation.loadCashBudget(
       input.contactId,
     );
-    await this.conversation.appendMessage(input.contactId, {
-      role: 'user',
-      content: input.customerText,
-    });
 
     const resumenInput = buildResumenInput({
       history,
@@ -463,6 +461,13 @@ export class AgentService {
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
     const cajaCompra = resumenCajaCompra(resumen);
+    if (resumenFaltaVehiculo(resumen) && !adVehicle) {
+      return this.replyAskWhichCar(input.contactId, input.customerText);
+    }
+    await this.conversation.appendMessage(input.contactId, {
+      role: 'user',
+      content: input.customerText,
+    });
     const topeNow = resumenTopeContado(resumen);
     const cashBudget = topeNow ?? rememberedBudget;
     if (topeNow) {

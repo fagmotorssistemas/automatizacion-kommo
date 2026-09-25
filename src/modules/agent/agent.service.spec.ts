@@ -161,6 +161,47 @@ describe('AgentService', () => {
     });
   });
 
+  it('si el analizador marca falta vehículo no busca ni manda fotos', async () => {
+    openai.complete.mockResolvedValueOnce(
+      'SOLICITUD ACTUAL:\nCliente pide información y el valor pero no especificó qué carro.\nFalta vehículo: sí\nPide precio: sí',
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75210',
+      customerText: '¡Hola! Quiero más información\nA cómo sale',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue).toBeUndefined();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(catalog.searchByQuery).not.toHaveBeenCalled();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+  });
+
+  it('si el analizador nombra un carro no pregunta cuál', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la X-Trail.\nFalta vehículo: no\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La X-Trail está en 22990.',
+        meta: { vehiculo: { inventory_id: 'xt-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75210b',
+      customerText: '¡Hola! Quiero más información\nla X-Trail',
+    });
+
+    expect(result?.reply.mensaje).toBe('La X-Trail está en 22990.');
+    expect(result?.reply.mensaje).not.toMatch(/Qué carro le interesa/);
+    expect(openai.runSalesAgent).toHaveBeenCalled();
+  });
+
   it('clic de Facebook con botón no usa ese título como carro', async () => {
     const result = await service.handleTurn({
       contactId: '56671451',

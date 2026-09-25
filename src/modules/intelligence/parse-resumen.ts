@@ -77,6 +77,7 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
+    .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
     .replace(/toma\s+ya:\s*.+/gi, '')
     .replace(/toma\s+falta:\s*.+/gi, '')
@@ -335,6 +336,11 @@ export function resumenPideNegociar(resumen: string): boolean {
 /** Pidió otra unidad: es cambio de vehículo. Lo decide el resumen, no una frase del cliente. */
 export function resumenPideOtras(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+otras') === true;
+}
+
+/** El analizador: pide info/precio/ver y no hay carro. Lo decide por sentido. */
+export function resumenFaltaVehiculo(resumen: string): boolean {
+  return flagSiNo(resumen, 'falta\\s+veh[ií]culo') === true;
 }
 
 export type CajaCompra = 'manual' | 'automatica' | 'no';

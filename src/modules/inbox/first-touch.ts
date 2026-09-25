@@ -30,6 +30,11 @@ export function isFacebookMoreInfoOpener(text: string): boolean {
   return lines.length > 0 && lines.every(isMoreInfoOpenerLine);
 }
 
+/** El debounce pegó el clic con otra línea: igual hubo clic de Facebook. */
+export function hasFacebookMoreInfoClick(text: string): boolean {
+  return linesOf(text).some(isMoreInfoOpenerLine);
+}
+
 /** Título pegado del anuncio: «esto {Fiat 500 2017}». */
 export function facebookAdLabel(text: string): string | null {
   const match = text.match(/\{([^}]+)\}/);

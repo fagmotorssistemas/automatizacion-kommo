@@ -81,6 +81,23 @@ describe('resolveInboundText', () => {
     ).toBe(text);
   });
 
+  it('si el debounce pega el clic con el precio, igual anota el anuncio', () => {
+    expect(
+      resolveInboundText({
+        joinedText: `${opener}\nA cómo sale`,
+        createdAtUnix: '1000',
+        alreadyInConversation: false,
+        ctwa: click,
+      }),
+    ).toEqual({
+      message:
+        '¡Hola! Me gustaría conseguir más información sobre esto {F150 2022}.\nA cómo sale',
+      source: 'ad',
+      vehicle: 'F150 2022',
+      withinWindow: true,
+    });
+  });
+
   it('después del primer turno no se vuelve a pegar el título', () => {
     expect(
       resolveInboundText({

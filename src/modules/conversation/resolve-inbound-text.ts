@@ -1,4 +1,4 @@
-import { isFacebookMoreInfoOpener } from '../inbox/first-touch';
+import { hasFacebookMoreInfoClick } from '../inbox/first-touch';
 import { CtwaMatch } from '../persistence/lead.types';
 
 /** cumple_rango_tiempo: |mensaje - clic| <= 60 s */
@@ -79,7 +79,7 @@ export function resolveInboundText(input: {
   const attachHeadline =
     !input.alreadyInConversation &&
     Boolean(input.ctwa.adHeadline) &&
-    isFacebookMoreInfoOpener(buffer);
+    hasFacebookMoreInfoClick(buffer);
   if (!attachHeadline) {
     return { ...unmatched, withinWindow: true };
   }

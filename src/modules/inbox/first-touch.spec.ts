@@ -1,6 +1,7 @@
 import {
   adLabelLooksLikeVehicle,
   facebookAdLabel,
+  hasFacebookMoreInfoClick,
   isBareConfirmation,
   isCtaAdLabel,
   isFacebookMoreInfoOpener,
@@ -31,6 +32,11 @@ describe('first-touch', () => {
         '¡Hola! Me gustaría conseguir más información sobre esto.\nSí, por favor',
       ),
     ).toBe(false);
+    expect(
+      hasFacebookMoreInfoClick(
+        '¡Hola! Quiero más información\nA cómo sale',
+      ),
+    ).toBe(true);
   });
 
   it('el título del anuncio es un carro o un botón', () => {
