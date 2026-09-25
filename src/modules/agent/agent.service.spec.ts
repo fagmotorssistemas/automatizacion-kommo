@@ -31,6 +31,7 @@ describe('AgentService', () => {
     loadGearbox: jest.fn(),
     saveGearbox: jest.fn(),
     clearGearbox: jest.fn(),
+    clearVehicleKind: jest.fn(),
     clearConcreteAsk: jest.fn(),
     loadLastSeen: jest.fn(),
     saveLastSeen: jest.fn(),
@@ -90,6 +91,7 @@ describe('AgentService', () => {
     conversation.loadGearbox.mockResolvedValue(null);
     conversation.saveGearbox.mockReset();
     conversation.clearGearbox.mockReset();
+    conversation.clearVehicleKind.mockReset();
     conversation.clearConcreteAsk.mockReset();
     conversation.loadLastSeen.mockReset();
     conversation.loadLastSeen.mockResolvedValue(null);
@@ -200,6 +202,70 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toBe('La X-Trail está en 22990.');
     expect(result?.reply.mensaje).not.toMatch(/Qué carro le interesa/);
     expect(openai.runSalesAgent).toHaveBeenCalled();
+  });
+
+  it('un Chevrolet blanco no se queda trabado en hatchback', async () => {
+    conversation.loadVehicleKind.mockResolvedValue('hatchback');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto-1',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'rojo',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'busco hatchback' },
+      { role: 'assistant', content: 'Tenemos un Picanto 2023 rojo.' },
+    ]);
+    const chevys = [
+      {
+        id: 'tracker-blanco',
+        brand: 'chevrolet',
+        model: 'tracker ls 1.2',
+        year: 2023,
+        price: 21990,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'spark-rojo',
+        brand: 'chevrolet',
+        model: 'spark gt',
+        year: 2022,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'rojo',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(chevys);
+    catalog.listAvailableExcept.mockResolvedValue(chevys);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere un Chevrolet blanco.\nTipo de patio: suv\nPide otras: sí\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos una Tracker blanca 2023.',
+        meta: { vehiculo: { inventory_id: 'tracker-blanco' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'un chevrolet blanco',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/tracker/i);
+    expect(system).not.toMatch(/SOLO TIPO/i);
+    expect(system).not.toMatch(/Tipo: hatchback/);
+    expect(system).toMatch(/Tipo: suv/);
+    expect(result?.reply.mensaje).toMatch(/Tracker/i);
+    expect(conversation.saveVehicleKind).toHaveBeenCalledWith('1', 'suv');
   });
 
   it('clic de Facebook con botón no usa ese título como carro', async () => {

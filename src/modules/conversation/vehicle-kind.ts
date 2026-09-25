@@ -118,8 +118,8 @@ export function detectVehicleKind(text: string): VehicleKind | null {
 }
 
 /**
- * El tipo del carro en interested_cars manda.
- * Si en este mensaje dice camioneta, SUV, sedán o hatchback, ese dicho actualiza.
+ * El tipo del carro en interested_cars manda, salvo que el analizador
+ * o este mensaje pidan otro (o suelten el tipo anterior).
  * `remembered` cubre lo que ya se salió de la ventana del resumen.
  */
 export function resolveVehicleKind(input: {
@@ -128,10 +128,20 @@ export function resolveVehicleKind(input: {
   remembered: VehicleKind | null;
   /** type_body del último carro que pidió, ya traducido a camioneta/suv/sedán. */
   interestedKind?: VehicleKind | null;
+  /** Lo que el analizador leyó para este turno. */
+  resumenKind?: VehicleKind | null;
+  /** Este turno ya no sigue el tipo anterior (marca/color nueva). */
+  dropOldKind?: boolean;
 }): VehicleKind | null {
+  if (input.resumenKind) {
+    return input.resumenKind;
+  }
   const saidNow = detectVehicleKind(input.customerText);
   if (saidNow) {
     return saidNow;
+  }
+  if (input.dropOldKind) {
+    return null;
   }
   if (input.interestedKind) {
     return input.interestedKind;

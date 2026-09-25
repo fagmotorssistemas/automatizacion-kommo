@@ -33,7 +33,7 @@ import {
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
-import { resumenTopeContado } from '../intelligence/parse-resumen';
+import { resumenTipoPatio, resumenTopeContado } from '../intelligence/parse-resumen';
 import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
@@ -161,8 +161,14 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (box && shownBox && box !== shownBox) {
     return true;
   }
-  const saidKind = detectVehicleKind(input.text);
   const shownKind = kindFromTypeBody(car.typeBody);
+  const tipoPatio = resumenTipoPatio(input.resumen ?? '');
+  if (tipoPatio && tipoPatio !== 'no' && shownKind && tipoPatio !== shownKind) {
+    return true;
+  }
+  const saidKind =
+    detectVehicleKind(input.text) ||
+    (input.resumen ? detectVehicleKind(input.resumen) : null);
   if (saidKind && shownKind && saidKind !== shownKind) {
     return true;
   }

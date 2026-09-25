@@ -69,7 +69,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -120,6 +120,7 @@ Pide otras: sí|no
 Caja de compra: automática|manual|no
 Tope de contado: [23000 o no]
 Falta vehículo: sí|no
+Tipo de patio: suv|camioneta|sedan|hatchback|no
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]
 Toma ya: marca=...; color=...; año=...; km=... | no
@@ -127,6 +128,13 @@ Toma falta: modelo, placa, monto | no
 Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
+
+REGLA DE TIPO DE PATIO (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback), o ya no sigue el tipo de antes?
+- Tipo de patio: suv|camioneta|sedan|hatchback si AHORA quiere ese tipo (lo dijo o el carro que pide es de ese tipo).
+- Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
+- Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
+- Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.
 
 REGLA DE FALTA VEHÍCULO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aún no hay uno (ni lo nombró, ni sigue con el ya mostrado)?

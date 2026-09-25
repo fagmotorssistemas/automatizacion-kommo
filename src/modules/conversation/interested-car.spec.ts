@@ -104,6 +104,15 @@ describe('vehículo de interés', () => {
     ).toBe(true);
     expect(
       leftShownCar({
+        text: 'un chevrolet blanco',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere un Chevrolet blanco.\nTipo de patio: suv\nPide otras: sí',
+        car: picanto,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      leftShownCar({
         text: 'Tiene el hyundai y 10',
         car: sportage,
         lexicon: TEST_LEXICON,

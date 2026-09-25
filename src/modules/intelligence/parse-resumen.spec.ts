@@ -15,6 +15,7 @@ import {
   resumenCajaCompra,
   resumenTopeContado,
   resumenFaltaVehiculo,
+  resumenTipoPatio,
   parseTopeAmount,
   resumenEsToma,
   resumenTomaFicha,
@@ -282,7 +283,7 @@ describe('resumenCajaCompra', () => {
   it('la solicitud sin banderas no arrastra caja de compra', () => {
     expect(
       solicitudSinBanderas(
-        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nFalta vehículo: no\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nFalta vehículo: no\nTipo de patio: no\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
       ),
     ).toBe('Cliente quiere Mitsubishi.');
   });
@@ -322,6 +323,22 @@ describe('resumenFaltaVehiculo', () => {
       ),
     ).toBe(false);
     expect(resumenFaltaVehiculo('A cómo sale')).toBe(false);
+  });
+});
+
+describe('resumenTipoPatio', () => {
+  it('lee el tipo del analizador, no una frase del cliente', () => {
+    expect(
+      resumenTipoPatio(
+        'SOLICITUD ACTUAL:\nCliente quiere un Chevrolet blanco.\nTipo de patio: suv',
+      ),
+    ).toBe('suv');
+    expect(
+      resumenTipoPatio(
+        'SOLICITUD ACTUAL:\nCliente quiere un Chevrolet blanco.\nTipo de patio: no',
+      ),
+    ).toBe('no');
+    expect(resumenTipoPatio('quiero un chevrolet blanco')).toBeNull();
   });
 });
 

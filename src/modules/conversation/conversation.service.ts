@@ -86,6 +86,21 @@ export class ConversationService {
     }
   }
 
+  async clearVehicleKind(contactId: string): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.del(vehicleKindKey(contactId));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo borrar el tipo de vehículo contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
   async loadGearbox(contactId: string): Promise<Gearbox | null> {
     if (!contactId) {
       return null;

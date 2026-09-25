@@ -1,3 +1,5 @@
+import { parseVehicleKind, type VehicleKind } from '../conversation/vehicle-kind';
+
 export type ParsedResumen = {
   vehiculo: string | null;
   contexto: string | null;
@@ -78,6 +80,7 @@ function stripResumenFlags(text: string): string {
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
+    .replace(/tipo\s+de\s+patio:\s*[^\n]+/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
     .replace(/toma\s+ya:\s*.+/gi, '')
     .replace(/toma\s+falta:\s*.+/gi, '')
@@ -341,6 +344,29 @@ export function resumenPideOtras(resumen: string): boolean {
 /** El analizador: pide info/precio/ver y no hay carro. Lo decide por sentido. */
 export function resumenFaltaVehiculo(resumen: string): boolean {
   return flagSiNo(resumen, 'falta\\s+veh[ií]culo') === true;
+}
+
+/**
+ * Tipo de carro de patio que quiere AHORA. Lo decide el analizador.
+ * `no` = este turno nombra marca/modelo/color y no sigue el tipo anterior.
+ */
+export function resumenTipoPatio(
+  resumen: string,
+): VehicleKind | 'no' | null {
+  const match = resumen.match(
+    /tipo\s+de\s+patio:\s*(suv|camioneta|sed[aá]n|hatchback|jeep|no)(?:\s|$)/i,
+  );
+  if (!match) {
+    return null;
+  }
+  const value = fold(match[1]);
+  if (value === 'no') {
+    return 'no';
+  }
+  if (value === 'jeep') {
+    return 'suv';
+  }
+  return parseVehicleKind(value);
 }
 
 export type CajaCompra = 'manual' | 'automatica' | 'no';

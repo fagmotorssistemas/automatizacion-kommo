@@ -103,6 +103,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     loadGearbox: jest.fn(),
     saveGearbox: jest.fn(),
     clearGearbox: jest.fn(),
+    clearVehicleKind: jest.fn(),
     clearConcreteAsk: jest.fn(),
     loadLastSeen: jest.fn(),
     saveLastSeen: jest.fn(),

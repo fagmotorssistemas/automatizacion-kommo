@@ -125,6 +125,7 @@ import {
   resumenPideOtras,
   resumenCajaCompra,
   resumenFaltaVehiculo,
+  resumenTipoPatio,
   resumenTopeContado,
   resumenEsToma,
   resumenTomaFicha,
@@ -433,12 +434,6 @@ export class AgentService {
     const interested = await this.persistence.latestInterestedCar(
       input.contactId,
     );
-    const vehicleKind = await this.rememberVehicleKind(
-      input.contactId,
-      history,
-      input.customerText,
-      kindFromTypeBody(interested?.typeBody),
-    );
     const handoffBrief = await this.attachHandoffBrief(
       input.contactId,
       history,
@@ -468,6 +463,13 @@ export class AgentService {
       role: 'user',
       content: input.customerText,
     });
+    const vehicleKind = await this.rememberVehicleKind(
+      input.contactId,
+      history,
+      input.customerText,
+      kindFromTypeBody(interested?.typeBody),
+      resumenTipoPatio(resumen),
+    );
     const topeNow = resumenTopeContado(resumen);
     const cashBudget = topeNow ?? rememberedBudget;
     if (topeNow) {
@@ -1290,16 +1292,22 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     history: { role: string; content: string }[],
     customerText: string,
     interestedKind: VehicleKind | null,
+    tipoPatio: ReturnType<typeof resumenTipoPatio>,
   ): Promise<VehicleKind | null> {
     const remembered = await this.conversation.loadVehicleKind(contactId);
+    const dropOldKind = tipoPatio === 'no';
     const kind = resolveVehicleKind({
       history,
       customerText,
       remembered,
-      interestedKind,
+      interestedKind: dropOldKind ? null : interestedKind,
+      resumenKind: tipoPatio && tipoPatio !== 'no' ? tipoPatio : null,
+      dropOldKind,
     });
     if (kind) {
       await this.conversation.saveVehicleKind(contactId, kind);
+    } else if (dropOldKind) {
+      await this.conversation.clearVehicleKind(contactId);
     }
     return kind;
   }
@@ -1455,7 +1463,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
     const solicitud = solicitudSinBanderas(resumen);
+    const tipoPatio = resumenTipoPatio(resumen);
     const saidKind =
+      (tipoPatio && tipoPatio !== 'no' ? tipoPatio : null) ||
       detectVehicleKind(customerText) ||
       detectVehicleKind(solicitud) ||
       detectVehicleKind(concreteAsk ?? '');
@@ -1463,7 +1473,11 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? kindFromStockFamily(listed, asked.family)
       : null;
     const kindForAsk =
-      saidKind ?? inferredKind ?? (asked ? null : vehicleKind);
+      tipoPatio === 'no'
+        ? inferredKind
+        : saidKind ??
+          inferredKind ??
+          (asked || namesBrandNow ? null : vehicleKind);
     const lastAssistantText =
       [...history].reverse().find((item) => item.role === 'assistant')
         ?.content ?? '';

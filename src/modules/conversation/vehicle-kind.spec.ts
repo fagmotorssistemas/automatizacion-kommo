@@ -41,6 +41,27 @@ describe('vehicle kind', () => {
     ).toBe('camioneta');
   });
 
+  it('el analizador suelta el hatchback si ahora pide otro carro', () => {
+    expect(
+      resolveVehicleKind({
+        history: [{ role: 'user', content: 'busco hatchback' }],
+        customerText: 'un chevrolet blanco',
+        remembered: 'hatchback',
+        interestedKind: 'hatchback',
+        resumenKind: 'suv',
+      }),
+    ).toBe('suv');
+    expect(
+      resolveVehicleKind({
+        history: [{ role: 'user', content: 'busco hatchback' }],
+        customerText: 'un chevrolet blanco',
+        remembered: 'hatchback',
+        interestedKind: 'hatchback',
+        dropOldKind: true,
+      }),
+    ).toBeNull();
+  });
+
   it('si en este mensaje pide suv, ese dicho actualiza', () => {
     expect(
       resolveVehicleKind({
