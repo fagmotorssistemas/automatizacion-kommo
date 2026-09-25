@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { afterDelayInBusinessHours } from '../followup/add-business-hours';
 import { CrmService } from '../crm/crm.service';
+import { LEAD_SEND_GAP_MS } from '../outbound/outbound.constants';
 import { OutboundService } from '../outbound/outbound.service';
 import {
   POST_FOTOS_BATCH_LIMIT,
@@ -104,12 +105,21 @@ export class PostFotosService {
     const result: PostFotosRunResult = { ...empty };
     try {
       const due = await this.repository.listDue(limit);
+      let pauseBeforeNext = false;
       for (const row of due) {
+        if (pauseBeforeNext) {
+          this.logger.log(
+            `Espera ${LEAD_SEND_GAP_MS / 1000}s antes del siguiente post-fotos`,
+          );
+          await sleep(LEAD_SEND_GAP_MS);
+          pauseBeforeNext = false;
+        }
         result.examined += 1;
         try {
           const outcome = await this.processOne(row);
           if (outcome === 'sent') {
             result.sent += 1;
+            pauseBeforeNext = true;
           } else if (outcome === 'shadow') {
             result.shadowed += 1;
           } else if (outcome === 'cancelled') {
@@ -229,6 +239,12 @@ export class PostFotosService {
       `Post-fotos paso=${next} programado session=${row.sessionId} at=${programada.toISOString()}`,
     );
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function nextPaso(paso: PostFotosPaso): PostFotosPaso | null {

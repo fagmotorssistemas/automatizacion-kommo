@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CrmService } from '../crm/crm.service';
+import { LEAD_SEND_GAP_MS } from '../outbound/outbound.constants';
 import { OUTBOUND_CONFIG, type OutboundConfig } from '../outbound/outbound.config';
 import {
   addBusinessHours,
@@ -114,12 +115,21 @@ export class FollowupService {
     const result: FollowupRunResult = { ...empty };
     try {
       const due = await this.repository.listDue(limit);
+      let pauseBeforeNext = false;
       for (const row of due) {
+        if (pauseBeforeNext) {
+          this.logger.log(
+            `Espera ${LEAD_SEND_GAP_MS / 1000}s antes de la siguiente retoma`,
+          );
+          await sleep(LEAD_SEND_GAP_MS);
+          pauseBeforeNext = false;
+        }
         result.examined += 1;
         try {
           const outcome = await this.processDue(row);
           if (outcome === 'sent') {
             result.sent += 1;
+            pauseBeforeNext = true;
           } else if (outcome === 'cancelled') {
             result.cancelled += 1;
           } else if (outcome === 'shadow') {
@@ -223,4 +233,10 @@ export class FollowupService {
     }
     return addCalendarDaysFrom(lastMessageAt, 7);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

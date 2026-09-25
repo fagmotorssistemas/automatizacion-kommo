@@ -1,3 +1,4 @@
+import { LEAD_SEND_GAP_MS } from '../outbound/outbound.constants';
 import { PostFotosService } from './post-fotos.service';
 
 describe('PostFotosService', () => {
@@ -49,6 +50,10 @@ describe('PostFotosService', () => {
     botApagado: false,
     respondioPostFotos: false,
   };
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   beforeEach(() => {
     repository.isReady.mockReturnValue(true);
@@ -121,6 +126,28 @@ describe('PostFotosService', () => {
       'kommo_respuesta_ia',
     );
     expect(repository.schedulePaso).not.toHaveBeenCalled();
+  });
+
+  it('espera 20s entre mensajes a leads distintos', async () => {
+    jest.useFakeTimers();
+    const second = { ...row, id: 11, leadIdKommo: '42016825', sessionId: '2' };
+    repository.listDue.mockResolvedValue([row, second]);
+    outbound.isShadowMode.mockReturnValue(false);
+    llm.draft.mockResolvedValue('Juan, ¿qué le pareció el Picanto?');
+    const times: number[] = [];
+    outbound.sendText.mockImplementation(async () => {
+      times.push(Date.now());
+      return { wrote: true, botRan: true };
+    });
+
+    const pending = service.runOnce();
+    await jest.advanceTimersByTimeAsync(LEAD_SEND_GAP_MS - 1);
+    expect(times).toHaveLength(1);
+    await jest.advanceTimersByTimeAsync(1);
+    const result = await pending;
+
+    expect(result.sent).toBe(2);
+    expect(times[1] - times[0]).toBe(LEAD_SEND_GAP_MS);
   });
 
   it('si el lead ya no está en Kommo, cancela', async () => {
