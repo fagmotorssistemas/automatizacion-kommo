@@ -70,7 +70,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -82,6 +82,8 @@ Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SO
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
+Pide horario: sí si pregunta si atienden, el horario o si están abiertos un día (hoy, mañana, sábado), aunque cancele una cita. SOLICITUD: canceló / pregunta si atienden ESE día. Pide otras: no. Falta vehículo: no. No es ver un carro ni cambiar de unidad.
+Pide horario: no si el turno es de un carro (precio, fotos, esa unidad).
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
 - CIERRE (la primera que aplique gana; no mezcles banderas):
   1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
@@ -123,6 +125,7 @@ Caja de compra: automática|manual|no
 Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
+Pide horario: sí|no
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]  // dos carros: A || B
 Toma ya: marca=...; modelo=...; color=...; año=...; km=... | no  // dos: A || B
@@ -137,6 +140,11 @@ Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (
 - Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
 - Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
 - Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.
+
+REGLA DE HORARIO (OBLIGATORIA):
+Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?
+- Pide horario: sí. La SOLICITUD dice qué día preguntó. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
+- Pide horario: no si habla de un vehículo (precio, fotos, esa unidad).
 
 REGLA DE FALTA VEHÍCULO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aún no hay uno (ni lo nombró, ni sigue con el ya mostrado)?

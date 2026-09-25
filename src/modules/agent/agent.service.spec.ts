@@ -3836,6 +3836,58 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/11061/);
   });
 
+  it('cancela cita y pregunta si atienden mañana no suelta otro carro', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto-1',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+    });
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'poer-1',
+        brand: 'great wall',
+        model: 'poer ac 2.0 cd 4x2',
+        year: 2022,
+        price: 21990,
+        typeBody: 'camioneta',
+        color: 'plateado',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente canceló la cita y pregunta si atienden mañana.\nPide horario: sí\nPide otras: no\nFalta vehículo: no\nEs despedida: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["horarios"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Quedó cancelada la cita. Mañana sábado atendemos de 09:30 a 13:30.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A74177',
+      customerText:
+        'Buenas tardes, tenia una cita pero no voy a poder asistir. El dia de mañna atiende?',
+    });
+
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/Hoy es \S+: (SÍ atienden|NO atienden)/);
+    expect(system).toMatch(/Mañana es \S+: (SÍ atienden|NO atienden)/);
+    expect(system).toMatch(/PROHIBIDO ofrecer carro/);
+    expect(system).toMatch(/PROHIBIDO "horario habitual"/);
+    expect(system).not.toMatch(/Tipo: hatchback/i);
+    expect(system).not.toMatch(/Poer/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.reply.mensaje).toMatch(/sábado|09:30/i);
+  });
+
   it('listo después de confirmar la visita no la repite', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'x70-2025',

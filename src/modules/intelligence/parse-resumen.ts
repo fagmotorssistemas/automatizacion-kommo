@@ -346,6 +346,11 @@ export function resumenFaltaVehiculo(resumen: string): boolean {
   return flagSiNo(resumen, 'falta\\s+veh[ií]culo') === true;
 }
 
+/** Pregunta si atienden / el horario de un día. Lo decide el resumen. */
+export function resumenPideHorario(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+horario') === true;
+}
+
 /**
  * Tipo de carro de patio que quiere AHORA. Lo decide el analizador.
  * `no` = este turno nombra marca/modelo/color y no sigue el tipo anterior.

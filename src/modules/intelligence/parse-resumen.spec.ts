@@ -15,6 +15,7 @@ import {
   resumenCajaCompra,
   resumenTopeContado,
   resumenFaltaVehiculo,
+  resumenPideHorario,
   resumenTipoPatio,
   parseTopeAmount,
   resumenEsToma,
@@ -323,6 +324,21 @@ describe('resumenFaltaVehiculo', () => {
       ),
     ).toBe(false);
     expect(resumenFaltaVehiculo('A cómo sale')).toBe(false);
+  });
+});
+
+describe('resumenPideHorario', () => {
+  it('lee si pregunta si atienden, no el carro del hilo', () => {
+    expect(
+      resumenPideHorario(
+        'SOLICITUD ACTUAL:\nCliente canceló la cita y pregunta si atienden mañana.\nPide horario: sí\nPide otras: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPideHorario(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la Poer.\nPide horario: no',
+      ),
+    ).toBe(false);
   });
 });
 

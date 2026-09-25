@@ -120,3 +120,33 @@ export function getDealershipClock(now = new Date()): DealershipClock {
     estaAbierto: false,
   };
 }
+
+function hoursLabel(day: number): string {
+  if (day === 0) {
+    return 'cerrado';
+  }
+  if (day === 6) {
+    return '09:30 a 13:30';
+  }
+  return '08:30 a 18:00';
+}
+
+function dayOpenLine(day: number, when: 'Hoy' | 'Mañana'): string {
+  const name = WEEKDAY[day] ?? '';
+  if (day === 0) {
+    return `${when} es ${name}: NO atienden.`;
+  }
+  return `${when} es ${name}: SÍ atienden, ${hoursLabel(day)}.`;
+}
+
+/** Preguntó horario: nombra HOY y MAÑANA (abren o no), no “habitual”, no un carro. */
+export function formatHoursAskHint(now = new Date()): string {
+  const clock = getDealershipClock(now);
+  const tomorrow = (clock.diaActual + 1) % 7;
+  return `ATENCIÓN / HORARIO (reloj Cuenca/Guayaquil):
+${dayOpenLine(clock.diaActual, 'Hoy')}
+${dayOpenLine(tomorrow, 'Mañana')}
+L-V 08:30–18:00 | Sáb 09:30–13:30 | Dom cerrado.
+Di HOY (qué día es + si atienden) y MAÑANA (abren o no + horario). Nombra el día (Viernes, Sábado). PROHIBIDO "horario habitual". PROHIBIDO "hoy/mañana" sin el nombre del día.
+Si canceló una cita, reconócelo. PROHIBIDO ofrecer carro, fotos, cuota o cambiar de unidad. vehiculo null.`;
+}

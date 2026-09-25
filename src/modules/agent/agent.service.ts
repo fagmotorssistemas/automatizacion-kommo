@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock, hourInGuayaquil } from '../intelligence/dealership-hours';
+import { formatHoursAskHint } from '../intelligence/dealership-hours';
 import { formatVisitHourHint, isMoneyNotVisit, PRECIO_NO_HORARIO } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
@@ -126,6 +127,7 @@ import {
   resumenPideOtras,
   resumenCajaCompra,
   resumenFaltaVehiculo,
+  resumenPideHorario,
   resumenTipoPatio,
   resumenTopeContado,
   resumenEsToma,
@@ -570,6 +572,7 @@ export class AgentService {
       .map((item) => item.content)
       .join('\n')}`;
     const spaceAsk = asksForLargePassengerSpace(spaceText);
+    const pideHorario = resumenPideHorario(resumen);
     const lastAssistantListed = looksLikeUnitList(
       [...history].reverse().find((item) => item.role === 'assistant')
         ?.content ?? '',
@@ -622,7 +625,13 @@ export class AgentService {
       input.customerText,
     );
     let revision =
-      selling && !buying
+      pideHorario
+        ? {
+            text: formatHoursAskHint(),
+            holdVehicle: true,
+            sendId: null,
+          }
+        : selling && !buying
         ? { text: '', holdVehicle: true, sendId: null }
         : stayOnShown && interested
           ? {
@@ -736,6 +745,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const interestedText =
       interested &&
       !closing &&
+      !pideHorario &&
       (stayOnShown ||
         refersToInterestedCar(
           input.customerText,
@@ -944,7 +954,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? `ANUNCIO DE FACEBOOK. El cliente pidió información del ${adVehicle}. Presenta ESA unidad del inventario. Si hay una, mándala (ficha, sin precio). Si hay varias de esa misma línea, nómbralas y pregunta cuál. PROHIBIDO preguntar qué carro le interesa. PROHIBIDO listar otras marcas.`
       : '';
     const pedidoVigente = (
-      stayOnShown
+      stayOnShown || pideHorario
         ? [
             saludoHint,
             anuncioHint,
