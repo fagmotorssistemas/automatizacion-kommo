@@ -1251,15 +1251,19 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       parseResumen(resumen).solicitudActual ?? '',
       lexicon,
     );
-    const asked =
+    const named =
       (fromText && !isDriveFamily(fromText.family) ? fromText : null) ??
       (fromSolicitud && !isDriveFamily(fromSolicitud.family)
         ? fromSolicitud
         : null);
+    const yearSaidNow = detectYearInText(customerText);
+    const asked = named
+      ? { ...named, year: yearSaidNow }
+      : null;
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : detectCashBudget(customerText);
     const wantsListedPrices = /\bprecios?\b/i.test(customerText);
-    const yearPick = asked?.year ?? detectYearInText(customerText);
+    const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);
     const targetBrand = asked?.brand || brand;
     if (
@@ -1457,7 +1461,7 @@ PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presenta
 PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distintos a la que ya vio${shown}). PROHIBIDO repetir la misma unidad. No sueltes precio si no lo pidió.`,
       };
     }
-    const yearAsk = asked ? asked.year : detectYearInText(customerText);
+    const yearAsk = yearSaidNow;
     const colorAsk = detectColorInText(customerText);
     const trimAsk = detectTrimInText(customerText);
     const priorUserTexts = history
@@ -1472,7 +1476,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       (asksClosestByFacts(customerText) ||
         yearOnward ||
         asksClosestByFacts(solicitud));
-    const yearFromThread = yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon);
+    const yearFromThread = asked
+      ? yearSaidNow
+      : (yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon));
     const threadBudget = lastCashBudgetInTexts([
       ...priorUserTexts,
       customerText,

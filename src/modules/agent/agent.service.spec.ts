@@ -1930,6 +1930,64 @@ describe('AgentService', () => {
     expect(system).toContain('CAMBIO DE MODELO');
   });
 
+  it('Prado sin año no se trata como Prado 2015 ni salta a Fortuner', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Toyota Fortuner AC 2015 color dorado, con 161205 km, transmisión manual 4x4 y precio de $28500.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'fortuner-2015',
+        brand: 'toyota',
+        model: 'fortuner ac 2.7 4x4 tm',
+        year: 2015,
+        price: 28500,
+        typeBody: 'jeep',
+        color: 'dorado',
+        mileage: 161205,
+      },
+      {
+        id: 'prado-2016',
+        brand: 'toyota',
+        model: 'land cruiser prado tx ac 4.0',
+        year: 2016,
+        price: 53800,
+        typeBody: 'jeep',
+        color: 'dorado',
+        mileage: 226947,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Fortuner 2015\nSOLICITUD ACTUAL:\nCliente quiere el Prado 2015.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Prado 2015. Hay un Prado 2016 dorado.',
+        meta: { vehiculo: { inventory_id: 'fortuner-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Hola. Me interesa el Toyota Land Cruiser Prado',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'prado-2016',
+    });
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=prado-2016');
+    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).not.toMatch(/No hay Prado 2015/i);
+    expect(system).not.toContain('fortuner-2015');
+  });
+
   it('si pide otro modelo no se queda en el Seltos ni reusa la caja', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('kia');
     conversation.loadVehicleKind.mockResolvedValue('suv');
