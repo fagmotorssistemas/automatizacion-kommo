@@ -471,7 +471,9 @@ export class AgentService {
       input.customerText;
     const cajaCompra = resumenCajaCompra(resumen);
     if (resumenFaltaVehiculo(resumen) && !adVehicle) {
-      return this.replyAskWhichCar(input.contactId, input.customerText);
+      return this.replyAskWhichCar(input.contactId, input.customerText, {
+        wantsPrice: resumenAsksForListedPrice(resumen),
+      });
     }
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
@@ -851,6 +853,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         ? Math.round(revision.unitPrice)
         : interested?.price &&
             interested.price > 0 &&
+            !revision.holdVehicle &&
             (!revision.sendId || revision.sendId === interested.inventoryId)
           ? Math.round(interested.price)
           : null;
@@ -1295,15 +1298,23 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
   private async replyAskWhichCar(
     contactId: string,
     customerText: string,
+    opts?: { wantsPrice?: boolean },
   ): Promise<AgentTurnResult> {
     const history = await this.recentDialogue(contactId);
     const lastSeenAt = await this.conversation.loadLastSeen(contactId);
+    const lastAssistant =
+      [...history].reverse().find((item) => item.role === 'assistant')
+        ?.content ?? '';
     const mensaje = askWhichCarMessage(
       shouldOfferGreeting({
         lastSeenAt,
         hasHistory: history.length > 0,
       }),
       hourInGuayaquil(),
+      {
+        lastAssistant,
+        wantsPrice: opts?.wantsPrice === true,
+      },
     );
     const reply: ParsedAgentOutput = {
       mensaje,
@@ -1520,13 +1531,56 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       tipoAhora && tipoAhora !== 'no'
         ? tipoAhora
         : detectVehicleKind(customerText);
-    if (pideOtras && !asked && !targetBrand && !reference && !kindAhora) {
+    if (
+      pideOtras &&
+      !asked &&
+      !targetBrand &&
+      !reference &&
+      !kindAhora &&
+      !cashBudgetEarly
+    ) {
       return empty;
     }
 
     const listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
+    if (
+      targetBrand &&
+      namesBrandNow &&
+      !asked &&
+      !listedFollowUp &&
+      !gearbox &&
+      !askedCab &&
+      !askedDriveEarly &&
+      !spaceAsk &&
+      !yearPick &&
+      !colorPick &&
+      !pideOtras &&
+      !cashBudgetEarly &&
+      !isConcreteAsk(customerText) &&
+      !detectVehicleKind(customerText)
+    ) {
+      const lineas = new Set(
+        listed.map((car) => modelFamily(car.model)).filter(Boolean),
+      );
+      if (includePrice && lineas.size === 1 && listed.length > 0) {
+        return formatNamedUnits(listed, includePrice);
+      }
+      return {
+        text: formatRevisionMarca({
+          marca: targetBrand,
+          cars: listed,
+          tresFilas: false,
+          soloMarca: true,
+          includePrice: false,
+        }),
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: null,
+      };
+    }
     const solicitud = solicitudSinBanderas(resumen);
     const tipoPatio = resumenTipoPatio(resumen);
     const saidKind =

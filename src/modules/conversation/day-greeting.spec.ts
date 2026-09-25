@@ -17,13 +17,13 @@ describe('day-greeting', () => {
     expect(greetingForHour(23)).toBe('Buenas noches');
   });
 
-  it('saluda solo la primera vez o al volver después de días', () => {
+  it('saluda la primera vez, hilo sin sello o al volver después de días', () => {
     expect(
       shouldOfferGreeting({ lastSeenAt: null, hasHistory: false }),
     ).toBe(true);
     expect(
       shouldOfferGreeting({ lastSeenAt: null, hasHistory: true }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldOfferGreeting({
         lastSeenAt: Date.parse('2026-09-23T11:00:00-05:00'),
@@ -50,6 +50,17 @@ describe('day-greeting', () => {
     expect(askWhichCarMessage(false, 11)).toBe(
       'Con gusto. ¿Qué carro le interesa?',
     );
+    expect(
+      askWhichCarMessage(false, 11, {
+        lastAssistant: 'Con gusto. ¿Qué carro le interesa?',
+      }),
+    ).toBe('Claro. ¿Cuál vehículo tiene en mente?');
+    expect(
+      askWhichCarMessage(false, 16, {
+        lastAssistant: 'Con gusto. ¿Qué carro le interesa?',
+        wantsPrice: true,
+      }),
+    ).toBe('Claro. ¿De qué vehículo?');
     expect(formatGreetingPedido(true, 11)).toMatch(/Buenos días, estimado/);
     expect(formatGreetingPedido(false, 20)).toMatch(/SALUDO: no/);
     expect(formatGreetingPedido(false, 20)).not.toMatch(/Buenas noches/);

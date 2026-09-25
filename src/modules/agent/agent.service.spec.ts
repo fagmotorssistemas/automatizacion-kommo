@@ -257,7 +257,8 @@ describe('AgentService', () => {
       customerText: '¡Hola! Quiero más información\nA cómo sale',
     });
 
-    expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
+    expect(result?.reply.mensaje).toMatch(/¿De qué vehículo\?$/);
+    expect(result?.reply.mensaje).not.toMatch(/Qué carro le interesa/);
     expect(result?.reply.meta.vehiculo).toBeNull();
     expect(result?.photoQueue).toBeUndefined();
     expect(openai.runSalesAgent).not.toHaveBeenCalled();
@@ -409,6 +410,49 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(
       /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
     );
+  });
+
+  it('hilo viejo sin lastSeen vuelve a saludar', async () => {
+    conversation.loadLastSeen.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'busco L200' },
+      {
+        role: 'assistant',
+        content:
+          'Actualmente no tenemos Mitsubishi L200 2022 disponibles, pero tenemos un Mitsubishi Montero Sport.',
+      },
+    ]);
+
+    const result = await service.handleTurn({
+      contactId: 'A65061',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    expect(result?.reply.mensaje).toMatch(
+      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
+    );
+  });
+
+  it('no repite Con gusto qué carro le interesa si ya lo preguntó', async () => {
+    conversation.loadLastSeen.mockResolvedValue(Date.now() - 60 * 1000);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: '¡Hola! Quiero más información' },
+      { role: 'assistant', content: 'Con gusto. ¿Qué carro le interesa?' },
+    ]);
+    openai.complete.mockResolvedValueOnce(
+      'SOLICITUD ACTUAL:\nCliente pide el precio pero no dijo qué carro.\nFalta vehículo: sí\nPide precio: sí',
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A65061b',
+      customerText: 'Buenas tardes, cuál es el precio por favor',
+    });
+
+    expect(result?.reply.mensaje).not.toBe(
+      'Con gusto. ¿Qué carro le interesa?',
+    );
+    expect(result?.reply.mensaje).toBe('Claro. ¿De qué vehículo?');
+    expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
   it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
@@ -1699,6 +1743,75 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/hay que mandarla/i);
     expect(result?.reply.mensaje).toMatch(/cuál toyota/i);
     expect(result?.reply.mensaje).not.toMatch(/14,990/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('El KIA lista las líneas y no elige un Sportage', async () => {
+    conversation.loadLastSeen.mockResolvedValue(Date.now() - 2 * 60 * 1000);
+    conversation.loadConcreteAsk.mockResolvedValue(
+      'cuál es el precio por favor',
+    );
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: '¡Hola! Quiero más información' },
+      { role: 'assistant', content: 'Con gusto. ¿Qué carro le interesa?' },
+      { role: 'user', content: 'Buenas tardes, cuál es el precio por favor' },
+      { role: 'assistant', content: 'Claro. ¿De qué vehículo?' },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'montero-1',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage ac 2.0 5p 4x2',
+        year: 2024,
+        price: 45800,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 79187,
+        transmission: 'manual',
+      },
+      {
+        id: 'rio-1',
+        brand: 'kia',
+        model: 'rio lx 1.6',
+        year: 2023,
+        price: 17990,
+        typeBody: 'sedan',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere un Kia.\nPide precio: sí\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos Sportage y Río. ¿Cuál Kia le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A65061c',
+      customerText: 'El KIA',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('kia');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/solo dijo la marca/i);
+    expect(system).toMatch(/sportage|r[ií]o/i);
+    expect(system).not.toMatch(/hay que mandarla/i);
+    expect(result?.reply.mensaje).toMatch(/sportage|r[ií]o/i);
+    expect(result?.reply.mensaje).not.toMatch(/\$45,?800/);
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
