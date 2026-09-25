@@ -234,12 +234,16 @@ export function prettyFamily(model: string): string {
   return family.charAt(0).toUpperCase() + family.slice(1);
 }
 
+export type CabCode = 'cs' | 'cd';
+export type DriveCode = '4x2' | '4x4';
+
 export type UnitFactSource = {
   model: string;
   year?: number | null;
   color?: string | null;
   transmission?: string | null;
   driveType?: string | null;
+  typeBody?: string | null;
   doorsCount?: number | null;
   mileage?: number | null;
   price?: number | null;
@@ -287,6 +291,37 @@ export function unitDoors(car: UnitFactSource): number | null {
   return fromName ? Number(fromName[1]) : null;
 }
 
+function lastTokenIndex(text: string, pattern: RegExp): number {
+  const re = new RegExp(pattern.source, 'gi');
+  let idx = -1;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    idx = match.index;
+  }
+  return idx;
+}
+
+/** cs/cd en el modelo (o type_body). Si el nombre no lo trae, null: no se inventa. */
+export function unitCab(car: UnitFactSource): CabCode | null {
+  const model = car.model ?? '';
+  const cdAt = Math.max(
+    lastTokenIndex(model, /\bcd\b/),
+    lastTokenIndex(model, /\bc\s*[/\-]\s*d\b/),
+  );
+  const csAt = lastTokenIndex(model, /\bcs\b/);
+  if (csAt >= 0 || cdAt >= 0) {
+    return csAt > cdAt ? 'cs' : 'cd';
+  }
+  const body = (car.typeBody ?? '').trim().toLowerCase();
+  if (body === 'cabina simple') {
+    return 'cs';
+  }
+  if (body === 'doble cabina' || body === 'cabina doble') {
+    return 'cd';
+  }
+  return null;
+}
+
 /** 4x2/4x4 es tracción, no caja. */
 export function unitDrive(car: UnitFactSource): string | null {
   const field = (car.driveType ?? '').trim();
@@ -305,7 +340,7 @@ export function unitDrive(car: UnitFactSource): string | null {
 }
 
 export const UNIT_FIELD_LEGEND =
-  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). tm=manual, ta/cvt=automática. plate_short="La placa es P8".';
+  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). cabina=cs/cd si el modelo lo trae (si es sin dato, no la inventes). tm=manual, ta/cvt=automática. plate_short="La placa es P8".';
 
 function etiqueta(car: StockCar, includePrice = false): string {
   const price =
@@ -321,6 +356,7 @@ export function describeUnit(car: StockCar, includePrice = false): string {
   const caja = unitCaja(car);
   const puertas = unitDoors(car);
   const traccion = unitDrive(car);
+  const cabina = unitCab(car);
   const plate = sanitizePlateShort(car.plateShort);
   const km = hasLoadedMileage(car.mileage)
     ? `km=${Math.round(car.mileage as number)}`
@@ -334,6 +370,7 @@ export function describeUnit(car: StockCar, includePrice = false): string {
     `caja=${caja ?? 'sin dato'}`,
     puertas != null ? `puertas=${puertas}` : '',
     `tracción=${traccion ?? 'sin dato'}`,
+    `cabina=${cabina ?? 'sin dato'}`,
     km,
     includePrice && car.price && car.price > 0
       ? `precio=$${Math.round(car.price)}`
@@ -445,7 +482,7 @@ export function kindFromStockFamily(
 }
 
 /** 4x2 / 4 x 2 / 4x4 en el pedido. Es tracción, no el tipo de carro. */
-export function detectAskedDrive(text: string): '4x2' | '4x4' | null {
+export function detectAskedDrive(text: string): DriveCode | null {
   const n = normalizeModelText(text).replace(/4\s*x\s*/g, '4x');
   const last2 = n.lastIndexOf('4x2');
   const last4 = Math.max(n.lastIndexOf('4x4'), n.lastIndexOf('4wd'));
@@ -456,6 +493,116 @@ export function detectAskedDrive(text: string): '4x2' | '4x4' | null {
     return '4x4';
   }
   return '4x2';
+}
+
+/** Cabina simple/doble (cs/cd) en el pedido. Última mención gana. */
+export function detectAskedCab(text: string): CabCode | null {
+  const n = normalizeModelText(text);
+  const simpleAt = Math.max(
+    lastTokenIndex(n, /cabina simple|simple cabina|cabina sencilla/),
+    lastTokenIndex(n, /\bcs\b/),
+  );
+  const dobleAt = Math.max(
+    lastTokenIndex(n, /doble cabina|cabina doble/),
+    lastTokenIndex(n, /\bcd\b/),
+    lastTokenIndex(n, /\bc\s*\/\s*d\b/),
+  );
+  if (simpleAt < 0 && dobleAt < 0) {
+    return null;
+  }
+  return simpleAt > dobleAt ? 'cs' : 'cd';
+}
+
+function cabLabel(cab: CabCode): string {
+  return cab === 'cs' ? 'cabina simple' : 'cabina doble';
+}
+
+function parsedDrive(car: StockCar): DriveCode | null {
+  const drive = unitDrive(car);
+  return drive === '4x2' || drive === '4x4' ? drive : null;
+}
+
+function uniqueCars(cars: StockCar[]): StockCar[] {
+  const seen = new Set<string>();
+  const out: StockCar[] = [];
+  for (const car of cars) {
+    if (seen.has(car.id)) {
+      continue;
+    }
+    seen.add(car.id);
+    out.push(car);
+  }
+  return out;
+}
+
+/**
+ * Si pidió cs y 4x4: las que son cs (aunque otra tracción) y las que son 4x4
+ * (aunque otra cabina). Las que no son ni lo uno ni lo otro no entran.
+ * Un eje sin token en el modelo no se afirma.
+ */
+export function pickCabDriveOffer(
+  cars: StockCar[],
+  askedCab: CabCode | null,
+  askedDrive: DriveCode | null,
+): { cars: StockCar[]; hint: string } {
+  if (!askedCab && !askedDrive) {
+    return { cars, hint: '' };
+  }
+  const cabHit = askedCab
+    ? cars.filter((car) => unitCab(car) === askedCab)
+    : [];
+  const driveHit = askedDrive
+    ? cars.filter((car) => parsedDrive(car) === askedDrive)
+    : [];
+  const picked = askedCab && askedDrive
+    ? uniqueCars([
+        ...cars.filter(
+          (car) =>
+            unitCab(car) === askedCab && parsedDrive(car) === askedDrive,
+        ),
+        ...cabHit.filter((car) => parsedDrive(car) !== askedDrive),
+        ...driveHit.filter((car) => unitCab(car) !== askedCab),
+      ])
+    : askedCab
+      ? cabHit
+      : driveHit;
+  return { cars: picked, hint: formatCabDriveHint(askedCab, askedDrive, picked) };
+}
+
+export function formatCabDriveHint(
+  askedCab: CabCode | null,
+  askedDrive: DriveCode | null,
+  cars: StockCar[],
+): string {
+  const lines = [
+    'CABINA/TRACCIÓN (cs/cd y 4x2/4x4 se leen del modelo). Si el nombre no lo trae, no lo inventes.',
+  ];
+  if (askedCab && askedDrive) {
+    lines.push(`Pidió ${cabLabel(askedCab)} y ${askedDrive}.`);
+    lines.push(
+      `Si cumple ${cabLabel(askedCab)} pero otra tracción: ofrécela y di la tracción real.`,
+    );
+    lines.push(
+      `Si cumple ${askedDrive} pero otra cabina: ofrécela y di la cabina real.`,
+    );
+    lines.push(
+      `PROHIBIDO listar una que no sea ni ${askedCab} ni ${askedDrive}.`,
+    );
+  } else if (askedCab) {
+    lines.push(
+      `Pidió ${cabLabel(askedCab)}. Nombra esas. Di la tracción si el modelo la trae.`,
+    );
+  } else if (askedDrive) {
+    lines.push(
+      `Pidió ${askedDrive}. Nombra esas. Di la cabina si el modelo la trae (cs/cd).`,
+    );
+  }
+  if (cars.length === 0) {
+    lines.push(
+      'No hay en patio con ese cs/cd o 4x2/4x4 en el modelo. Dilo. vehiculo null.',
+    );
+  }
+  return lines.join('\n');
 }
 
 const BUDGET_SLACK = 1;

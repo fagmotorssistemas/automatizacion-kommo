@@ -179,8 +179,10 @@ import {
   hasUsableFicha,
   preferCurrentYears,
   modelFamily,
+  detectAskedCab,
   detectAskedDrive,
   kindFromStockFamily,
+  pickCabDriveOffer,
   pickClosestToMissingModel,
   pickShownByYear,
   unitDrive,
@@ -989,7 +991,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
                   : vehicleKind,
             ),
             formatSoloTipoPedido(
-              spaceAsk
+              spaceAsk || /CABINA\/TRACCIÓN/.test(revision.text)
                 ? null
                 : revision.switchedModel
                   ? (revision.vehicleKind ?? null)
@@ -1455,6 +1457,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);
     const targetBrand = asked?.brand || brand;
+    const cabDriveText = `${solicitudSinBanderas(resumen)}\n${concreteAsk ?? ''}\n${customerText}`;
+    const askedCab = detectAskedCab(cabDriveText);
+    const askedDriveEarly = detectAskedDrive(cabDriveText);
     if (
       !targetBrand &&
       !asked &&
@@ -1465,7 +1470,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !yearPick &&
       !colorPick &&
       !pideOtras &&
-      !listedFollowUp
+      !listedFollowUp &&
+      !askedCab &&
+      !askedDriveEarly
     ) {
       return empty;
     }
@@ -1622,6 +1629,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           pool = typed;
         }
       }
+      if (askedCab || askedDriveEarly) {
+        pool = pickCabDriveOffer(pool, askedCab, askedDriveEarly).cars;
+      }
       if (cashBudget) {
         pool = pool.filter((car) => carFitsBudget(car, cashBudget));
       }
@@ -1643,11 +1653,15 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         pool.length > 6 ? pool.slice(0, 6) : pool,
         includePrice,
       );
+      const cabHint =
+        askedCab || askedDriveEarly
+          ? pickCabDriveOffer(pool, askedCab, askedDriveEarly).hint
+          : '';
       return {
         ...named,
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(pool),
-        text: `${named.text}
+        text: `${cabHint ? `${cabHint}\n` : ''}${named.text}
 PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presentarla. No pidas permiso para mostrarlas.`,
       };
     }
@@ -2190,17 +2204,48 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         : kindForAsk
           ? stock.filter((car) => matchesVehicleKind(car.typeBody, kindForAsk))
           : stock;
-    const askedDrive = detectAskedDrive(
-      `${customerText}\n${concreteAsk ?? ''}\n${solicitud}`,
-    );
+    const askedDrive = detectAskedDrive(cabDriveText);
+    const cabDriveOffer =
+      askedCab || askedDrive
+        ? pickCabDriveOffer(byKind, askedCab, askedDrive)
+        : { cars: byKind, hint: '' };
+    if ((askedCab || askedDrive) && !asked) {
+      const offerCars = preferCurrentYears(
+        cabDriveOffer.cars,
+        yearFromThread,
+        yearOnward,
+      );
+      if (offerCars.length === 0) {
+        return {
+          text: cabDriveOffer.hint,
+          holdVehicle: true,
+          sendId: null,
+          switchedModel: true,
+          vehicleKind: kindForAsk,
+        };
+      }
+      const named = formatNamedUnits(offerCars, includePrice);
+      return {
+        ...named,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(offerCars) ?? kindForAsk,
+        text: `${cabDriveOffer.hint}\n${named.text}`,
+      };
+    }
     const byDrive = askedDrive
       ? byKind.filter((car) => unitDrive(car) === askedDrive)
       : byKind;
-    const cars = byDrive.length > 0 ? byDrive : byKind;
+    const cars =
+      cabDriveOffer.cars.length > 0 && (askedCab || askedDrive)
+        ? cabDriveOffer.cars
+        : byDrive.length > 0
+          ? byDrive
+          : byKind;
     const missedDrive =
-      askedDrive && byDrive.length === 0 && byKind.length > 0
+      cabDriveOffer.hint ||
+      (askedDrive && byDrive.length === 0 && byKind.length > 0
         ? `No hay ${targetBrand ?? 'esa marca'} ${kindForAsk ?? ''} ${askedDrive} en patio. PRIMERO dilo. DESPUÉS ofrece la de abajo solo si es el mismo tipo. 4x2/4x4 es tracción, no el tipo. Prohibido un SUV o jeep si pidió camioneta.`
-        : '';
+        : '');
     if (kindForAsk && listed.length > 0 && cars.length === 0) {
       return {
         text: `De ${targetBrand} no hay ${kindForAsk} disponible. PRIMERO dilo. No ofrezcas otro tipo (camioneta no es SUV, sedán no es hatch). 4x2/4x4 es tracción, no el tipo. vehiculo null.`,

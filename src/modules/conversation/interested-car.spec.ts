@@ -261,6 +261,29 @@ describe('vehículo de interés', () => {
     );
   });
 
+  it('cabina simple suelta la Hilux cd que ya mostramos', () => {
+    const hilux = {
+      inventoryId: 'hilux-2026',
+      brand: 'toyota',
+      model: 'hilux 2026 4x4',
+      year: 2026,
+      price: 42000,
+      typeBody: 'doble cabina',
+    };
+    expect(
+      followsShownCar({
+        text: 'Busco una camioneta 4x4 cabina simple',
+        car: {
+          ...hilux,
+          model: 'hilux cd 2.4 4x4 tm',
+        },
+      }),
+    ).toBe(false);
+    expect(followsShownCar({ text: 'cuántos km tiene?', car: hilux })).toBe(
+      true,
+    );
+  });
+
   it('la simulación sigue con el Explorer', () => {
     expect(
       refersToInterestedCar(

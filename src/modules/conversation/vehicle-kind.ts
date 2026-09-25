@@ -172,7 +172,7 @@ Tipo: ${kind}
 El cliente pidió ${LABELS[kind]}. Sigue vigente aunque pasen varios mensajes y no lo repita.
 Solo ofrece vehículos de este tipo, SALVO que nombre un modelo de otro tipo (Hilux, Ranger = camioneta aunque antes haya pedido SUV).
 Doble cabina, cabina doble y cabina simple son camioneta. PROHIBIDO un SUV o jeep si pidió camioneta o doble cabina.
-4x2 y 4x4 son tracción, no cambian el tipo.
+4x2 y 4x4 son tracción, no cambian el tipo. cs/cd y 4x2/4x4 se leen del modelo si el cliente los pidió.
 "Parecida" u "otra" es otro vehículo del mismo tipo.
 En buscarvehiuclo pasa siempre tipo="${kind}".`;
 }

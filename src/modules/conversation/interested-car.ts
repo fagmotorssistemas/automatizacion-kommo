@@ -1,7 +1,9 @@
 import {
+  detectAskedCab,
   modelFamily,
   normalizeModelText,
   textMentionsModel,
+  unitCab,
   unitCaja,
   unitDoors,
   unitDrive,
@@ -170,6 +172,11 @@ export function leftShownCar(input: ShownCarContext): boolean {
     detectVehicleKind(input.text) ||
     (input.resumen ? detectVehicleKind(input.resumen) : null);
   if (saidKind && shownKind && saidKind !== shownKind) {
+    return true;
+  }
+  const askedCab = detectAskedCab(input.text);
+  const shownCab = unitCab(car);
+  if (askedCab && shownCab && askedCab !== shownCab) {
     return true;
   }
   const spaceText = `${input.text}\n${input.resumen ?? ''}`;

@@ -3,7 +3,10 @@ import {
   carsShownInText,
   clasificarFilas,
   describeUnit,
+  detectAskedCab,
   detectAskedDrive,
+  pickCabDriveOffer,
+  unitCab,
   formatMissingNamedModel,
   formatNamedUnits,
   formatRevisionMarca,
@@ -308,6 +311,63 @@ describe('clasificar filas', () => {
   it('4 x 2 en el texto es tracción 4x2', () => {
     expect(detectAskedDrive('Una Chevrolet doble cabina 4 x 2')).toBe('4x2');
     expect(detectAskedDrive('quiero 4x4')).toBe('4x4');
+  });
+
+  it('cs/cd y c/d se leen del modelo, no se inventan', () => {
+    expect(
+      unitCab({ model: 'ram 700 slt ac 1.4 cs 4x2 tm', typeBody: 'camioneta' }),
+    ).toBe('cs');
+    expect(
+      unitCab({ model: 'hunter ac 2.4 cd 4x2 tm', typeBody: 'camioneta' }),
+    ).toBe('cd');
+    expect(
+      unitCab({ model: 'luv d-max c/d v6 4x4 tm', typeBody: 'camioneta' }),
+    ).toBe('cd');
+    expect(unitCab({ model: 'x-trail sense cvt', typeBody: 'jeep' })).toBeNull();
+    expect(detectAskedCab('camioneta 4x4 cabina simple')).toBe('cs');
+    expect(detectAskedCab('quiero doble cabina')).toBe('cd');
+  });
+
+  it('cs + 4x4 ofrece la simple aunque sea 4x2 y la 4x4 aunque sea cd', () => {
+    const patio: StockCar[] = [
+      {
+        id: 'hunter',
+        brand: 'jetour',
+        model: 'hunter ac 2.4 cd 4x2 tm',
+        year: 2023,
+        price: 19990,
+        typeBody: 'doble cabina',
+      },
+      {
+        id: 'ram-cs',
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+      },
+      {
+        id: 'tunland',
+        brand: 'foton',
+        model: 'tunland g ac 2.0 cd 4x4 tm diesel',
+        year: 2023,
+        price: 22990,
+        typeBody: 'doble cabina',
+      },
+      {
+        id: 'terralord',
+        brand: 'foton',
+        model: 'terralord heavy duty ac 2.4 cd',
+        year: 2023,
+        price: 21990,
+        typeBody: 'doble cabina',
+      },
+    ];
+    const offer = pickCabDriveOffer(patio, 'cs', '4x4');
+    expect(offer.cars.map((car) => car.id)).toEqual(['ram-cs', 'tunland']);
+    expect(offer.hint).toMatch(/cabina simple/i);
+    expect(offer.hint).toMatch(/4x4/);
+    expect(offer.hint).toMatch(/PROHIBIDO listar/);
   });
 
   it('sin otra del mismo tipo no invita a la concesionaria', () => {

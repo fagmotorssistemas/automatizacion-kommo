@@ -3888,6 +3888,96 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/sábado|09:30/i);
   });
 
+  it('A75264 cabina simple 4x4 no lista las cd 4x2', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'hilux-2026',
+      brand: 'toyota',
+      model: 'hilux cd 2.4 4x4 tm',
+      year: 2026,
+      price: 42990,
+      typeBody: 'doble cabina',
+    });
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'hunter',
+        brand: 'jetour',
+        model: 'hunter ac 2.4 cd 4x2 tm',
+        year: 2023,
+        price: 19990,
+        typeBody: 'doble cabina',
+        color: 'blanca',
+        mileage: 141048,
+      },
+      {
+        id: 'amarok',
+        brand: 'volkswagen',
+        model: 'amarok bi tdi plus ac 2.0 cd 4x2',
+        year: 2019,
+        price: 24990,
+        typeBody: 'doble cabina',
+        color: 'blanca',
+      },
+      {
+        id: 'ram-cs',
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+        color: 'blanca',
+        mileage: 61798,
+      },
+      {
+        id: 'tunland',
+        brand: 'foton',
+        model: 'tunland g ac 2.0 cd 4x4 tm diesel',
+        year: 2023,
+        price: 22990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 113692,
+      },
+      {
+        id: 'terralord',
+        brand: 'foton',
+        model: 'terralord heavy duty ac 2.4 cd',
+        year: 2023,
+        price: 21990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 64400,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere una camioneta 4x4 cabina simple.\nPide otras: sí\nTipo de patio: camioneta\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'De cabina simple tenemos una Ram 700, tracción 4x2. En 4x4 hay una Tunland, cabina doble. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75264',
+      customerText: 'Busco una camioneta 4x4 cabina simple',
+    });
+
+    expect(openai.completeJson).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/CABINA\/TRACCIÓN/);
+    expect(system).toMatch(/ram 700 slt ac 1\.4 cs 4x2 tm/i);
+    expect(system).toMatch(/tunland g ac 2\.0 cd 4x4/i);
+    expect(system).not.toMatch(/hunter ac 2\.4 cd 4x2/i);
+    expect(system).not.toMatch(/amarok bi tdi/i);
+    expect(system).not.toMatch(/terralord heavy duty/i);
+    expect(system).not.toMatch(/SOLO TIPO/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
   it('listo después de confirmar la visita no la repite', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'x70-2025',
