@@ -148,8 +148,8 @@ export function asksForAllListed(text: string): boolean {
 }
 
 /**
- * Después de un listado: ok / fotos / mándeme / de todas.
- * No es “no” ni un pedido de precio.
+ * Cola de varios carros solo si pidió las fotos del listado o de todas.
+ * Un “sí / ok / por favor” no manda los paquetes de cada unidad.
  */
 export function wantsPhotosOfListed(text: string): boolean {
   const folded = text
@@ -161,15 +161,7 @@ export function wantsPhotosOfListed(text: string): boolean {
   if (!folded || /\bno\s+(?:gracias|por ahora|quiero|me las)\b/.test(folded)) {
     return false;
   }
-  if (asksForPhotos(text) || asksForAllListed(text)) {
-    return true;
-  }
-  if (folded.length > 90) {
-    return false;
-  }
-  return /(?:\b(?:si|ok|okay|okey|vale|dale|mande|manden|envie|envien|mandeme|envieme)\b)/i.test(
-    folded,
-  );
+  return asksForPhotos(text) || asksForAllListed(text);
 }
 
 /** Un color, año, caja o versión que deja una sola de las ya listadas. */

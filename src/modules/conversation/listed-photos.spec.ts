@@ -85,7 +85,9 @@ describe('listed photos', () => {
       true,
     );
     expect(wantsPhotosOfListed('de todas')).toBe(true);
-    expect(wantsPhotosOfListed('mándeme')).toBe(true);
+    expect(wantsPhotosOfListed('mándeme las fotos')).toBe(true);
+    expect(wantsPhotosOfListed('Sí, por favor')).toBe(false);
+    expect(wantsPhotosOfListed('mándeme')).toBe(false);
     expect(wantsPhotosOfListed('no gracias')).toBe(false);
   });
 

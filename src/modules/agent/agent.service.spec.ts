@@ -3185,6 +3185,120 @@ describe('AgentService', () => {
     expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
   });
 
+  it('sí por favor tras un listado de varios carros no manda la cola de fotos', async () => {
+    const patio = [
+      {
+        id: 'ranger-1',
+        brand: 'ford',
+        model: 'ranger xlt ac 2026',
+        year: 2026,
+        price: 44990,
+        typeBody: 'camioneta',
+        color: 'blanco',
+        mileage: 12000,
+      },
+      {
+        id: 'c3-1',
+        brand: 'citroen',
+        model: 'c3 shine 2020',
+        year: 2020,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'rojo',
+        mileage: 45000,
+      },
+      {
+        id: 'tracker-1',
+        brand: 'chevrolet',
+        model: 'tracker 2022',
+        year: 2022,
+        price: 18990,
+        typeBody: 'jeep',
+        color: 'gris',
+        mileage: 38000,
+      },
+      {
+        id: 'santa-1',
+        brand: 'hyundai',
+        model: 'santa fe 2018',
+        year: 2018,
+        price: 21990,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 62000,
+      },
+      {
+        id: 'xt-1',
+        brand: 'nissan',
+        model: 'x-trail epower exclusive 2024',
+        year: 2024,
+        price: 32990,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 21000,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estas son las opciones: 1) Ranger XLT AC año 2026 color blanco, con 12000 km, 2) C3 Shine año 2020 color rojo, con 45000 km, 3) Tracker año 2022 color gris, con 38000 km, 4) Santa Fe año 2018 color negro, con 62000 km, 5) X-Trail ePower Exclusive año 2024 color blanco, con 21000 km. ¿Cuál le interesa?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente confirma y solicita fotos.\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '¿Cuál de esas unidades quiere ver?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75239',
+      customerText: 'Sí, por favor',
+    });
+
+    expect(result?.photoQueue).toBeUndefined();
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('tal vez l200 no arma cola de fotos de otros carros', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'l200-1',
+        brand: 'mitsubishi',
+        model: 'l200 2.4 cd 4x4',
+        year: 2022,
+        price: 28990,
+        typeBody: 'camioneta',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere información de una L200 y solicita fotos.\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos una L200 2022.',
+        meta: { vehiculo: { inventory_id: 'l200-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75251',
+      customerText: 'Buenas tardes tal vez l200',
+    });
+
+    expect(result?.photoQueue).toBeUndefined();
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('l200-1');
+  });
+
   it('la roja del listado manda solo esa', async () => {
     const patio = [
       {
