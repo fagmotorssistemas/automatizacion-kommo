@@ -1,4 +1,5 @@
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
+import { PHOTO_AFTER_TEXT_MS } from './outbound.constants';
 import { OutboundService } from './outbound.service';
 
 const UUID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -8,6 +9,10 @@ describe('OutboundService', () => {
   const catalog = { resolvePhotoBots: jest.fn() };
   const service = new OutboundService(crm as never, catalog as never, {
     shadowMode: false,
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   beforeEach(() => {
@@ -20,15 +25,19 @@ describe('OutboundService', () => {
   });
 
   it('manda un salesbot de texto y uno de fotos', async () => {
-    const result = await service.dispatch('41807269', {
-      mensaje: 'Tenemos una EcoSport',
-      meta: {
-        precioMostrado: false,
-        cuotaMostrada: false,
-        vehiculo: { inventory_id: UUID },
+    const result = await service.dispatch(
+      '41807269',
+      {
+        mensaje: 'Tenemos una EcoSport',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: UUID },
+        },
+        img_prefix: '',
       },
-      img_prefix: '',
-    });
+      { photoAfterTextMs: 0 },
+    );
 
     expect(crm.setRespuestaIa).toHaveBeenCalledWith(
       '41807269',
@@ -203,6 +212,7 @@ describe('OutboundService', () => {
       {
         wantsPhotos: true,
         packGapMs: 0,
+        photoAfterTextMs: 0,
         photoQueue: [
           { inventoryId: UUID, label: 'Sportage 2024 plomo' },
           {
@@ -244,13 +254,46 @@ describe('OutboundService', () => {
         },
         img_prefix: '',
       },
-      { alreadyShown: true, wantsPhotos: true },
+      { alreadyShown: true, wantsPhotos: true, photoAfterTextMs: 0 },
     );
 
     expect(catalog.resolvePhotoBots).toHaveBeenCalledWith({
       inventoryId: UUID,
     });
     expect(crm.runSalesbot).toHaveBeenNthCalledWith(2, 166291, '41807269');
+  });
+
+  it('las fotos salen 5s después del mensaje', async () => {
+    jest.useFakeTimers();
+    const times: number[] = [];
+    crm.runSalesbot.mockImplementation(async () => {
+      times.push(Date.now());
+      return true;
+    });
+
+    const pending = service.dispatch('41807269', {
+      mensaje: 'Tenemos una EcoSport',
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: { inventory_id: UUID },
+      },
+      img_prefix: '',
+    });
+    await jest.advanceTimersByTimeAsync(PHOTO_AFTER_TEXT_MS - 1);
+    expect(times).toHaveLength(1);
+    expect(crm.runSalesbot).toHaveBeenNthCalledWith(
+      1,
+      KOMMO_SALESBOT.TEXTO,
+      '41807269',
+    );
+    await jest.advanceTimersByTimeAsync(1);
+    await pending;
+
+    expect(times).toHaveLength(2);
+    expect(times[1] - times[0]).toBe(PHOTO_AFTER_TEXT_MS);
+    expect(crm.runSalesbot).toHaveBeenNthCalledWith(2, 166291, '41807269');
+    jest.useRealTimers();
   });
 
   it('en vivo dispara el salesbot 187553', async () => {

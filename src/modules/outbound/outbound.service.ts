@@ -8,7 +8,7 @@ import { CrmService } from '../crm/crm.service';
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { isUuid } from '../persistence/is-uuid';
 import { OUTBOUND_CONFIG, type OutboundConfig } from './outbound.config';
-import { PHOTO_PACK_GAP_MS } from './outbound.constants';
+import { PHOTO_AFTER_TEXT_MS, PHOTO_PACK_GAP_MS } from './outbound.constants';
 import { appendNoPhotosNotice, stripUnsentPhotoClaim } from './no-photos-notice';
 import { shouldSendVehiclePhotos } from './should-send-photos';
 
@@ -75,11 +75,17 @@ export class OutboundService {
       skipFirstShot?: boolean;
       photoQueue?: PhotoQueueItem[];
       packGapMs?: number;
+      photoAfterTextMs?: number;
     },
   ): Promise<OutboundDispatchResult> {
     const queue = options?.photoQueue?.filter((item) => item.inventoryId) ?? [];
     if (queue.length > 1) {
-      return this.dispatchPhotoQueue(leadId, queue, options?.packGapMs);
+      return this.dispatchPhotoQueue(
+        leadId,
+        queue,
+        options?.packGapMs,
+        options?.photoAfterTextMs,
+      );
     }
     if (queue.length === 1 && !reply.meta.vehiculo?.inventory_id) {
       reply.meta.vehiculo = { inventory_id: queue[0].inventoryId };
@@ -141,8 +147,11 @@ export class OutboundService {
       await this.sendText(leadId, mensaje);
     }
 
-    for (const botId of photoBots) {
-      await this.crm.runSalesbot(botId, leadId);
+    if (photoBots.length > 0) {
+      await this.pauseBeforePhotos(options?.photoAfterTextMs);
+      for (const botId of photoBots) {
+        await this.crm.runSalesbot(botId, leadId);
+      }
     }
 
     this.logger.log(
@@ -161,6 +170,7 @@ export class OutboundService {
     leadId: string,
     queue: PhotoQueueItem[],
     packGapMs = PHOTO_PACK_GAP_MS,
+    photoAfterTextMs = PHOTO_AFTER_TEXT_MS,
   ): Promise<OutboundDispatchResult> {
     const allBots: number[] = [];
     let missingPhotos = false;
@@ -206,8 +216,11 @@ export class OutboundService {
       if (pack.text) {
         await this.sendText(leadId, pack.text);
       }
-      for (const botId of pack.bots) {
-        await this.crm.runSalesbot(botId, leadId);
+      if (pack.bots.length > 0) {
+        await this.pauseBeforePhotos(photoAfterTextMs);
+        for (const botId of pack.bots) {
+          await this.crm.runSalesbot(botId, leadId);
+        }
       }
       this.logger.log(
         `Outbound cola ${i + 1}/${queue.length} lead=${leadId} inventory=${item.inventoryId} fotos=${pack.bots.length}`,
@@ -235,6 +248,12 @@ export class OutboundService {
 
     const ran = await this.crm.runSalesbot(KOMMO_SALESBOT.ALTA_CONTACTO, leadId);
     return { ran, shadow: false };
+  }
+
+  private async pauseBeforePhotos(ms = PHOTO_AFTER_TEXT_MS): Promise<void> {
+    if (ms > 0) {
+      await sleep(ms);
+    }
   }
 }
 
