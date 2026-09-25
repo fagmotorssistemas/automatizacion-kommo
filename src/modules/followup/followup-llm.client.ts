@@ -51,6 +51,6 @@ export class FollowupLlmClient {
       this.logger.warn('El modelo no devolvió texto de retoma');
       return null;
     }
-    return content;
+    return content.replace(/^["'\s]+|["'\s]+$/g, '').trim();
   }
 }
