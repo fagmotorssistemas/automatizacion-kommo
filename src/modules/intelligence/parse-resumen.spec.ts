@@ -16,6 +16,7 @@ import {
   resumenTopeContado,
   resumenFaltaVehiculo,
   resumenPideHorario,
+  resumenAsientos,
   resumenTipoPatio,
   parseTopeAmount,
   resumenEsToma,
@@ -339,6 +340,21 @@ describe('resumenPideHorario', () => {
         'SOLICITUD ACTUAL:\nCliente quiere el precio de la Poer.\nPide horario: no',
       ),
     ).toBe(false);
+  });
+});
+
+describe('resumenAsientos', () => {
+  it('lee el número que puso el analizador, no una frase', () => {
+    expect(
+      resumenAsientos(
+        'SOLICITUD ACTUAL:\nValidar si la Explorer tiene 7 plazas.\nAsientos: 7\nPide otras: no',
+      ),
+    ).toBe(7);
+    expect(
+      resumenAsientos(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nAsientos: no',
+      ),
+    ).toBeNull();
   });
 });
 

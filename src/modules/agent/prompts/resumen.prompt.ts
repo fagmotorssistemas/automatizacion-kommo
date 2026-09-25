@@ -70,12 +70,12 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
 Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
-- Sigue con la mostrada (el valor, el km, la visita, el crédito, confirmar esa, un detalle de esa): Pide otras: no. SOLICITUD: sigue con ESA unidad.
+- Sigue con la mostrada (el valor, el km, la visita, el crédito, confirmar esa, un detalle de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
 - Ya no quiere la mostrada y pide otra (la otra del mismo hilo, otra del mismo modelo, u otra del patio): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
 - Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
 - Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
@@ -92,7 +92,7 @@ Pide horario: no si el turno es de un carro (precio, fotos, esa unidad).
   3) Si el bot acaba de preguntar financiamiento y/o visita y el cliente dice "no", "no gracias" o "no por ahora": NO es despedida. NO es cortesía. Pide otras: no. SOLICITUD: no quiere financiamiento ni visita ahora; sigue con ESA unidad y no insistas con esa pregunta.
   4) Si dice que siguen en contacto o que aún no (visita, más info): Es despedida: no. Es cortesía: no. SOLICITUD: sigue interesado en ESA unidad, pero no ahora.
   5) "gracias" o "ahí nomás gracias" SIN "no", si ya se le mostró un vehículo: NO es despedida. Es cortesía: sí.
-- Si pide furgoneta, van o muchos pasajeros (17, 20, varias personas), SOLICITUD debe decir que quiere un vehículo GRANDE de pasajeros. No lo conviertas en camioneta ni en un carro chico.
+- Si pide furgoneta, van o muchas plazas, SOLICITUD debe decir que quiere un vehículo GRANDE. No lo conviertas en camioneta ni en un carro chico. Si hay unidad mostrada, Asientos: N y Pide otras: no: primero validar ESA.
 - Después de Pide negociar agrega: Tiene duda: sí|no   y   Es despedida: sí|no
 - Si ya entendió y no pide ficha ni cuota de nuevo: Es acuse: sí. Si solo agradece y sigue (regla 5): Es cortesía: sí. Si no aplica, no las pongas.
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
@@ -126,6 +126,7 @@ Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
 Pide horario: sí|no
+Asientos: [7 o no]
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]  // dos carros: A || B
 Toma ya: marca=...; modelo=...; color=...; año=...; km=... | no  // dos: A || B
@@ -140,6 +141,12 @@ Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (
 - Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
 - Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
 - Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.
+
+REGLA DE ASIENTOS (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Este turno pide una cantidad de plazas / espacio para gente?
+- Asientos: el número (7, 8) si lo pidió. Si hay unidad ya mostrada: Pide otras: no. SOLICITUD: validar si ESA tiene esas plazas.
+- Asientos: no si no pidió plazas.
+- Pedir plazas en la mostrada NO es cambiar de vehículo. Pide otras: no hasta saber que ESA no las tiene.
 
 REGLA DE HORARIO (OBLIGATORIA):
 Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?

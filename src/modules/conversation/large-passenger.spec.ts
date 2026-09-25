@@ -2,7 +2,9 @@ import {
   asksForLargePassengerSpace,
   isLargePassengerCar,
   parsePassengerAsk,
+  pickCarsWithMinSeats,
   pickLargePassengerCars,
+  seatsFromDato,
 } from './large-passenger';
 import type { StockCar } from '../catalog/clasificar-filas';
 
@@ -71,5 +73,42 @@ describe('large passenger', () => {
     ];
     const picked = pickLargePassengerCars(cars);
     expect(picked.map((car) => car.id)).toEqual(['sportage']);
+  });
+
+  it('7 plazas no mete pickup ni un SUV de 5', () => {
+    expect(seatsFromDato('7 pasajeros, 3 filas')).toBe(7);
+    const picked = pickCarsWithMinSeats(
+      [
+        {
+          id: 'dmax',
+          brand: 'chevrolet',
+          model: 'd-max crdi 2.5 cd 4x4',
+          year: 2022,
+          price: 26900,
+          typeBody: 'doble cabina',
+          passengerCapacity: '5',
+        },
+        {
+          id: 'sportage',
+          brand: 'kia',
+          model: 'sportage ac 2.0',
+          year: 2024,
+          price: 22900,
+          typeBody: 'jeep',
+          passengerCapacity: '5',
+        },
+        {
+          id: 'explorer',
+          brand: 'ford',
+          model: 'explorer limited',
+          year: 2018,
+          price: 28900,
+          typeBody: 'jeep',
+          passengerCapacity: '7',
+        },
+      ],
+      7,
+    );
+    expect(picked.map((car) => car.id)).toEqual(['explorer']);
   });
 });

@@ -351,6 +351,23 @@ export function resumenPideHorario(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+horario') === true;
 }
 
+/** Plazas que pide AHORA. Lo decide el analizador, no una palabra del cliente. */
+export function resumenAsientos(resumen: string): number | null {
+  const match = resumen.match(/asientos:\s*(.+?)(?:\n|$)/i);
+  if (!match) {
+    return null;
+  }
+  const raw = match[1].trim();
+  if (!raw || /^no$/i.test(raw)) {
+    return null;
+  }
+  const n = Number(raw.replace(/[^\d]/g, ''));
+  if (!Number.isFinite(n) || n < 4 || n > 30) {
+    return null;
+  }
+  return n;
+}
+
 /**
  * Tipo de carro de patio que quiere AHORA. Lo decide el analizador.
  * `no` = este turno nombra marca/modelo/color y no sigue el tipo anterior.

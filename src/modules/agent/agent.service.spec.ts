@@ -3978,6 +3978,142 @@ describe('AgentService', () => {
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('A75255 primero valida si la Explorer tiene 7 plazas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'explorer-2018',
+      brand: 'ford',
+      model: 'explorer limited 2018',
+      year: 2018,
+      price: 28900,
+      typeBody: 'jeep',
+      passengerCapacity: '7',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'explorer-2018',
+        brand: 'ford',
+        model: 'explorer limited 2018',
+        year: 2018,
+        price: 28900,
+        typeBody: 'jeep',
+        passengerCapacity: '7',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 diesel',
+        year: 2022,
+        price: 26900,
+        typeBody: 'doble cabina',
+        passengerCapacity: '5',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente gustó la Explorer y pide validar 7 asientos.\nAsientos: 7\nPide otras: sí\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'La Explorer 2018 sí tiene 7 asientos y es cómoda. ¿Quiere que coordinemos la visita?',
+        meta: { vehiculo: { inventory_id: 'explorer-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75255',
+      customerText:
+        'Si me gustó pero ando buscando algo de 7 asientos que sea cómodo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/SÍ tiene 7 plazas/i);
+    expect(system).toMatch(/explorer-2018/);
+    expect(system).not.toMatch(/d-max crdi/i);
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo).toMatchObject({
+      inventory_id: 'explorer-2018',
+    });
+  });
+
+  it('A75255 si la Explorer no tiene 7 no suelta pickups', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'explorer-2018',
+      brand: 'ford',
+      model: 'explorer limited 2018',
+      year: 2018,
+      price: 28900,
+      typeBody: 'jeep',
+      passengerCapacity: '5',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'explorer-2018',
+        brand: 'ford',
+        model: 'explorer limited 2018',
+        year: 2018,
+        price: 28900,
+        typeBody: 'jeep',
+        passengerCapacity: '5',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 diesel',
+        year: 2022,
+        price: 26900,
+        typeBody: 'doble cabina',
+        passengerCapacity: '5',
+      },
+      {
+        id: 'f150',
+        brand: 'ford',
+        model: 'f150 lariat sc ecoboost 3.5 cd',
+        year: 2015,
+        price: 32900,
+        typeBody: 'doble cabina',
+      },
+      {
+        id: 'palisade',
+        brand: 'hyundai',
+        model: 'palisade limited',
+        year: 2023,
+        price: 42900,
+        typeBody: 'jeep',
+        passengerCapacity: '7',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nValidar 7 asientos en la Explorer.\nAsientos: 7\nPide otras: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'La Explorer que vio es de 5 asientos. En 7 plazas tenemos una Palisade.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'A75255',
+      customerText:
+        'Si me gustó pero ando buscando algo de 7 asientos que sea cómodo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/NO las 7/i);
+    expect(system).toMatch(/palisade limited/i);
+    expect(system).not.toMatch(/d-max crdi/i);
+    expect(system).not.toMatch(/f150 lariat/i);
+  });
+
   it('listo después de confirmar la visita no la repite', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'x70-2025',

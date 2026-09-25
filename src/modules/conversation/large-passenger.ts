@@ -96,6 +96,35 @@ export function pickLargePassengerCars(cars: StockCar[]): StockCar[] {
     .sort((a, b) => scoreSpace(b) - scoreSpace(a));
 }
 
+/** Dato de ficha/patio, no del mensaje del cliente. */
+export function seatsFromDato(dato: string): number | null {
+  const labeled = dato.match(
+    /(\d{1,2})\s*(?:pasaj\w*|asient\w*|puest\w*|plazas?)/i,
+  );
+  if (labeled) {
+    const n = Number(labeled[1]);
+    return Number.isFinite(n) && n >= 4 && n <= 30 ? n : null;
+  }
+  return null;
+}
+
+/** Unidades que SÍ traen al menos N plazas. Pickup y chico fuera. Sin el número, no se afirma. */
+export function pickCarsWithMinSeats(
+  cars: StockCar[],
+  min: number,
+): StockCar[] {
+  return cars
+    .filter((car) => {
+      const group = carBodyGroup(car.typeBody);
+      if (group === 'chico' || group === 'camioneta') {
+        return false;
+      }
+      const seats = seatsOfCar(car.passengerCapacity);
+      return seats != null && seats >= min;
+    })
+    .sort((a, b) => scoreSpace(b) - scoreSpace(a));
+}
+
 export function formatLargePassengerPedido(text: string): string {
   const seats = parsePassengerAsk(text);
   const van = VAN.test(text);
