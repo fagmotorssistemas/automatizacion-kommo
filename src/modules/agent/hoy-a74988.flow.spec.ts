@@ -105,6 +105,8 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     clearConcreteAsk: jest.fn(),
     loadLastSeen: jest.fn(),
     saveLastSeen: jest.fn(),
+    loadTomaChecklist: jest.fn(),
+    saveTomaChecklist: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -163,6 +165,9 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     conversation.loadLastSeen.mockReset();
     conversation.loadLastSeen.mockResolvedValue(Date.now());
     conversation.saveLastSeen.mockReset();
+    conversation.loadTomaChecklist.mockReset();
+    conversation.loadTomaChecklist.mockResolvedValue(null);
+    conversation.saveTomaChecklist.mockReset();
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue('peugeot');
     conversation.loadConcreteAsk.mockResolvedValue(null);

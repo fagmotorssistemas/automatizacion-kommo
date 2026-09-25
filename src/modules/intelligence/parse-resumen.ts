@@ -77,6 +77,9 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
+    .replace(/toma\s+ya:\s*.+/gi, '')
+    .replace(/toma\s+falta:\s*.+/gi, '')
+    .replace(/toma\s+pendiente:\s*.+/gi, '')
     .replace(/toma:\s*(s[ií]|no|[^\n]+)/gi, '')
     .replace(/es\s+acuse:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+cortes[ií]a:\s*(s[ií]|no)/gi, '');

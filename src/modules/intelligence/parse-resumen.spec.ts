@@ -279,7 +279,7 @@ describe('resumenCajaCompra', () => {
   it('la solicitud sin banderas no arrastra caja de compra', () => {
     expect(
       solicitudSinBanderas(
-        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nPide otras: no',
+        'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
       ),
     ).toBe('Cliente quiere Mitsubishi.');
   });

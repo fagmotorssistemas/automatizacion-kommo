@@ -10,6 +10,19 @@ describe('buildResumenInput', () => {
     ).toBe('MENSAJE ACTUAL:\nme interesa una hilux');
   });
 
+  it('pasa el checklist de toma ya guardado al analizador', () => {
+    expect(
+      buildResumenInput({
+        history: [],
+        customerText: 'no tengo fotos',
+        tomaChecklist: {
+          have: { marca: 'Jetour', anio: '2024' },
+          pending: [],
+        },
+      }),
+    ).toMatch(/CHECKLIST TOMA YA GUARDADO:[\s\S]*marca=Jetour/);
+  });
+
   it('mete el hilo cliente-bot como contexto del RESUMEN PREVIO', () => {
     expect(
       buildResumenInput({

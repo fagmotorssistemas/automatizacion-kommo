@@ -18,5 +18,8 @@ export const gearboxKey = (contactId: string) =>
 export const lastSeenKey = (contactId: string) =>
   `conversation:last-seen:${contactId}`;
 
+export const tomaChecklistKey = (contactId: string) =>
+  `conversation:toma-checklist:${contactId}`;
+
 /** Volvió después de esto: un saludo. Menos: no saludar otra vez. */
 export const GREET_AFTER_MS = 2 * 24 * 60 * 60 * 1000;

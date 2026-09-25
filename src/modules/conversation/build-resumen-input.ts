@@ -1,4 +1,8 @@
 import { MemoryMessage } from './conversation.service';
+import {
+  formatTomaForResumen,
+  type TomaChecklist,
+} from './toma-checklist';
 
 export const RESUMEN_HISTORY_MAX = 8;
 
@@ -21,10 +25,15 @@ export function buildResumenInput(input: {
   history: MemoryMessage[];
   customerText: string;
   handoffBrief?: string | null;
+  tomaChecklist?: TomaChecklist | null;
 }): string {
   const parts: string[] = [];
   if (input.handoffBrief?.trim()) {
     parts.push(`RESUMEN DEL TRAMO CON ASESOR:\n${input.handoffBrief.trim()}`);
+  }
+  const tomaPrev = formatTomaForResumen(input.tomaChecklist ?? null);
+  if (tomaPrev) {
+    parts.push(`CHECKLIST TOMA YA GUARDADO:\n${tomaPrev}`);
   }
 
   const historial = formatDialogueForResumen(input.history);

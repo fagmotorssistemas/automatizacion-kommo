@@ -34,6 +34,8 @@ describe('AgentService', () => {
     clearConcreteAsk: jest.fn(),
     loadLastSeen: jest.fn(),
     saveLastSeen: jest.fn(),
+    loadTomaChecklist: jest.fn(),
+    saveTomaChecklist: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -90,6 +92,9 @@ describe('AgentService', () => {
     conversation.loadLastSeen.mockReset();
     conversation.loadLastSeen.mockResolvedValue(null);
     conversation.saveLastSeen.mockReset();
+    conversation.loadTomaChecklist.mockReset();
+    conversation.loadTomaChecklist.mockResolvedValue(null);
+    conversation.saveTomaChecklist.mockReset();
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);
@@ -418,7 +423,7 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).not.toHaveBeenCalled();
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('Prohibido buscar'),
+        system: expect.stringMatching(/no busques ni ofrezcas/i),
       }),
     );
     expect(result?.reply.meta.vehiculo).toBeNull();
@@ -516,6 +521,54 @@ describe('AgentService', () => {
     expect(system).not.toContain('CAJA VIGENTE');
     expect(system).toMatch(/SOLO TIPO/i);
     expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('en toma solo pide lo que falta y no repite lo ya dicho', async () => {
+    conversation.loadTomaChecklist.mockResolvedValue({
+      have: {
+        marca: 'Jetour',
+        color: 'rojo',
+        anio: '2024',
+        km: '50 mil',
+      },
+      pending: [],
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente no tiene fotos de su Jetour; puede llevarlo.\nToma: sí\nToma ficha: Jetour rojo 2024 50 mil km\nToma ya: marca=Jetour; color=rojo; año=2024; km=50 mil\nToma falta: modelo, placa, monto\nToma pendiente: fotos\nCaja de compra: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'De acuerdo, las fotos quedan pendientes. ¿Cuál es el modelo exacto y la primera letra de la placa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Le comento que no tengo. Fotos no los he tomado. Pero está en perfecta condiciones. Puedo llevarlo a q lo vean pero. Más o menos',
+    });
+
+    expect(conversation.saveTomaChecklist).toHaveBeenCalledWith(
+      '1',
+      expect.objectContaining({
+        have: expect.objectContaining({
+          marca: 'Jetour',
+          color: 'rojo',
+          anio: '2024',
+        }),
+        pending: ['fotos'],
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA \(no los pidas.*marca=Jetour/s);
+    expect(system).toMatch(/PENDIENTE.*fotos/i);
+    expect(system).toMatch(/máximo 2: modelo exacto, primera letra de la placa/);
+    expect(system).not.toMatch(/Pide solo los datos que falten de ESE carro/);
+    expect(openai.complete.mock.calls[0][1]).toMatch(/CHECKLIST TOMA YA GUARDADO/);
   });
 
   it('si pide Mitsubishi manual no manda la Hunter por la Ranger anterior', async () => {

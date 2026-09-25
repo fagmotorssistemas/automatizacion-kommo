@@ -230,10 +230,14 @@ import {
   SpecFact,
 } from '../catalog/ficha-tecnica';
 import {
-  SU_CARRO_NO_SE_OFRECE,
   turnAlsoWantsToBuy,
   turnIsSellingTheirCar,
 } from './su-carro';
+import {
+  formatTomaPedido,
+  mergeTomaChecklist,
+  parseTomaChecklistFromResumen,
+} from '../conversation/toma-checklist';
 
 function namedOfferId(
   cars: StockCar[],
@@ -436,6 +440,9 @@ export class AgentService {
       input.contactId,
       history,
     );
+    const rememberedToma = await this.conversation.loadTomaChecklist(
+      input.contactId,
+    );
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
       content: input.customerText,
@@ -445,12 +452,23 @@ export class AgentService {
       history,
       customerText: input.customerText,
       handoffBrief,
+      tomaChecklist: rememberedToma,
     });
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
     const cajaCompra = resumenCajaCompra(resumen);
     const esToma = resumenEsToma(resumen);
+    const tomaChecklist = mergeTomaChecklist(
+      rememberedToma,
+      parseTomaChecklistFromResumen(resumen, lexicon),
+    );
+    if (tomaChecklist && esToma) {
+      await this.conversation.saveTomaChecklist(
+        input.contactId,
+        tomaChecklist,
+      );
+    }
     const purchaseText = esToma
       ? stripTomaFacts(input.customerText, resumenTomaFicha(resumen))
       : input.customerText;
@@ -896,6 +914,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             locationHint,
             cashDeliveryHint,
             precioHint,
+            selling ? formatTomaPedido(tomaChecklist) : '',
           ]
         : [
             saludoHint,
@@ -930,7 +949,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
               ? PRECIO_NO_HORARIO
               : '',
             formatVisitHourHint(input.customerText),
-            selling ? SU_CARRO_NO_SE_OFRECE : '',
+            selling ? formatTomaPedido(tomaChecklist) : '',
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
             creditoHint,
             colorHint,

@@ -69,7 +69,5 @@ export function turnAlsoWantsToBuy(
   );
 }
 
-export const SU_CARRO_NO_SE_OFRECE = `TOMA: el cliente nos está vendiendo SU vehículo. Nosotros se lo vamos a comprar. Pide solo los datos que falten de ESE carro (marca, modelo, año, km, color, primera letra de la placa, fotos y monto esperado). No inventes el valor: lo define el avalúo.
-Prohibido buscar u ofrecer un carro igual o parecido al que nos vende. No digas que tenemos ese modelo.
-Si además quiere comprar OTRO carro nuestro, ese otro sí se puede buscar. El suyo no.
-Vender una casa, terreno o local para pagar al contado NO es toma.`;
+export const SU_CARRO_NO_SE_OFRECE = `TOMA: nos está vendiendo SU vehículo. No busques ni ofrezcas uno igual. El avalúo lo define el patio, no inventes un valor.
+Si además quiere comprar OTRO carro nuestro, ese sí se busca. Casa/terreno no es toma.`;

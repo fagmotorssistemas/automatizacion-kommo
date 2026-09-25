@@ -69,7 +69,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -120,6 +120,9 @@ Pide otras: sí|no
 Caja de compra: automática|manual|no
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]
+Toma ya: marca=...; color=...; año=...; km=... | no
+Toma falta: modelo, placa, monto | no
+Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
 
@@ -135,6 +138,7 @@ El km o el año de la unidad que YA le mostramos no es su carro.
 Si dice que venderá una casa, terreno, departamento o negocio para pagar al contado, NO es su vehículo ni toma. Es contexto de cómo pagará. SOLICITUD: sigue con la unidad mostrada; comprará al contado cuando venda eso. Es despedida: no.
 Si además quiere ver un carro o un tipo nuestro (camioneta, SUV, una marca), dilo en la misma oración con "quiere ver": cuál quiere ver de patio y cuál es el suyo. No uses la ficha del suyo (caja, año, marca) como pedido de compra.
 Toma: sí. Toma ficha: solo los datos del SUYO. Esos datos no se guardan como marca, año, caja ni pedido de compra.
+CHECKLIST DE TOMA (si Toma: sí): lee el sentido y el CHECKLIST TOMA YA GUARDADO si viene. Es el carro SUYO, no uno de patio: da igual si no lo vendemos. Toma ya: SOLO la identidad de ESE carro (marca y modelo que dijo) y hechos (color, año, km). marca= y modelo= son el vehículo, no un saludo ni un verbo. Si no hay marca clara, no inventes: déjala en Toma falta. Toma pendiente: lo que dijo que NO tiene. Un dato en ya o pendiente NO va en falta. Si no hay toma: Toma ya/falta/pendiente: no.
 
 REGLA DE LA CUOTA YA DICHA (OBLIGATORIA):
 Lee qué quiere AHORA. Si el historial ya trajo la cuota mensual de esa unidad, no vuelvas a pedir la proforma.

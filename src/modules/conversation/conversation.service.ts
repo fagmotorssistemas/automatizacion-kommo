@@ -11,9 +11,15 @@ import {
   concreteAskKey,
   gearboxKey,
   lastSeenKey,
+  tomaChecklistKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
+import {
+  TomaChecklist,
+  TOMA_SLOTS,
+  type TomaSlot,
+} from './toma-checklist';
 import {
   isRealCustomerText,
   keepCustomerFacingMessages,
@@ -220,6 +226,64 @@ export class ConversationService {
         error instanceof Error ? error.stack : undefined,
       );
       return null;
+    }
+  }
+
+  async loadTomaChecklist(contactId: string): Promise<TomaChecklist | null> {
+    if (!contactId) {
+      return null;
+    }
+
+    try {
+      const raw = await this.redis.get(tomaChecklistKey(contactId));
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw) as TomaChecklist;
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+      const have: TomaChecklist['have'] = {};
+      for (const slot of TOMA_SLOTS) {
+        const value = parsed.have?.[slot];
+        if (typeof value === 'string' && value.trim()) {
+          have[slot] = value.trim();
+        }
+      }
+      const pending = (Array.isArray(parsed.pending) ? parsed.pending : []).filter(
+        (slot): slot is TomaSlot =>
+          TOMA_SLOTS.includes(slot as TomaSlot),
+      );
+      return { have, pending };
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer checklist toma contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return null;
+    }
+  }
+
+  async saveTomaChecklist(
+    contactId: string,
+    checklist: TomaChecklist,
+  ): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        tomaChecklistKey(contactId),
+        JSON.stringify(checklist),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar checklist toma contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
