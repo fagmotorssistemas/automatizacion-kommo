@@ -31,8 +31,6 @@ function partsInGuayaquil(now: Date) {
 
   return {
     diaActual: weekday ?? 0,
-    mes: Number(get('month')) - 1,
-    diaDelMes: Number(get('day')),
     hora: Number(get('hour') === '24' ? '0' : get('hour')),
     minuto: Number(get('minute')),
   };
@@ -40,7 +38,7 @@ function partsInGuayaquil(now: Date) {
 
 /** fechaactual de n8n. Horarios en config, no en el prompt del agente. */
 export function getDealershipClock(now = new Date()): DealershipClock {
-  const { diaActual, mes, diaDelMes, hora, minuto } = partsInGuayaquil(now);
+  const { diaActual, hora, minuto } = partsInGuayaquil(now);
   const minutos = hora * 60 + minuto;
   const horaActual = `${hora}:${minuto.toString().padStart(2, '0')}`;
   const base = {
@@ -48,15 +46,6 @@ export function getDealershipClock(now = new Date()): DealershipClock {
     diaActual,
     diaNombre: WEEKDAY[diaActual] ?? '',
   };
-
-  if (mes === 11 && diaDelMes === 25) {
-    return {
-      ...base,
-      mensaje: '¿Desea venir el 26 de diciembre?',
-      puedeVenirHoy: false,
-      estaAbierto: false,
-    };
-  }
 
   if (diaActual === 0) {
     return {

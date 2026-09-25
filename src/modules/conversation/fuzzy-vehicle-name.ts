@@ -137,14 +137,37 @@ function levenshtein(a: string, b: string): number {
   return row[b.length];
 }
 
-function maxDistance(len: number): number {
-  if (len < 5) {
+type FuzzyMode = 'brand' | 'model';
+
+function maxDistance(len: number, mode: FuzzyMode): number {
+  if (len < 4) {
+    return 0;
+  }
+  if (mode === 'brand' && len < 5) {
     return 0;
   }
   return len <= 6 ? 1 : 2;
 }
 
-function closeEnough(token: string, key: string): boolean {
+function consonants(value: string): string {
+  return value.replace(/[aeiouy]/g, '');
+}
+
+/** Misma raíz escrita con vocal de más o de menos (dimax ↔ dmax). */
+function sameSkeleton(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) {
+    return false;
+  }
+  const left = consonants(a);
+  const right = consonants(b);
+  return left.length >= 3 && left === right;
+}
+
+function closeEnough(
+  token: string,
+  key: string,
+  mode: FuzzyMode = 'brand',
+): boolean {
   if (token === key) {
     return true;
   }
@@ -156,19 +179,24 @@ function closeEnough(token: string, key: string): boolean {
   if (left === right) {
     return true;
   }
-  const allowed = maxDistance(Math.min(token.length, key.length));
-  if (allowed === 0) {
-    return false;
+  const allowed = maxDistance(Math.min(token.length, key.length), mode);
+  if (
+    allowed > 0 &&
+    (levenshtein(left, right) <= allowed || levenshtein(token, key) <= allowed)
+  ) {
+    return true;
   }
-  return (
-    levenshtein(left, right) <= allowed || levenshtein(token, key) <= allowed
-  );
+  return mode === 'model' && sameSkeleton(left, right);
 }
 
-function bestKey(token: string, keys: string[]): string | null {
+function bestKey(
+  token: string,
+  keys: string[],
+  mode: FuzzyMode = 'brand',
+): string | null {
   let winner: { key: string; dist: number } | null = null;
   for (const key of keys) {
-    if (!closeEnough(token, key)) {
+    if (!closeEnough(token, key, mode)) {
       continue;
     }
     const dist = levenshtein(token, key);
@@ -235,7 +263,7 @@ export function fuzzyModelHits(
     }
   }
   for (const { token, index } of modelTokens(text)) {
-    const match = bestKey(token, families);
+    const match = bestKey(token, families, 'model');
     if (!match) {
       continue;
     }

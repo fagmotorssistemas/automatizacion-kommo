@@ -91,7 +91,7 @@ describe('marca y tres filas', () => {
     expect(detectColorInText('El jeptour Blanco 2023')).toBe('blanco');
   });
 
-  it('D-MAX del patio se lee aunque venga partido', () => {
+  it('D-MAX del patio se lee aunque venga partido o con typo', () => {
     expect(detectNamedModelAsk('Una D-MAX del 2014', TEST_LEXICON)).toEqual({
       brand: 'chevrolet',
       family: 'dmax',
@@ -100,6 +100,22 @@ describe('marca y tres filas', () => {
     expect(detectBrand('¿Una D-MAX del 2015 o 2014?', TEST_LEXICON)).toBe(
       'chevrolet',
     );
+    expect(detectNamedModelAsk('Dimax talvez', TEST_LEXICON)).toEqual({
+      brand: 'chevrolet',
+      family: 'dmax',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk(
+        'Otro carro\nDimax talvez\nO autos',
+        TEST_LEXICON,
+      ),
+    ).toEqual({
+      brand: 'chevrolet',
+      family: 'dmax',
+      year: null,
+    });
+    expect(detectNamedModelAsk('O autos', TEST_LEXICON)).toBeNull();
   });
 
   it('Aveo y Chebrolec son Chevrolet', () => {

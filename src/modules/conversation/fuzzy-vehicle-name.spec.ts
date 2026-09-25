@@ -26,6 +26,25 @@ describe('nombre de vehículo mal escrito', () => {
       name: 'dmax',
       brand: 'chevrolet',
     });
+    expect(fuzzyModelHits('Dimax talvez', TEST_LEXICON)[0]).toMatchObject({
+      name: 'dmax',
+      brand: 'chevrolet',
+    });
+    expect(
+      fuzzyModelHits('Otro carro\nDimax talvez\nO autos', TEST_LEXICON)[0],
+    ).toMatchObject({
+      name: 'dmax',
+      brand: 'chevrolet',
+    });
+    expect(fuzzyModelHits('di max 2014', TEST_LEXICON)[0]).toMatchObject({
+      name: 'dmax',
+      brand: 'chevrolet',
+    });
+    expect(fuzzyModelHits('solo max', TEST_LEXICON)).toEqual([]);
+    expect(fuzzyModelHits('avio 2018', TEST_LEXICON)[0]).toMatchObject({
+      name: 'aveo',
+      brand: 'chevrolet',
+    });
   });
 
   it('reconoce una marca del patio aunque la escriban como suena', () => {
