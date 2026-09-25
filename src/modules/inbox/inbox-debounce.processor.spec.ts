@@ -137,6 +137,34 @@ describe('InboxDebounceProcessor candado', () => {
     );
   });
 
+  it('solicita fotos sin carro concreto no dispara fotos', async () => {
+    const { processor, outbound, agent } = buildProcessor();
+    agent.handleTurn.mockResolvedValue({
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente pide información y solicita fotos.\nFalta vehículo: sí',
+      reply: {
+        mensaje: '¿Qué carro le interesa?',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: null,
+        },
+        img_prefix: '',
+      },
+    });
+
+    await processor.run({
+      ...job,
+      text: 'Hola. ¿Puedo obtener más información sobre esto?',
+    });
+
+    expect(outbound.dispatch).toHaveBeenCalledWith(
+      job.leadId,
+      expect.anything(),
+      expect.objectContaining({ wantsPhotos: false }),
+    );
+  });
+
   it('si el resumen pide fotos, las dispara aunque el mensaje no diga foto', async () => {
     const { processor, outbound, agent } = buildProcessor();
     agent.handleTurn.mockResolvedValue({

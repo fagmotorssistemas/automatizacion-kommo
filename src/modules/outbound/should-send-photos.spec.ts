@@ -53,6 +53,16 @@ describe('shouldSendVehiclePhotos', () => {
       }),
     ).toBe(false);
   });
+
+  it('aunque el analizador pida fotos, sin carro concreto no manda', () => {
+    expect(
+      shouldSendVehiclePhotos({
+        inventoryId: '',
+        alreadyShown: false,
+        wantsPhotos: true,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('asksForPhotos', () => {

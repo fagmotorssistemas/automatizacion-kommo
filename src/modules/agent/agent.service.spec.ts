@@ -190,6 +190,63 @@ describe('AgentService', () => {
     });
   });
 
+  it('envíeme fotos sin carro ni listado no arma cola', async () => {
+    openai.complete.mockResolvedValueOnce(
+      'SOLICITUD ACTUAL:\nCliente pide fotos pero no especificó qué carro y solicita fotos.\nFalta vehículo: sí',
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Envíeme fotos por favor',
+    });
+
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue).toBeUndefined();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+  });
+
+  it('si el analizador inventa solicita fotos y pide otras sin carro no manda cola', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere ver unidades y solicita fotos.\nFalta vehículo: no\nPide otras: sí\nTipo de patio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '¿Qué carro le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'ranger-1',
+        brand: 'ford',
+        model: 'ranger xlt ac 2.0',
+        year: 2026,
+        price: 44990,
+        typeBody: 'camioneta',
+      },
+      {
+        id: 'tracker-1',
+        brand: 'chevrolet',
+        model: 'tracker 2022',
+        year: 2022,
+        price: 18990,
+        typeBody: 'jeep',
+      },
+    ]);
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'quiero ver opciones',
+    });
+
+    expect(result?.photoQueue).toBeUndefined();
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
+  });
+
   it('si el analizador marca falta vehículo no busca ni manda fotos', async () => {
     openai.complete.mockResolvedValueOnce(
       'SOLICITUD ACTUAL:\nCliente pide información y el valor pero no especificó qué carro.\nFalta vehículo: sí\nPide precio: sí',

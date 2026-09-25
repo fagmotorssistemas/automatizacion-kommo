@@ -161,6 +161,29 @@ describe('OutboundService', () => {
     expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
   });
 
+  it('solicita fotos sin inventory_id no dispara salesbots de fotos', async () => {
+    await service.dispatch(
+      '41807269',
+      {
+        mensaje: '¿Qué carro le interesa?',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: null,
+        },
+        img_prefix: '',
+      },
+      { alreadyShown: false, wantsPhotos: true },
+    );
+
+    expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
+    expect(crm.runSalesbot).toHaveBeenCalledTimes(1);
+    expect(crm.runSalesbot).toHaveBeenCalledWith(
+      KOMMO_SALESBOT.TEXTO,
+      '41807269',
+    );
+  });
+
   it('cola de varias unidades: enunciado corto, fotos y espera entre cada una', async () => {
     catalog.resolvePhotoBots
       .mockResolvedValueOnce([101])

@@ -29,6 +29,17 @@ export function looksLikeUnitList(text: string): boolean {
   return marks.length >= 2;
 }
 
+/** Cola de fotos solo si el último mensaje del bot ya listó unidades. */
+export function historyHasUnitList(
+  history: { role: string; content: string }[],
+): boolean {
+  const last =
+    [...history]
+      .reverse()
+      .find((item) => item.role === 'assistant' && item.content)?.content ?? '';
+  return looksLikeUnitList(last);
+}
+
 function itemHasKm(item: string, mileage: number | null | undefined): boolean {
   if (mileage == null || !Number.isFinite(mileage) || mileage <= 0) {
     return false;

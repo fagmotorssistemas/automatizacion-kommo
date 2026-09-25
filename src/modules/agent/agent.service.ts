@@ -109,6 +109,7 @@ import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks
 import {
   askedOutsideListed,
   formatListedPhotoQueue,
+  historyHasUnitList,
   lastListedUnits,
   looksLikeUnitList,
   pickListedUnit,
@@ -1020,7 +1021,11 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       pedidoVigente,
     );
 
-    if (revision.photoQueue && revision.photoQueue.length > 1) {
+    if (
+      revision.photoQueue &&
+      revision.photoQueue.length > 1 &&
+      historyHasUnitList(history)
+    ) {
       const parsed: ParsedAgentOutput = {
         mensaje: 'Le mando las fotos de cada una, una por una.',
         meta: {
@@ -1471,6 +1476,14 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !mightNameModel(customerText) &&
       !listedFollowUp
     ) {
+      return empty;
+    }
+    const tipoAhora = resumenTipoPatio(resumen);
+    const kindAhora =
+      tipoAhora && tipoAhora !== 'no'
+        ? tipoAhora
+        : detectVehicleKind(customerText);
+    if (pideOtras && !asked && !targetBrand && !reference && !kindAhora) {
       return empty;
     }
 

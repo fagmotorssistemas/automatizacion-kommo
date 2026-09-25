@@ -1,5 +1,6 @@
 import {
   askedOutsideListed,
+  historyHasUnitList,
   lastListedUnits,
   looksLikeUnitList,
   pickListedUnit,
@@ -55,6 +56,23 @@ const sportages: StockCar[] = [
 const listText = `Estas son las opciones de Kia Sportage SUV que tenemos: 1) Sportage AC 2.0 5p 4x2 manual, año 2024, color plomo, con 79,187 km, 2) Sportage SL AC 2.0 5p 4x2 manual, año 2019, color negro, con 103,736 km, 3) Sportage R GTI AC 2.0 5p 4x2 manual, año 2019, color rojo, con 91,096 km, 4) Sportage R GTI LX AC 2.0 5p 4x2 automática, año 2019, color plateado, con 113,170 km. ¿Cuál le interesa conocer más a detalle para enviar fotos?`;
 
 describe('listed photos', () => {
+  it('sin listado previo no hay cola de fotos', () => {
+    expect(historyHasUnitList([])).toBe(false);
+    expect(
+      historyHasUnitList([
+        { role: 'user', content: 'Hola. ¿Puedo obtener más información sobre esto?' },
+      ]),
+    ).toBe(false);
+    expect(
+      historyHasUnitList([
+        { role: 'assistant', content: 'Con gusto. ¿Qué carro le interesa?' },
+      ]),
+    ).toBe(false);
+    expect(
+      historyHasUnitList([{ role: 'assistant', content: listText }]),
+    ).toBe(true);
+  });
+
   it('detecta el listado numerado', () => {
     expect(looksLikeUnitList(listText)).toBe(true);
     expect(looksLikeUnitList('Tenemos el Sportage 2024 plomo. Aquí las fotos.')).toBe(
