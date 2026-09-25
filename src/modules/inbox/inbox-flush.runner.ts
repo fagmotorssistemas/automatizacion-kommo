@@ -301,13 +301,23 @@ export class InboxFlushRunner {
         (await this.persistenceService.hasShownCar(data.contactId, inventoryId))
       : false;
     const wantsPhotos =
-      asksForPhotos(customerText) || resumenAsksForPhotos(turn.resumen);
+      Boolean(turn.photoQueue?.length) ||
+      asksForPhotos(customerText) ||
+      resumenAsksForPhotos(turn.resumen);
+    if (turn.photoQueue && turn.photoQueue.length > 0) {
+      const last = turn.photoQueue[turn.photoQueue.length - 1];
+      turn.reply.meta.vehiculo = {
+        ...(turn.reply.meta.vehiculo ?? {}),
+        inventory_id: last.inventoryId,
+      };
+    }
     const outbound = await this.outboundService.dispatch(
       data.leadId,
       turn.reply,
       {
         alreadyShown,
         wantsPhotos,
+        photoQueue: turn.photoQueue,
         skipFirstShot:
           Boolean(latestShown) &&
           resumenAsksForListedPrice(turn.resumen) &&

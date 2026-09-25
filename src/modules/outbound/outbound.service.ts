@@ -1,10 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ParsedAgentOutput } from '../agent/parse-agent-output';
+import {
+  ParsedAgentOutput,
+  type PhotoQueueItem,
+} from '../agent/parse-agent-output';
 import { CatalogService } from '../catalog/catalog.service';
 import { CrmService } from '../crm/crm.service';
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { isUuid } from '../persistence/is-uuid';
 import { OUTBOUND_CONFIG, type OutboundConfig } from './outbound.config';
+import { PHOTO_PACK_GAP_MS } from './outbound.constants';
 import { appendNoPhotosNotice, stripUnsentPhotoClaim } from './no-photos-notice';
 import { shouldSendVehiclePhotos } from './should-send-photos';
 
@@ -69,8 +73,20 @@ export class OutboundService {
       alreadyShown?: boolean;
       wantsPhotos?: boolean;
       skipFirstShot?: boolean;
+      photoQueue?: PhotoQueueItem[];
+      packGapMs?: number;
     },
   ): Promise<OutboundDispatchResult> {
+    const queue = options?.photoQueue?.filter((item) => item.inventoryId) ?? [];
+    if (queue.length > 1) {
+      return this.dispatchPhotoQueue(leadId, queue, options?.packGapMs);
+    }
+    if (queue.length === 1 && !reply.meta.vehiculo?.inventory_id) {
+      reply.meta.vehiculo = { inventory_id: queue[0].inventoryId };
+      if (!reply.mensaje.trim()) {
+        reply.mensaje = queue[0].label;
+      }
+    }
     const inventoryId = reply.meta.vehiculo?.inventory_id?.trim() ?? '';
     const sendPhotos = shouldSendVehiclePhotos({
       inventoryId,
@@ -137,6 +153,71 @@ export class OutboundService {
       delivered: true,
       shadow: false,
       photoBots,
+      missingPhotos,
+    };
+  }
+
+  private async dispatchPhotoQueue(
+    leadId: string,
+    queue: PhotoQueueItem[],
+    packGapMs = PHOTO_PACK_GAP_MS,
+  ): Promise<OutboundDispatchResult> {
+    const allBots: number[] = [];
+    let missingPhotos = false;
+    const packs: { text: string; bots: number[] }[] = [];
+
+    for (const item of queue) {
+      const bots = await this.catalog.resolvePhotoBots({
+        inventoryId: item.inventoryId,
+      });
+      const noBots = isUuid(item.inventoryId) && bots.length === 0;
+      missingPhotos = missingPhotos || noBots;
+      packs.push({
+        text: noBots ? appendNoPhotosNotice(item.label) : item.label,
+        bots,
+      });
+      allBots.push(...bots);
+    }
+
+    if (this.outboundConfig.shadowMode) {
+      this.logger.log(
+        [
+          'SHADOW: cola de fotos, no se envía a WhatsApp.',
+          `lead=${leadId}`,
+          `unidades=${queue.map((item) => item.inventoryId).join(',')}`,
+          `fotos_bots=${allBots.join(',') || 'ninguno'}`,
+          packs.map((pack) => pack.text).join('\n---\n'),
+        ].join('\n'),
+      );
+      return {
+        delivered: false,
+        shadow: true,
+        photoBots: allBots,
+        missingPhotos,
+      };
+    }
+
+    for (let i = 0; i < queue.length; i += 1) {
+      if (i > 0 && packGapMs > 0) {
+        await sleep(packGapMs);
+      }
+      const item = queue[i];
+      const pack = packs[i];
+      if (pack.text) {
+        await this.sendText(leadId, pack.text);
+      }
+      for (const botId of pack.bots) {
+        await this.crm.runSalesbot(botId, leadId);
+      }
+      this.logger.log(
+        `Outbound cola ${i + 1}/${queue.length} lead=${leadId} inventory=${item.inventoryId} fotos=${pack.bots.length}`,
+      );
+    }
+
+    return {
+      delivered: true,
+      shadow: false,
+      photoBots: allBots,
       missingPhotos,
     };
   }

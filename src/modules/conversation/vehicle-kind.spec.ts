@@ -58,6 +58,9 @@ describe('vehicle kind', () => {
     expect(detectVehicleKind('busco un pickup')).toBe('camioneta');
     expect(detectVehicleKind('Pikup')).toBe('camioneta');
     expect(detectVehicleKind('doble cabina diesel')).toBe('camioneta');
+    expect(detectVehicleKind('Una Chevrolet doble cabina 4 x 2')).toBe(
+      'camioneta',
+    );
   });
 
   it('en el mismo mensaje gana el tipo que dijo al final', () => {
@@ -114,6 +117,17 @@ describe('vehicle kind', () => {
         remembered: 'camioneta',
       }),
     ).toBe('suv');
+  });
+
+  it('doble cabina 4x2 no se vuelve SUV aunque el carro anterior fuera jeep', () => {
+    expect(
+      resolveVehicleKind({
+        history: [],
+        customerText: 'Una Chevrolet doble cabina 4 x 2',
+        remembered: 'suv',
+        interestedKind: 'suv',
+      }),
+    ).toBe('camioneta');
   });
 
   it('el pedido vigente nombra el tipo y la poer cuando es camioneta', () => {

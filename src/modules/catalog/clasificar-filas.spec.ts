@@ -3,9 +3,11 @@ import {
   carsShownInText,
   clasificarFilas,
   describeUnit,
+  detectAskedDrive,
   formatMissingNamedModel,
   formatNamedUnits,
   formatRevisionMarca,
+  kindFromStockFamily,
   pickClosestToMissingModel,
   pickShownByYear,
   preferCurrentYears,
@@ -159,8 +161,67 @@ describe('clasificar filas', () => {
       ],
       'sonet',
       { inventoryId: 'picanto-1', family: 'picanto' },
+      { kind: 'suv' },
     );
     expect(close.map((car) => car.id)).toEqual(['seltos-1']);
+  });
+
+  it('sin tipo ni presupuesto no elige el jeep más barato', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'vitara-2003',
+          brand: 'chevrolet',
+          model: 'gran vitara xl-7',
+          year: 2003,
+          price: 8900,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'dmax-2023',
+          brand: 'chevrolet',
+          model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+          year: 2023,
+          price: 28990,
+          typeBody: 'doble cabina',
+        },
+      ],
+      'silverado',
+    );
+    expect(close).toEqual([]);
+  });
+
+  it('el tipo sale del type_body de patio, no de una lista de nombres', () => {
+    expect(
+      kindFromStockFamily(
+        [
+          {
+            id: 'dmax-1',
+            brand: 'chevrolet',
+            model: 'd-max crdi',
+            year: 2023,
+            price: 28990,
+            typeBody: 'doble cabina',
+          },
+        ],
+        'd-max',
+      ),
+    ).toBe('camioneta');
+    expect(
+      kindFromStockFamily(
+        [
+          {
+            id: 'vitara-1',
+            brand: 'chevrolet',
+            model: 'gran vitara xl-7',
+            year: 2003,
+            price: 8900,
+            typeBody: 'jeep',
+          },
+        ],
+        'd-max',
+      ),
+    ).toBeNull();
   });
 
   it('si no hay 208 no ofrece el 3008 ya visto ni un Matrix 2003', () => {
@@ -196,6 +257,81 @@ describe('clasificar filas', () => {
       { minYear: 2012, budget: 12000 },
     );
     expect(close.map((car) => car.id)).toEqual(['rio-2018']);
+  });
+
+  it('una camioneta no se sustituye por un jeep', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'vitara-2003',
+          brand: 'chevrolet',
+          model: 'gran vitara xl-7',
+          year: 2003,
+          price: 8900,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'dmax-2023',
+          brand: 'chevrolet',
+          model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+          year: 2023,
+          price: 28990,
+          typeBody: 'doble cabina',
+        },
+      ],
+      'dmax',
+      undefined,
+      { kind: 'camioneta' },
+    );
+    expect(close.map((car) => car.id)).toEqual(['dmax-2023']);
+  });
+
+  it('si pidió camioneta y solo hay jeep, no ofrece el jeep', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'vitara-2003',
+          brand: 'chevrolet',
+          model: 'gran vitara xl-7',
+          year: 2003,
+          price: 8900,
+          typeBody: 'jeep',
+        },
+      ],
+      'dmax',
+      undefined,
+      { kind: 'camioneta' },
+    );
+    expect(close).toEqual([]);
+  });
+
+  it('4 x 2 en el texto es tracción 4x2', () => {
+    expect(detectAskedDrive('Una Chevrolet doble cabina 4 x 2')).toBe('4x2');
+    expect(detectAskedDrive('quiero 4x4')).toBe('4x4');
+  });
+
+  it('sin otra del mismo tipo no invita a la concesionaria', () => {
+    const missing = formatMissingNamedModel(
+      'sonata',
+      null,
+      [
+        {
+          id: 'kona-1',
+          brand: 'hyundai',
+          model: 'kona gls ac 1.6',
+          year: 2022,
+          price: 21990,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+      false,
+      'sedan',
+    );
+    expect(missing.text).toMatch(/no tenemos Sonata/i);
+    expect(missing.text).toMatch(/no hay otra del mismo tipo/i);
+    expect(missing.text).toMatch(/PROHIBIDO invitar a la concesionaria/i);
+    expect(missing.sendId).toBeNull();
   });
 
   it('si no hay Corolla 2012 en adelante lo dice así', () => {

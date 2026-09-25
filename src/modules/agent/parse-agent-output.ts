@@ -15,9 +15,15 @@ export type ParsedAgentOutput = {
   img_prefix: string | string[];
 };
 
+export type PhotoQueueItem = {
+  inventoryId: string;
+  label: string;
+};
+
 export type AgentTurnResult = {
   reply: ParsedAgentOutput;
   resumen: string;
+  photoQueue?: PhotoQueueItem[];
 };
 
 const EMPTY_META: AgentMeta = {

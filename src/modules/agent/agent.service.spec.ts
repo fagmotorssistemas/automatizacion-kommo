@@ -491,7 +491,8 @@ describe('AgentService', () => {
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=plata-1');
     expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS/i);
-    expect(system).not.toMatch(/PRIMERO dilo/i);
+    expect(system).not.toMatch(/No hay Sportage/i);
+    expect(system).not.toMatch(/no tenemos Sportage/i);
     expect(catalog.listByBrand).not.toHaveBeenCalled();
   });
 
@@ -2560,6 +2561,109 @@ describe('AgentService', () => {
         system: expect.stringContaining('vehiculo null'),
       }),
     );
+  });
+
+  it('ok y envíeme fotos del listado arma cola y no relista', async () => {
+    const patio = [
+      {
+        id: 'sp-2024',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29200,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 79187,
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0',
+        year: 2019,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estas son las opciones: 1) Sportage AC 2.0 año 2024 color plomo, con 79187 km, 2) Sportage R GTI año 2019 color rojo, con 91096 km. ¿Cuál le interesa para enviar fotos?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Si mi estimado ok\nEnvíeme fotos por favor',
+    });
+
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/una por una/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue?.map((item) => item.inventoryId)).toEqual([
+      'sp-2024',
+      'sp-rojo',
+    ]);
+    expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
+  });
+
+  it('la roja del listado manda solo esa', async () => {
+    const patio = [
+      {
+        id: 'sp-2024',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29200,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 79187,
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0',
+        year: 2019,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estas son las opciones: 1) Sportage AC 2.0 año 2024 color plomo, con 79187 km, 2) Sportage R GTI año 2019 color rojo, con 91096 km. ¿Cuál le interesa para enviar fotos?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Le mando el Sportage rojo.',
+        meta: { vehiculo: { inventory_id: 'sp-rojo' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'la roja',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'sp-rojo' });
+    expect(result?.photoQueue).toBeUndefined();
+    expect(openai.runSalesAgent).toHaveBeenCalled();
   });
 
   it('si el resumen pide otras no se queda en la unidad ya mostrada', async () => {

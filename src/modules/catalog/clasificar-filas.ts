@@ -1,4 +1,8 @@
-import { kindFromTypeBody } from '../conversation/vehicle-kind';
+import {
+  kindFromTypeBody,
+  matchesVehicleKind,
+  type VehicleKind,
+} from '../conversation/vehicle-kind';
 import { hasLoadedMileage } from './mileage';
 import { sanitizePlateShort } from './plate-short';
 
@@ -219,7 +223,7 @@ export function clasificarFilas(model: string, typeBody: string | null): FilaCla
   return 'no_consta';
 }
 
-function prettyFamily(model: string): string {
+export function prettyFamily(model: string): string {
   const family = modelFamily(model);
   if (family === 'xtrail') {
     return 'X-Trail';
@@ -423,6 +427,37 @@ export function isCompactAskFamily(family: string): boolean {
   return isCityLetterCode(family) || /^\d{3}$/.test(family);
 }
 
+/** Tipo según type_body de patio, no según una lista de nombres. */
+export function kindFromStockFamily(
+  cars: StockCar[],
+  family: string,
+): VehicleKind | null {
+  const wanted = modelFamily(family);
+  if (!wanted) {
+    return null;
+  }
+  const hit = cars.find(
+    (car) =>
+      textMentionsModel(car.model, family) ||
+      modelFamily(car.model) === wanted,
+  );
+  return hit ? kindFromTypeBody(hit.typeBody) : null;
+}
+
+/** 4x2 / 4 x 2 / 4x4 en el pedido. Es tracción, no el tipo de carro. */
+export function detectAskedDrive(text: string): '4x2' | '4x4' | null {
+  const n = normalizeModelText(text).replace(/4\s*x\s*/g, '4x');
+  const last2 = n.lastIndexOf('4x2');
+  const last4 = Math.max(n.lastIndexOf('4x4'), n.lastIndexOf('4wd'));
+  if (last2 < 0 && last4 < 0) {
+    return null;
+  }
+  if (last4 > last2) {
+    return '4x4';
+  }
+  return '4x2';
+}
+
 const BUDGET_SLACK = 1.2;
 
 function nearestToBudget(cars: StockCar[], budget: number): StockCar[] {
@@ -456,7 +491,11 @@ export function pickClosestToMissingModel(
   cars: StockCar[],
   family: string,
   except?: { inventoryId?: string | null; family?: string | null; ids?: string[] },
-  opts?: { minYear?: number | null; budget?: number | null },
+  opts?: {
+    minYear?: number | null;
+    budget?: number | null;
+    kind?: VehicleKind | null;
+  },
 ): StockCar[] {
   const excluded = new Set(
     [except?.inventoryId, ...(except?.ids ?? [])].filter(
@@ -474,6 +513,12 @@ export function pickClosestToMissingModel(
       opts?.minYear != null &&
       car.year != null &&
       car.year < opts.minYear
+    ) {
+      return false;
+    }
+    if (
+      opts?.kind &&
+      !matchesVehicleKind(car.typeBody, opts.kind)
     ) {
       return false;
     }
@@ -509,17 +554,18 @@ export function pickClosestToMissingModel(
     }
     return [];
   }
-  if (opts?.budget != null) {
+  if (opts?.kind || opts?.budget != null) {
     return pickFrom(pool);
   }
-  const suvs = pool
-    .filter((car) => kindFromTypeBody(car.typeBody) === 'suv')
-    .sort(byPrice);
-  if (suvs.length > 0) {
-    return [suvs[0]];
+  const types = new Set(
+    pool
+      .map((car) => kindFromTypeBody(car.typeBody))
+      .filter((kind): kind is VehicleKind => Boolean(kind)),
+  );
+  if (types.size === 1) {
+    return pickFrom(pool);
   }
-  const rest = [...pool].sort(byPrice);
-  return rest.length > 0 ? [rest[0]] : [];
+  return [];
 }
 
 function sameAskedUnit(
@@ -549,6 +595,7 @@ export function formatMissingNamedModel(
   alternatives: StockCar[],
   includePrice = false,
   onward = false,
+  kind?: VehicleKind | null,
 ): {
   text: string;
   holdVehicle: boolean;
@@ -567,9 +614,12 @@ export function formatMissingNamedModel(
       ? `${pretty} ${year} en adelante`
       : `${pretty} ${year}`
     : pretty;
-  const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA (lo más cercano en tamaño). Prohibido presentarla como si fuera el ${pretty}. Prohibido volver al carro que el cliente ya dejó.`;
-  if (alternatives.length === 1) {
-    const car = alternatives[0];
+  const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA solo si es el mismo tipo. Prohibido presentarla como si fuera el ${pretty}. Prohibido cambiar de tipo. Prohibido volver al carro que el cliente ya dejó.`;
+  const close = alternatives.filter((car) =>
+    kind ? matchesVehicleKind(car.typeBody, kind) : true,
+  );
+  if (close.length === 1) {
+    const car = close[0];
     const unitPrice =
       car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
@@ -581,11 +631,11 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       unitPrice,
     };
   }
-  if (alternatives.length > 1) {
+  if (close.length > 1) {
     return {
       text: `${header}
 Nómbralas para que elija. vehiculo null.
-${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+${close.map((car) => describeUnit(car, includePrice)).join('\n')}`,
       holdVehicle: true,
       sendId: null,
       unitPrice: null,
@@ -593,7 +643,7 @@ ${alternatives.map((car) => describeUnit(car, includePrice)).join('\n')}`,
   }
   return {
     text: `${header}
-No hay otra unidad cercana en tamaño. Pregunta si quiere ver otra línea. vehiculo null.`,
+No hay otra del mismo tipo. Dilo y pregunta si quiere otra línea de ESE tipo. PROHIBIDO cambiar de tipo (camioneta no es SUV, sedán no es hatch). PROHIBIDO invitar a la concesionaria. vehiculo null.`,
     holdVehicle: true,
     sendId: null,
     unitPrice: null,
