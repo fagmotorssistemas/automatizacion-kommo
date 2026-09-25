@@ -85,6 +85,7 @@ REGLAS:
 - CIERRE (la primera que aplique gana; no mezcles banderas):
   1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
   2) Despedida dura SOLO si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda: Es despedida: sí.
+  Si el bot YA confirmó la visita o el siguiente paso para más adelante y AHORA solo cierra (ya quedó, entendió), Es despedida: sí. SOLICITUD: se despide amable. No vuelvas a confirmar la fecha ni la visita.
   3) Si el bot acaba de preguntar financiamiento y/o visita y el cliente dice "no", "no gracias" o "no por ahora": NO es despedida. NO es cortesía. Pide otras: no. SOLICITUD: no quiere financiamiento ni visita ahora; sigue con ESA unidad y no insistas con esa pregunta.
   4) Si dice que siguen en contacto o que aún no (visita, más info): Es despedida: no. Es cortesía: no. SOLICITUD: sigue interesado en ESA unidad, pero no ahora.
   5) "gracias" o "ahí nomás gracias" SIN "no", si ya se le mostró un vehículo: NO es despedida. Es cortesía: sí.

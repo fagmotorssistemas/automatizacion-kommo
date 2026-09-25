@@ -105,7 +105,7 @@ import {
 } from '../conversation/negotiate-in-person';
 import { ungateLocationReply } from '../conversation/location-without-entrada';
 import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
-import { salesFollowHint } from '../conversation/polite-thanks';
+import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
 import {
   askedOutsideListed,
   formatListedPhotoQueue,
@@ -549,11 +549,13 @@ export class AgentService {
     const lastAssistantText =
       [...history].reverse().find((item) => item.role === 'assistant')
         ?.content ?? '';
+    const closing =
+      resumenIsFarewell(resumen) && !resumenHasPendingDoubt(resumen);
     const thanksHint = salesFollowHint({
       customerText: input.customerText,
       lastAssistant: lastAssistantText,
       hasDoubt: resumenHasPendingDoubt(resumen),
-      isFarewell: resumenIsFarewell(resumen),
+      isFarewell: closing,
       isCourtesy: resumenIsCourtesy(resumen),
     });
 
@@ -662,6 +664,13 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               cajaCompra,
               cashBudget,
             );
+    if (closing) {
+      revision = {
+        text: DESPEDIDA_AMABLE,
+        holdVehicle: true,
+        sendId: interested?.inventoryId ?? revision.sendId,
+      };
+    }
     if (stayOnShown && interested && specTopic(input.customerText)) {
       const notes = await this.specNotesForShown(
         input.customerText,
@@ -720,6 +729,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !gaveFinancingInputs(input.customerText, resumen);
     const interestedText =
       interested &&
+      !closing &&
       (stayOnShown ||
         refersToInterestedCar(
           input.customerText,

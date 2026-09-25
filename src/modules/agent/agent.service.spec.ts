@@ -3579,6 +3579,52 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/11061/);
   });
 
+  it('listo después de confirmar la visita no la repite', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'x70-2025',
+      brand: 'jetour',
+      model: 'x70 plus 2025',
+      year: 2025,
+      price: 24990,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Eso sería en noviembre que tengo vacaciones',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Confirmo que esperamos su visita en noviembre para el Jetour X70 Plus 2025 plateado. Quedamos atentos a su llegada para atenderle personalmente.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente se despide amable; la visita de noviembre ya quedó.\nPide precio: no\nTiene duda: no\nEs despedida: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Con gusto, estimado. Que disfrute sus vacaciones.',
+        meta: { vehiculo: { inventory_id: 'x70-2025' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75228',
+      customerText: 'Listo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL CLIENTE CIERRA/i);
+    expect(system).toMatch(/PROHIBIDO repetir/i);
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/aún no quiere visita/i);
+    expect(result?.reply.mensaje).not.toMatch(/noviembre/i);
+  });
+
   it('seguir en contacto no cierra la venta', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'ranger-xl-2024',

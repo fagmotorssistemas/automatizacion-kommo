@@ -88,6 +88,9 @@ export const PAUSA_SIGUE = `EL CLIENTE AÚN NO QUIERE VISITA NI MÁS INFO AHORA.
 Confirma que sigue el interés en ESA unidad. No cierres.
 PROHIBIDO preguntar otra vez financiamiento o visita en este turno.`;
 
+export const DESPEDIDA_AMABLE = `EL CLIENTE CIERRA. La visita o el siguiente paso YA se dijeron.
+Una línea amable. PROHIBIDO repetir la fecha, la visita, el carro o "quedamos atentos".`;
+
 /**
  * Una sola lectura, en este orden:
  * 1) duda  2) despedida dura  3) no a la última oferta
@@ -104,7 +107,7 @@ export function salesFollowHint(input: {
     return CONTESTA_DUDA;
   }
   if (input.isFarewell || isHardFarewell(input.customerText)) {
-    return '';
+    return DESPEDIDA_AMABLE;
   }
   const lastWasCta = lastAskIsFinancingOrVisit(input.lastAssistant ?? '');
   if (isSoftNo(input.customerText)) {

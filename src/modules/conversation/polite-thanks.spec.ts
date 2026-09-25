@@ -6,6 +6,7 @@ import {
   lastAskIsFinancingOrVisit,
   NO_REPETIR_CTA,
   PAUSA_SIGUE,
+  DESPEDIDA_AMABLE,
   salesFollowHint,
   SEGUIR_VENTA,
 } from './polite-thanks';
@@ -80,15 +81,17 @@ describe('no a la última oferta no se repite', () => {
     ).toBe(PAUSA_SIGUE);
   });
 
-  it('despedida dura no inyecta seguimiento', () => {
+  it('despedida amable no repite la visita', () => {
     expect(
       salesFollowHint({
-        customerText: 'ya no me interesa',
-        lastAssistant: SELTOS_CTA,
+        customerText: 'Listo',
+        lastAssistant:
+          'Confirmo que esperamos su visita en noviembre para el Jetour X70.',
         hasDoubt: false,
         isFarewell: true,
         isCourtesy: false,
       }),
-    ).toBe('');
+    ).toBe(DESPEDIDA_AMABLE);
+    expect(DESPEDIDA_AMABLE).toMatch(/PROHIBIDO repetir/i);
   });
 });
