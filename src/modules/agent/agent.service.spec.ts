@@ -148,7 +148,7 @@ describe('AgentService', () => {
     });
 
     expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
     );
     expect(result?.reply.mensaje).not.toMatch(/Claro\./);
     expect(result?.reply.meta.vehiculo).toBeNull();
@@ -210,7 +210,7 @@ describe('AgentService', () => {
     });
 
     expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
     );
     expect(openai.runSalesAgent).not.toHaveBeenCalled();
   });
@@ -244,7 +244,7 @@ describe('AgentService', () => {
     });
 
     expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches)\. ¿Qué carro le interesa\?$/,
+      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
     );
   });
 
@@ -276,7 +276,7 @@ describe('AgentService', () => {
       }),
     );
     expect(openai.runSalesAgent.mock.calls[0][0].system).toMatch(
-      /SALUDO: Buenos (días|tardes|noches)|SALUDO: Buenas (tardes|noches)/,
+      /SALUDO: Buenos (días|tardes|noches), estimado|SALUDO: Buenas (tardes|noches), estimado/,
     );
   });
 

@@ -42,15 +42,15 @@ describe('day-greeting', () => {
 
   it('arma el opener con respeto', () => {
     expect(askWhichCarMessage(true, 11)).toBe(
-      'Buenos días. ¿Qué carro le interesa?',
+      'Buenos días, estimado. ¿Qué carro le interesa?',
     );
     expect(askWhichCarMessage(true, 20)).toBe(
-      'Buenas noches. ¿Qué carro le interesa?',
+      'Buenas noches, estimado. ¿Qué carro le interesa?',
     );
     expect(askWhichCarMessage(false, 11)).toBe(
       'Con gusto. ¿Qué carro le interesa?',
     );
-    expect(formatGreetingPedido(true, 11)).toMatch(/Buenos días/);
+    expect(formatGreetingPedido(true, 11)).toMatch(/Buenos días, estimado/);
     expect(formatGreetingPedido(false, 20)).toMatch(/SALUDO: no/);
     expect(formatGreetingPedido(false, 20)).not.toMatch(/Buenas noches/);
   });

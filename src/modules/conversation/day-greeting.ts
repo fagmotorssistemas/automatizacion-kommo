@@ -39,7 +39,7 @@ export function askWhichCarMessage(
   if (!greet) {
     return `Con gusto. ${ask}`;
   }
-  return `${greetingForHour(hour)}. ${ask}`;
+  return `${greetingForHour(hour)}, estimado. ${ask}`;
 }
 
 export function formatGreetingPedido(greet: boolean, hour: number): string {
@@ -47,7 +47,7 @@ export function formatGreetingPedido(greet: boolean, hour: number): string {
     return `SALUDO: no
 Ya hay hilo de hoy. PROHIBIDO buenos días, buenas tardes o buenas noches. Sigue de frente, con usted.`;
   }
-  const phrase = greetingForHour(hour);
+  const phrase = `${greetingForHour(hour)}, estimado`;
   return `SALUDO: ${phrase}
 Es el primer mensaje o volvió después de días. Empieza con "${phrase}" UNA vez. Esa frase ya es la hora de Cuenca: no inventes otra. No vuelvas a saludar en el siguiente turno.`;
 }
