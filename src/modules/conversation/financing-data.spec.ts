@@ -8,6 +8,7 @@ import {
   gaveFinancingInputs,
   historyAskedFinancingData,
   historyHasShownCuota,
+  replyAsksIfApplies,
   replyShowsCuota,
   shouldAskFinancingData,
   shouldAskIfApplies,
@@ -36,6 +37,24 @@ describe('datos de financiamiento', () => {
     expect(replyShowsCuota('¿Hay financiamiento?')).toBe(false);
     expect(
       historyHasShownCuota([{ role: 'assistant', content: cuotaMsg }]),
+    ).toBe(true);
+    expect(
+      replyShowsCuota(
+        'El precio contado es $45800. $2500 y un financiamiento a 6 años, es $1176.39 mensual.',
+      ),
+    ).toBe(true);
+  });
+
+  it('la pregunta de financiamiento también cuenta como ver si aplica', () => {
+    expect(
+      replyAsksIfApplies(
+        '¿Desea que le ayudemos con este financiamiento?',
+      ),
+    ).toBe(true);
+    expect(
+      replyAsksIfApplies(
+        '¿Desea que le ayudemos a ver si aplica para este crédito?',
+      ),
     ).toBe(true);
   });
 

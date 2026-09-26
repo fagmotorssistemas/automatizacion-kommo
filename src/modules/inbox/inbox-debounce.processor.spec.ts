@@ -38,12 +38,12 @@ function buildProcessor() {
   };
   const conversation = {
     recentMessages: jest.fn().mockResolvedValue([]),
-    resolveInboundText: jest.fn().mockReturnValue({
-      message: job.text,
+    resolveInboundText: jest.fn().mockImplementation((input: { joinedText: string }) => ({
+      message: input.joinedText,
       source: 'buffer',
       vehicle: null,
       withinWindow: false,
-    }),
+    })),
     appendMessage: jest.fn(),
   };
   const agent = {
@@ -88,6 +88,7 @@ function buildProcessor() {
     outbound,
     intelligence,
     runLog,
+    conversation,
   };
 }
 
@@ -189,6 +190,19 @@ describe('InboxDebounceProcessor candado', () => {
       expect.anything(),
       expect.objectContaining({ wantsPhotos: true }),
     );
+  });
+
+  it('un sí suelto entra al agente; el hilo y el resumen deciden qué es', async () => {
+    const { processor, inbox, agent } = buildProcessor();
+    inbox.hasRecentOutbound.mockResolvedValue(true);
+    inbox.flushIfLatest.mockResolvedValue({
+      status: 'won',
+      text: 'Si por favor',
+    });
+
+    await processor.run({ ...job, text: 'Si por favor' });
+
+    expect(agent.handleTurn).toHaveBeenCalled();
   });
 
   it('si se agotan los reintentos, no llama al agente', async () => {

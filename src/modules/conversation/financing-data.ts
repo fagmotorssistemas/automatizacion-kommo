@@ -33,7 +33,16 @@ export function gaveFinancingInputs(text: string, resumen = ''): boolean {
 /** Este texto ya dice una cuota con $. */
 export function replyShowsCuota(text: string): boolean {
   const n = fold(text);
-  return /\bcuota\b/.test(n) && /\$\s*\d{2,6}/.test(text);
+  if (!/\$\s*\d{2,6}/.test(text)) {
+    return false;
+  }
+  if (/\bcuota\b/.test(n)) {
+    return true;
+  }
+  return (
+    /\bmensual\b/.test(n) &&
+    /\b(?:financi|credito|entrada|meses|anos|anios)\b/.test(n)
+  );
 }
 
 export function historyHasShownCuota(
@@ -46,7 +55,10 @@ export function historyHasShownCuota(
 
 export function replyAsksIfApplies(text: string): boolean {
   const n = fold(text);
-  return /ver si aplica/.test(n) && /\bcredito\b/.test(n);
+  if (/ver si aplica/.test(n) && /\bcredito\b/.test(n)) {
+    return true;
+  }
+  return /ayudemos/.test(n) && /\b(?:este\s+)?(?:financiamiento|credito)\b/.test(n);
 }
 
 export function historyAskedIfApplies(

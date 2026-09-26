@@ -14,7 +14,6 @@ import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
 import { InboxService } from './inbox.service';
 import { InboxDebounceJobData } from './inbox-debounce.queue';
-import { isBareConfirmation } from './first-touch';
 import {
   AGENT_TURN_TIMEOUT_MS,
   INTELLIGENCE_TIMEOUT_MS,
@@ -227,23 +226,6 @@ export class InboxFlushRunner {
     customerText: string,
     synced: Awaited<ReturnType<PersistenceService['syncInboundLead']>>,
   ): Promise<PendingIntelligence | null> {
-    if (
-      isBareConfirmation(customerText) &&
-      (await this.inboxService.hasRecentOutbound(data.contactId))
-    ) {
-      await this.conversationService.appendMessage(data.contactId, {
-        role: 'user',
-        content: customerText,
-      });
-      await this.runLog.record({
-        ...ctx,
-        step: 'outbound',
-        status: 'skipped',
-        reason: 'confirmacion_ya_respondida',
-      });
-      return null;
-    }
-
     let turn;
     try {
       turn = await withTimeout(
