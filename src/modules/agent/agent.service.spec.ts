@@ -4318,6 +4318,141 @@ Falta vehículo: sí`,
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('A75368 Dimax de una sola cabina manda solo la cs y no lista las dobles', async () => {
+    const patio = [
+      {
+        id: 'dmax-2020-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2023-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 77613,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2022-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'vino',
+        mileage: 87687,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(patio);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere una D-Max de una sola cabina.\nPide precio: no\nPide otras: no\nFalta vehículo: no\nTipo de patio: camioneta\nCabina: simple',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un D-Max CRDI 2.5 cabina simple 4x2 2020 color blanco, con 93,787 km, transmisión manual.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020-cs' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75368',
+      customerText: 'Dimax de una sola cabina',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('dmax-2020-cs');
+    expect(system).toMatch(/hay que mandarla/i);
+    expect(system).not.toContain('dmax-2023-cd');
+    expect(system).not.toContain('dmax-2022-cd');
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('dmax-2020-cs');
+  });
+
+  it('A75368 Cabina simple del listado manda esa unidad', async () => {
+    const patio = [
+      {
+        id: 'dmax-2020-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2023-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 77613,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2022-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'vino',
+        mileage: 87687,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(patio);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos tres D-Max disponibles: una cabina simple 2020 blanca, manual, 4x2, diésel, con 93,787 km,; una doble cabina 2023 plateada, manual, 4x2, diésel, con 77,613 km,; y una doble cabina 2022 vino, manual, 4x4, diésel, con 87,687 km, ¿Cuál le interesa?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente elige la D-Max cabina simple.\nPide precio: no\nPide otras: no\nFalta vehículo: no\nCabina: simple',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un D-Max CRDI 2.5 cabina simple 4x2 2020 color blanco, con 93,787 km, transmisión manual.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020-cs' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75368',
+      customerText: 'Cabina simple',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('dmax-2020-cs');
+    expect(system).toMatch(/hay que mandarla|ELIGIÓ esta unidad/i);
+    expect(system).not.toContain('dmax-2023-cd');
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('dmax-2020-cs');
+  });
+
   it('A75255 primero valida si la Explorer tiene 7 plazas', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'explorer-2018',

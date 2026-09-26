@@ -1,9 +1,14 @@
 import {
+  detectAskedCab,
+  detectAskedDrive,
   modelFamily,
   prettyFamily,
   textMentionsModel,
+  type CabCode,
   type StockCar,
+  unitCab,
   unitCaja,
+  unitDrive,
 } from '../catalog/clasificar-filas';
 import { asksForPhotos } from '../outbound/should-send-photos';
 import {
@@ -198,12 +203,15 @@ export function pickListedUnit(
   cars: StockCar[],
   text: string,
   lexicon?: VehicleLexicon,
+  known?: { cab?: CabCode | null },
 ): StockCar | null {
   const year = detectYearInText(text);
   const color = detectColorInText(text);
   const trim = detectTrimInText(text);
   const box = detectGearbox(text, lexicon);
-  if (!year && !color && !trim && !box) {
+  const cab = detectAskedCab(text) ?? known?.cab ?? null;
+  const drive = detectAskedDrive(text);
+  if (!year && !color && !trim && !box && !cab && !drive) {
     return null;
   }
   const hits = cars.filter((car) => {
@@ -217,6 +225,12 @@ export function pickListedUnit(
       return false;
     }
     if (box && unitCaja(car) !== (box === 'automatica' ? 'automática' : 'manual')) {
+      return false;
+    }
+    if (cab && unitCab(car) !== cab) {
+      return false;
+    }
+    if (drive && unitDrive(car) !== drive) {
       return false;
     }
     return true;

@@ -153,6 +153,52 @@ describe('listed photos', () => {
     expect(pickListedUnit(sportages, 'Envíeme fotos por favor', TEST_LEXICON)).toBeNull();
   });
 
+  it('cabina simple deja la cs del listado de D-Max', () => {
+    const dmaxes: StockCar[] = [
+      {
+        id: 'dmax-2020-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2023-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 77613,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2022-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'vino',
+        mileage: 87687,
+        transmission: 'manual',
+      },
+    ];
+    expect(pickListedUnit(dmaxes, 'Cabina simple', TEST_LEXICON)?.id).toBe(
+      'dmax-2020-cs',
+    );
+    expect(
+      pickListedUnit(dmaxes, 'Dimax de una sola cabina', TEST_LEXICON, {
+        cab: 'cs',
+      })?.id,
+    ).toBe('dmax-2020-cs');
+  });
+
   it('el enunciado es corto', () => {
     expect(shortUnitLabel(sportages[2])).toBe('Sportage 2019 rojo');
   });

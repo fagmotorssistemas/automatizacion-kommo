@@ -72,7 +72,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -124,6 +124,7 @@ Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
 Caja de compra: automática|manual|no
+Cabina: simple|doble|no
 Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
@@ -181,6 +182,13 @@ Lee el sentido, no una frase fija. ¿La transmisión que mencionó es del carro 
 - Caja de compra: automática o manual SOLO si está pidiendo esa caja para el vehículo que quiere ver/comprar de nosotros.
 - Caja de compra: no si no pidió caja para patio, o si automática/manual/mecánica describe SU carro (el que tiene, nos vende, deja, intercambia o pone a cuenta). Esa caja del suyo NO es filtro de compra.
 - Si en el mismo turno quiere ver algo nuestro Y nos habla del suyo, la SOLICITUD separa las dos cosas: quiere ver [tipo o marca de patio] y vendernos el suyo. La caja del suyo no pasa a Caja de compra.
+
+REGLA DE CABINA (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Pidió cabina simple o doble para el carro que quiere VER/COMPRAR de patio? Aunque lo escriba mal o con otras palabras (una sola cabina, sola cabina, sencilla, cs, cd, doble).
+- Cabina: simple si quiere cabina simple (cs).
+- Cabina: doble si quiere cabina doble (cd).
+- Cabina: no si no pidió cabina, o si habla de la cabina del carro SUYO (toma).
+- La SOLICITUD puede decir “cabina simple” o “cabina doble” con tus palabras. El patio filtra por cs/cd.
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.

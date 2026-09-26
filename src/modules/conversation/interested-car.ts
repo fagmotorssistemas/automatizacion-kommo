@@ -32,6 +32,7 @@ import {
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import {
   resumenAsksForOtherColor,
+  resumenCabina,
   resumenPideOtras,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
@@ -223,7 +224,8 @@ export function leftShownCar(input: ShownCarContext): boolean {
   if (saidKind && shownKind && saidKind !== shownKind) {
     return true;
   }
-  const askedCab = detectAskedCab(input.text);
+  const askedCab =
+    resumenCabina(input.resumen ?? '') ?? detectAskedCab(input.text);
   const shownCab = unitCab(car);
   if (askedCab && shownCab && askedCab !== shownCab) {
     return true;

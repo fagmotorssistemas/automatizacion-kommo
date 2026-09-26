@@ -128,6 +128,7 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  resumenCabina,
   mergeResumenForNext,
   resumenFaltaVehiculo,
   vehicleQueSigue,
@@ -1527,7 +1528,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const colorPick = detectColorInText(customerText);
     const targetBrand = asked?.brand || brand;
     const cabDriveText = `${solicitudSinBanderas(resumen)}\n${concreteAsk ?? ''}\n${customerText}`;
-    const askedCab = detectAskedCab(cabDriveText);
+    const askedCab = resumenCabina(resumen) ?? detectAskedCab(cabDriveText);
     const askedDriveEarly = detectAskedDrive(cabDriveText);
     if (
       !targetBrand &&
@@ -1695,6 +1696,7 @@ vehiculo null.`,
         pool.length > 0 ? pool : listedPool,
         customerText,
         lexicon,
+        { cab: askedCab },
       );
       if (picked && (!cashBudget || carFitsBudget(picked, cashBudget))) {
         return {
@@ -2067,8 +2069,22 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       const boxed = saidBox
         ? namedNow.filter((car) => gearboxOf(car) === saidBox)
         : namedNow;
+      const pool = boxed.length > 0 ? boxed : namedNow;
+      const cabPick =
+        askedCab || askedDriveEarly
+          ? pickCabDriveOffer(pool, askedCab, askedDriveEarly)
+          : null;
+      if (cabPick && cabPick.cars.length === 0 && askedCab && !askedDriveEarly) {
+        return {
+          text: cabPick.hint,
+          holdVehicle: true,
+          sendId: null,
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(pool),
+        };
+      }
       let offer = preferCurrentYears(
-        boxed.length > 0 ? boxed : namedNow,
+        cabPick && cabPick.cars.length > 0 ? cabPick.cars : pool,
         yearFromThread,
         yearOnward,
       );

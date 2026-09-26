@@ -325,6 +325,7 @@ describe('clasificar filas', () => {
     ).toBe('cd');
     expect(unitCab({ model: 'x-trail sense cvt', typeBody: 'jeep' })).toBeNull();
     expect(detectAskedCab('camioneta 4x4 cabina simple')).toBe('cs');
+    expect(detectAskedCab('Dimax de una sola cabina')).toBeNull();
     expect(detectAskedCab('quiero doble cabina')).toBe('cd');
   });
 

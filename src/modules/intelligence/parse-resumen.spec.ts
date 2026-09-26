@@ -14,6 +14,7 @@ import {
   resumenPideNegociar,
   resumenPideOtras,
   resumenCajaCompra,
+  resumenCabina,
   resumenTopeContado,
   resumenFaltaVehiculo,
   resumenPideHorario,
@@ -302,6 +303,29 @@ describe('resumenCajaCompra', () => {
         'SOLICITUD ACTUAL:\nCliente quiere Mitsubishi.\nCaja de compra: manual\nTope de contado: 23000\nFalta vehículo: no\nTipo de patio: no\nPide otras: no\nToma ya: marca=Jetour\nToma falta: placa\nToma pendiente: fotos',
       ),
     ).toBe('Cliente quiere Mitsubishi.');
+  });
+});
+
+describe('resumenCabina', () => {
+  it('lee la cabina del analizador, no la frase del cliente', () => {
+    expect(
+      resumenCabina(
+        'SOLICITUD ACTUAL:\nCliente quiere Dimax de una sola cabina.\nCabina: simple',
+      ),
+    ).toBe('cs');
+    expect(
+      resumenCabina(
+        'SOLICITUD ACTUAL:\nCliente quiere la doble.\nCabina: doble',
+      ),
+    ).toBe('cd');
+    expect(
+      resumenCabina(
+        'SOLICITUD ACTUAL:\nCliente quiere una D-Max.\nCabina: no',
+      ),
+    ).toBeNull();
+    expect(
+      resumenCabina('SOLICITUD ACTUAL:\nCliente quiere Dimax de una sola cabina.'),
+    ).toBeNull();
   });
 });
 

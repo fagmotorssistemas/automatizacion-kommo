@@ -1,4 +1,5 @@
 import { parseVehicleKind, type VehicleKind } from '../conversation/vehicle-kind';
+import type { CabCode } from '../catalog/clasificar-filas';
 
 export type ParsedResumen = {
   vehiculo: string | null;
@@ -141,6 +142,7 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
+    .replace(/cabina:\s*(simple|doble|no)/gi, '')
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
     .replace(/tipo\s+de\s+patio:\s*[^\n]+/gi, '')
@@ -475,6 +477,22 @@ export function resumenCajaCompra(resumen: string): CajaCompra | null {
     return 'manual';
   }
   return 'automatica';
+}
+
+/**
+ * Cabina del carro que quiere COMPRAR. Lo decide el analizador.
+ * `null` = no la pidió o dijo Cabina: no. El patio filtra por cs/cd.
+ */
+export function resumenCabina(resumen: string): CabCode | null {
+  const match = resumen.match(/cabina:\s*(simple|doble|no)(?:\s|$)/i);
+  if (!match) {
+    return null;
+  }
+  const value = fold(match[1]);
+  if (value === 'no') {
+    return null;
+  }
+  return value === 'simple' ? 'cs' : 'cd';
 }
 
 /** El analizador leyó un tope de contado. El número, no una frase del cliente. */
