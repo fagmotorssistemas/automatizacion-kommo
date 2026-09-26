@@ -71,6 +71,16 @@ describe('clasificar filas', () => {
     expect(
       clasificarFilas('santa fe dm 7pas ac 2.4 5p 4x2', 'jeep'),
     ).toBe('tres_filas');
+    expect(clasificarFilas('gran vitara xl-7 4x4 t/a a/c', 'jeep')).toBe(
+      'tres_filas',
+    );
+    expect(clasificarFilas('x70 plus ii ac 1.5 4x2 tm', 'jeep')).toBe(
+      'tres_filas',
+    );
+    expect(clasificarFilas('rush ac 1.5 5p 4x2 ta', 'jeep')).toBe('tres_filas');
+    expect(
+      clasificarFilas('land cruiser prado tx ac 4.0 5p 4x4 ta', 'suv'),
+    ).toBe('tres_filas');
   });
 
   it('nissan solo no nombra un modelo', () => {

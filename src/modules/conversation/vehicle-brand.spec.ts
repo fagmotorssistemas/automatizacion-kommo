@@ -256,6 +256,7 @@ describe('marca y tres filas', () => {
 
   it('detecta tres filas y 7 pasajeros', () => {
     expect(detectTresFilas('uno de tres filas de 7 pasajeros')).toBe(true);
+    expect(detectTresFilas('Necesito para 7 personas')).toBe(true);
     expect(detectTresFilas('cuánto cuesta')).toBe(false);
   });
 

@@ -45,10 +45,10 @@ const NO_EN_NOMBRE =
   /\b(?:sentra|versa|kicks|march|frontier|qashqai|altima|note|sunny|tiida)\b/i;
 
 const TRES_FILAS_EN_NOMBRE =
-  /\b7\s*pas(?:ajeros)?\b|\b7pas\b|\b(?:3|tres)\s+filas?\b/i;
+  /\b7\s*pas(?:ajeros)?\b|\b7pas\b|\bxl[\s-]?7\b|\b(?:3|tres)\s+filas?\b/i;
 
 const FAMILIA_TRES_FILAS =
-  /\b(?:pathfinder|patrol|armada|fortuner|explorer|expedition|pilot|highlander|palisade|carnival|odyssey|sienna|tahoe|suburban|everest|cx-?9)\b/i;
+  /\b(?:pathfinder|patrol|armada|fortuner|explorer|expedition|pilot|highlander|palisade|carnival|odyssey|sienna|tahoe|suburban|everest|cx-?9|x70|rush|prado)\b/i;
 
 const FAMILIA_POSIBLE = /\bx[\s-]?trail\b|\bxtrail\b|\bcaptiva\b|\btrailblazer\b|\bmontero\b/i;
 

@@ -10,6 +10,7 @@ describe('pedido concreto', () => {
     expect(isConcreteAsk('Yo quiero uno de tres filas de 7 pasajeros')).toBe(
       true,
     );
+    expect(isConcreteAsk('Necesito para 7 personas')).toBe(true);
     expect(isConcreteAsk('que tenga techo panorámico')).toBe(true);
     expect(isConcreteAsk('busco uno automático')).toBe(true);
     expect(isConcreteAsk('tiene que ser diésel')).toBe(true);

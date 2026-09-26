@@ -10,7 +10,7 @@ import {
 export type { VehicleLexicon };
 
 const TRES_FILAS =
-  /\b(?:3|tres)\s+filas?\b|\b7\s*pasajeros?\b|\bsiete\s+pasajeros?\b/i;
+  /\b(?:3|tres)\s+filas?\b|\b7\s*(?:pasajeros?|personas?|puestos?|asientos?|plazas?)\b|\bsiete\s+(?:pasajeros?|personas?|puestos?|asientos?|plazas?)\b/i;
 
 const COLORS: { name: string; pattern: RegExp }[] = [
   { name: 'blanco', pattern: /\bblanc[oa]s?\b/gi },

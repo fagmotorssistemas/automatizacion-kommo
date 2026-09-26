@@ -24,9 +24,9 @@ function fold(text: string): string {
 }
 
 export function parsePassengerAsk(text: string): number | null {
-  const nums = [...text.matchAll(/(\d{1,2})\s*pasajeros?/gi)].map((match) =>
-    Number(match[1]),
-  );
+  const nums = [
+    ...text.matchAll(/(\d{1,2})\s*(?:pasajeros?|personas?|puestos?|asientos?|plazas?)/gi),
+  ].map((match) => Number(match[1]));
   for (const word of SEAT_WORDS) {
     if (word.pattern.test(text)) {
       nums.push(word.seats);
@@ -102,7 +102,7 @@ export function pickLargePassengerCars(cars: StockCar[]): StockCar[] {
  */
 export function pickTresFilasCandidates(
   cars: StockCar[],
-  max = 6,
+  max = 10,
 ): StockCar[] {
   return cars
     .filter((car) => {
