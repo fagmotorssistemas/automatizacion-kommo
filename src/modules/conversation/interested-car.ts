@@ -177,11 +177,13 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return true;
   }
   if (/\bprecios?\b/i.test(input.text) && input.history?.length) {
-    const last = [...input.history]
-      .reverse()
-      .find((item) => item.role === 'assistant');
-    if (last && !textMentionsModel(last.content, car.model)) {
-      return true;
+    if (!historyPresentedFicha(input.history, car.model, input.resumen)) {
+      const last = [...input.history]
+        .reverse()
+        .find((item) => item.role === 'assistant');
+      if (last && !textMentionsModel(last.content, car.model)) {
+        return true;
+      }
     }
   }
   if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {

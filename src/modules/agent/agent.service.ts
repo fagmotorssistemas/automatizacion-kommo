@@ -606,7 +606,12 @@ export class AgentService {
       [...history].reverse().find((item) => item.role === 'assistant')
         ?.content ?? '',
     );
-    const stayOnShown = lastAssistantListed
+    const fichaAlreadyGiven = historyPresentedFicha(
+      history,
+      interested?.model,
+      resumen,
+    );
+    let stayOnShown = lastAssistantListed
       ? false
       : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
           !resumenPideOtras(resumen) &&
@@ -620,11 +625,18 @@ export class AgentService {
             lexicon,
             pedido,
           });
-    const fichaAlreadyGiven = historyPresentedFicha(
-      history,
-      interested?.model,
-      resumen,
-    );
+    if (
+      askedPrice &&
+      interested &&
+      fichaAlreadyGiven &&
+      !lastAssistantListed &&
+      !resumenPideOtras(resumen) &&
+      !askedOtherColor &&
+      !detectNamedModelAsk(input.customerText, lexicon) &&
+      !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon))
+    ) {
+      stayOnShown = true;
+    }
     const priceObjection =
       resumenIsPriceObjection(resumen) ||
       textIsPriceObjection(input.customerText);
@@ -694,7 +706,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               concreteAsk,
               askedPrice,
               vehicleKind,
-              gearbox,
+              detectGearbox(input.customerText, lexicon) ??
+                (askedPrice && fichaAlreadyGiven ? null : gearbox),
               interested
                 ? {
                     price: interested.price,

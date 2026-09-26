@@ -369,6 +369,28 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     expect(system).not.toMatch(/inventory_id=p2008-2022/);
     expect(system).not.toMatch(/matrix/i);
   });
+
+  it('Precio? del 2008 ya mostrado no dice que no hay ni ofrece otros manuales', async () => {
+    const fichaReal =
+      'Buenas noches, estimado. Tenemos disponible un Peugeot 2008 2022 color plomo, con 95,848 km, caja manual y tracción 4x2. La placa es P8 Aquí tiene también las fotos del vehículo.';
+    const { system } = await turn({
+      text: 'Precio?',
+      resumen:
+        'RESUMEN PREVIO:\nVehículo: Peugeot 2008 2022\nSOLICITUD ACTUAL:\nCliente quiere el precio del Peugeot 2008 2022.\nPide precio: sí\nCaja de compra: manual\nPide otras: no\nFalta vehículo: no',
+      reply: 'El Peugeot 2008 2022 está en $19,990.',
+      history: [
+        { role: 'user', content: 'Hola. Me interesa el Peugeot 2008 2022' },
+        { role: 'assistant', content: fichaReal },
+        { role: 'assistant', content: 'SalesBot (peugeot_2008_2022)' },
+      ],
+      sendId: 'p2008-2022',
+    });
+    expect(system).toMatch(/HILO SIGUE|YA vio esta unidad/i);
+    expect(system).toContain('inventory_id=p2008-2022');
+    expect(system).not.toMatch(/CAJA VIGENTE/i);
+    expect(system).not.toMatch(/Ese modelo no está en patio|No hay 2008/i);
+    expect(system).not.toMatch(/otras (opciones )?(de )?(vehículos )?manual/i);
+  });
 });
 
 describe('choques de reglas y datos inventados (hoy)', () => {

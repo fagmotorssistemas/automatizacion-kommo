@@ -376,6 +376,46 @@ describe('vehículo de interés', () => {
     ).toBe(true);
   });
 
+  it('Precio? sigue en el 2008 aunque el último mensaje sea el salesbot de fotos', () => {
+    const peugeot2008 = {
+      inventoryId: 'p2008-2022',
+      brand: 'peugeot',
+      model: '2008 fin',
+      year: 2022,
+      price: 18900,
+      color: 'plomo',
+      typeBody: 'jeep',
+    };
+    const ficha =
+      'Buenas noches, estimado. Tenemos disponible un Peugeot 2008 2022 color plomo, con 95,848 km, caja manual y tracción 4x2. La placa es P8 Aquí tiene también las fotos del vehículo.';
+    expect(
+      leftShownCar({
+        text: 'Precio?',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Peugeot 2008 2022\nSOLICITUD ACTUAL:\nCliente quiere el precio del Peugeot 2008 2022.\nPide precio: sí\nCaja de compra: manual\nPide otras: no',
+        history: [
+          { role: 'user', content: 'Hola. Me interesa el Peugeot 2008 2022' },
+          { role: 'assistant', content: ficha },
+          { role: 'assistant', content: 'SalesBot (peugeot_2008_2022)' },
+        ],
+        car: peugeot2008,
+        lexicon: TEST_LEXICON,
+        pedido: 'Peugeot 2008 2022',
+      }),
+    ).toBe(false);
+    expect(
+      followsShownCar({
+        text: 'Precio?',
+        history: [
+          { role: 'assistant', content: ficha },
+          { role: 'assistant', content: 'SalesBot (peugeot_2008_2022)' },
+        ],
+        car: peugeot2008,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+  });
+
   it('2000 de entrada no es otro año del carro', () => {
     expect(
       followsShownCar({
