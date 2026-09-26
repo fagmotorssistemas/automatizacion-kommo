@@ -19,6 +19,7 @@ import {
   resumenFaltaVehiculo,
   resumenPideHorario,
   resumenAsientos,
+  resumenTresFilas,
   resumenTipoPatio,
   vehicleQueSigue,
   parseTopeAmount,
@@ -393,6 +394,21 @@ describe('resumenAsientos', () => {
         'SOLICITUD ACTUAL:\nCliente quiere el precio.\nAsientos: no',
       ),
     ).toBeNull();
+  });
+});
+
+describe('resumenTresFilas', () => {
+  it('lee la bandera, no Asientos: 7', () => {
+    expect(
+      resumenTresFilas(
+        'SOLICITUD ACTUAL:\nCliente quiere 3 filas.\nTres filas: sí\nAsientos: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenTresFilas(
+        'SOLICITUD ACTUAL:\nValidar 7 plazas.\nAsientos: 7\nTres filas: no',
+      ),
+    ).toBe(false);
   });
 });
 

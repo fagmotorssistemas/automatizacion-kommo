@@ -4,6 +4,7 @@ import {
   parsePassengerAsk,
   pickCarsWithMinSeats,
   pickLargePassengerCars,
+  pickTresFilasCandidates,
   seatsFromDato,
 } from './large-passenger';
 import type { StockCar } from '../catalog/clasificar-filas';
@@ -110,5 +111,29 @@ describe('large passenger', () => {
       7,
     );
     expect(picked.map((car) => car.id)).toEqual(['explorer']);
+  });
+
+  it('candidatos de 3 filas no se caen si passenger_capacity viene vacío', () => {
+    const cars: StockCar[] = [
+      {
+        id: 'explorer',
+        brand: 'ford',
+        model: 'explorer xlt',
+        year: 2018,
+        price: 28900,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'sentra',
+        brand: 'nissan',
+        model: 'sentra exclusive',
+        year: 2014,
+        price: 13800,
+        typeBody: 'sedan',
+      },
+    ];
+    expect(pickTresFilasCandidates(cars).map((car) => car.id)).toEqual([
+      'explorer',
+    ]);
   });
 });

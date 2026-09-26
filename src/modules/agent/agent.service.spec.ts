@@ -3354,6 +3354,109 @@ Falta vehículo: sí`,
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'xtrail' });
   });
 
+  it('3 filas sin marca pregunta la marca y no investiga todavía', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere 3 filas.\nTres filas: sí\nFalta vehículo: no\nAsientos: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '¿Tiene alguna marca en mente?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Busco un auto familiar con 3 filas de asientos',
+    });
+
+    expect(openai.researchSpecs).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/marca en mente/i);
+    expect(system).not.toMatch(/Líneas DISPONIBLES/i);
+  });
+
+  it('Nissan y Hyunday con 3 filas investiga esas marcas, no sale por solo marca', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Busco un auto familiar con 3 filas de asientos',
+      },
+      {
+        role: 'assistant',
+        content: '¿Tiene alguna marca en mente?',
+      },
+    ]);
+    conversation.loadConcreteAsk.mockResolvedValue(
+      'Busco un auto familiar con 3 filas de asientos',
+    );
+    catalog.listByBrand.mockImplementation(async (brand: string) => {
+      if (brand === 'nissan') {
+        return [
+          {
+            id: 'xtrail',
+            brand: 'nissan',
+            model: 'x-trail sense cvt ac 2.5',
+            year: 2016,
+            price: 16890,
+            typeBody: 'jeep',
+            vin: 'CHASIS-XTRAIL',
+          },
+        ];
+      }
+      if (brand === 'hyundai') {
+        return [
+          {
+            id: 'tucson',
+            brand: 'hyundai',
+            model: 'tucson gl ac 2.0',
+            year: 2018,
+            price: 18900,
+            typeBody: 'jeep',
+          },
+        ];
+      }
+      return [];
+    });
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [
+          { id: 'xtrail', seguro: true, dato: '7 pasajeros, 3 filas' },
+          { id: 'tucson', seguro: false, dato: 'no consta' },
+        ],
+      }),
+    );
+    openai.completeJson.mockResolvedValue(
+      JSON.stringify({ cumplen: ['xtrail'], no_cumplen: ['tucson'] }),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere 3 filas Nissan o Hyundai.\nTres filas: sí\nAsientos: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'De Nissan hay una X-Trail de 3 filas.',
+        meta: { vehiculo: { inventory_id: 'xtrail' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Nissan, Hyunday. O cuales dosponen',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('nissan');
+    expect(catalog.listByBrand).toHaveBeenCalledWith('hyundai');
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    expect(persistence.saveVehicleSpecs).toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/solo dijo la marca/i);
+    expect(system).toMatch(/3 filas|REVISIÓN/i);
+  });
+
   it('si varios cumplen no manda fotos y deja que elija', async () => {
     catalog.listByBrand.mockResolvedValue([
       {

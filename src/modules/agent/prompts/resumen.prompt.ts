@@ -72,7 +72,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
@@ -130,6 +130,7 @@ Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
 Pide horario: sí|no
 Asientos: [7 o no]
+Tres filas: sí|no
 Toma: sí|no
 Toma ficha: [marca modelo año caja km del suyo, o no]  // dos carros: A || B
 Toma ya: marca=...; modelo=...; color=...; año=...; km=... | no  // dos: A || B
@@ -147,9 +148,18 @@ Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (
 
 REGLA DE ASIENTOS (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide una cantidad de plazas / espacio para gente?
-- Asientos: el número (7, 8) si lo pidió. Si hay unidad ya mostrada: Pide otras: no. SOLICITUD: validar si ESA tiene esas plazas.
-- Asientos: no si no pidió plazas.
+- Asientos: el número (7, 8) SOLO si dijo ese número de plazas. Pedir 3 filas NO es Asientos: 7.
+- Asientos: no si no pidió un número de plazas.
 - Pedir plazas en la mostrada NO es cambiar de vehículo. Pide otras: no hasta saber que ESA no las tiene.
+
+REGLA DE TRES FILAS (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Quiere un carro de 3 filas / tercera fila / auto familiar con 3 filas?
+- Tres filas: sí. Falta vehículo: no. Eso ya es un pedido de patio; no pidas “qué carro” como si no hubiera dicho nada.
+- Si AÚN no nombró marca: SOLICITUD: quiere 3 filas; preguntar si tiene marca en mente. No listes unidades todavía.
+- Si nombra marca(s) (aunque mal escritas): SOLICITUD: 3 filas de ESA(s) marca(s).
+- Si no le importa la marca (lo interpretas: cualquier, la que haya, cuáles hay, no tiene marca): SOLICITUD: 3 filas de lo que haya en patio. Pide otras: sí.
+- Si hay unidad ya mostrada y pregunta si ESA tiene 3 filas: Tres filas: sí. Pide otras: no. SOLICITUD: validar ESA.
+- Tres filas: no si no pidió filas.
 
 REGLA DE HORARIO (OBLIGATORIA):
 Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?

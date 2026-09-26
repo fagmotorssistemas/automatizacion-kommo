@@ -96,6 +96,23 @@ export function pickLargePassengerCars(cars: StockCar[]): StockCar[] {
     .sort((a, b) => scoreSpace(b) - scoreSpace(a));
 }
 
+/**
+ * Candidatos a investigar 3 filas. No filtra por passenger_capacity:
+ * esa columna suele venir vacía. El orden solo prioriza.
+ */
+export function pickTresFilasCandidates(
+  cars: StockCar[],
+  max = 6,
+): StockCar[] {
+  return cars
+    .filter((car) => {
+      const group = carBodyGroup(car.typeBody);
+      return group !== 'chico' && group !== 'camioneta';
+    })
+    .sort((a, b) => scoreSpace(b) - scoreSpace(a))
+    .slice(0, max);
+}
+
 /** Dato de ficha/patio, no del mensaje del cliente. */
 export function seatsFromDato(dato: string): number | null {
   const labeled = dato.match(

@@ -1,6 +1,7 @@
 import {
   askedModelPhrase,
   detectBrand,
+  detectBrands,
   detectColorInText,
   detectNamedModelAsk,
   detectTrimInText,
@@ -220,6 +221,9 @@ describe('marca y tres filas', () => {
 
   it('detecta nissan y se queda con la última marca del mensaje', () => {
     expect(detectBrand('Nissan', TEST_LEXICON)).toBe('nissan');
+    expect(detectBrands('Nissan, Hyunday. O cuales dosponen', TEST_LEXICON)).toEqual(
+      ['nissan', 'hyundai'],
+    );
     expect(
       detectBrand('no quiero hyundai, yo necesito un Nissan', TEST_LEXICON),
     ).toBe('nissan');

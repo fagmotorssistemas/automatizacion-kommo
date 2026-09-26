@@ -87,6 +87,25 @@ function lastBrandHit(
   return winner;
 }
 
+/** Todas las marcas del mensaje, en orden. Hyunday cuenta como hyundai. */
+export function detectBrands(
+  text: string,
+  lexicon: VehicleLexicon = emptyLexicon(),
+): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const hit of [...fuzzyBrandHits(text, lexicon)].sort(
+    (a, b) => a.index - b.index,
+  )) {
+    if (seen.has(hit.name)) {
+      continue;
+    }
+    seen.add(hit.name);
+    ordered.push(hit.name);
+  }
+  return ordered;
+}
+
 export function detectBrand(
   text: string,
   lexicon: VehicleLexicon = emptyLexicon(),

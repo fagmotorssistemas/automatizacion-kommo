@@ -146,6 +146,8 @@ function stripResumenFlags(text: string): string {
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
     .replace(/tipo\s+de\s+patio:\s*[^\n]+/gi, '')
+    .replace(/asientos:\s*[^\n]+/gi, '')
+    .replace(/tres\s+filas:\s*(s[ií]|no)/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
     .replace(/toma\s+ya:\s*.+/gi, '')
     .replace(/toma\s+falta:\s*.+/gi, '')
@@ -431,6 +433,11 @@ export function resumenAsientos(resumen: string): number | null {
     return null;
   }
   return n;
+}
+
+/** Pidió 3 filas. No es Asientos: 7 ni un filtro de passenger_capacity. */
+export function resumenTresFilas(resumen: string): boolean {
+  return flagSiNo(resumen, 'tres\\s+filas') === true;
 }
 
 /**

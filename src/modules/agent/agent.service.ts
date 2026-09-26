@@ -60,8 +60,11 @@ import {
 import {
   colorMatches,
   detectBrand,
+  detectBrands,
   detectColorInText,
   detectNamedModelAsk,
+  detectTresFilas,
+  resolveTresFilas,
   askedModelPhrase,
   detectTrimInText,
   detectYearInText,
@@ -134,6 +137,7 @@ import {
   vehicleQueSigue,
   resumenPideHorario,
   resumenAsientos,
+  resumenTresFilas,
   resumenTipoPatio,
   resumenTopeContado,
   resumenEsToma,
@@ -177,6 +181,7 @@ import {
   formatLargePassengerRevision,
   pickCarsWithMinSeats,
   pickLargePassengerCars,
+  pickTresFilasCandidates,
   seatsFromDato,
   seatsOfCar,
 } from '../conversation/large-passenger';
@@ -598,9 +603,17 @@ export class AgentService {
       .join('\n')}`;
     const spaceAsk = asksForLargePassengerSpace(spaceText);
     const pideHorario = resumenPideHorario(resumen);
+    const tresFilas =
+      !esToma &&
+      (resumenTresFilas(resumen) ||
+        resolveTresFilas({
+          history,
+          customerText: input.customerText,
+          remembered: detectTresFilas(concreteAsk ?? ''),
+        }));
     const asientos = resumenAsientos(resumen);
     const asientosRevision =
-      asientos != null
+      asientos != null && !tresFilas
         ? await this.reviewAsientos(interested, asientos, askedPrice)
         : null;
     const lastAssistantListed = looksLikeUnitList(
@@ -728,6 +741,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               cajaCompra,
               cashBudget,
               pedido,
+              tresFilas,
             );
     if (closing) {
       revision = {
@@ -1501,6 +1515,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     cajaCompra: ReturnType<typeof resumenCajaCompra> = null,
     cashBudget: number | null = null,
     pedido: string | null = null,
+    tresFilas = false,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const listedFollowUp = looksLikeUnitList(
@@ -1554,7 +1569,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !listedFollowUp &&
       !askedCab &&
       !askedDriveEarly &&
-      !phrase
+      !phrase &&
+      !tresFilas
     ) {
       return empty;
     }
@@ -1588,14 +1604,50 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !targetBrand &&
       !reference &&
       !kindAhora &&
-      !cashBudgetEarly
+      !cashBudgetEarly &&
+      !tresFilas
     ) {
       return empty;
     }
 
+    const brandsNow = detectBrands(customerText, lexicon);
+    const anyTresFilasBrand =
+      tresFilas &&
+      this.acceptsAnyTresFilasBrand({
+        resumen,
+        history,
+        namedBrand: brandsNow.length > 0 || Boolean(targetBrand),
+        namedModel: Boolean(asked),
+      });
+    if (tresFilas && !asked && brandsNow.length === 0 && !targetBrand && !anyTresFilasBrand) {
+      return {
+        text: `El cliente pidió 3 filas de asientos. Aún no dijo marca. UNA pregunta: si tiene alguna marca en mente. PROHIBIDO decir que no hay. PROHIBIDO listar SUV a ciegas. vehiculo null.`,
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+      };
+    }
     let listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
+    if (tresFilas && brandsNow.length > 1) {
+      const merged: StockCar[] = [];
+      const seen = new Set<string>();
+      for (const item of brandsNow) {
+        for (const car of await this.catalog.listByBrand(item)) {
+          if (seen.has(car.id)) {
+            continue;
+          }
+          seen.add(car.id);
+          merged.push(car);
+        }
+      }
+      listed = merged;
+    } else if (tresFilas && !asked && brandsNow.length === 0 && !targetBrand && anyTresFilasBrand) {
+      listed = pickTresFilasCandidates(
+        await this.catalog.listAvailableExcept('_'),
+      );
+    }
     let pedidoPinned = false;
     if (phrase) {
       const strict = listed.filter((car) =>
@@ -1645,7 +1697,8 @@ vehiculo null.`,
       !pideOtras &&
       !cashBudgetEarly &&
       !isConcreteAsk(customerText) &&
-      !detectVehicleKind(customerText)
+      !detectVehicleKind(customerText) &&
+      !tresFilas
     ) {
       const lineas = new Set(
         listed.map((car) => modelFamily(car.model)).filter(Boolean),
@@ -1730,7 +1783,7 @@ vehiculo null.`,
       };
       }
     }
-    if (spaceAsk && !asked) {
+    if (spaceAsk && !asked && !tresFilas) {
       let pool = pickLargePassengerCars(listed);
       if (pool.length === 0) {
         const others = await this.catalog.listAvailableExcept(targetBrand || '_');
@@ -1781,11 +1834,12 @@ vehiculo null.`,
       !kindForAsk &&
       !targetBrand &&
       !reference &&
-      !resumenAsientos(resumen)
+      !resumenAsientos(resumen) &&
+      !tresFilas
     ) {
       return empty;
     }
-    if (pideOtras && !asked && !resumenAsientos(resumen)) {
+    if (pideOtras && !asked && !resumenAsientos(resumen) && !tresFilas) {
       const patio = await this.catalog.listAvailableExcept('_');
       const exceptId = reference?.inventoryId;
       let pool = patio.filter((car) => car.id !== exceptId);
@@ -2033,7 +2087,7 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
       }
     }
     const saidBox = detectGearbox(customerText, lexicon);
-    if (wantsClosest && asked) {
+    if (wantsClosest && asked && !tresFilas) {
       const fromEmbed = this.filterByAskedYear(
         await this.lookupNamedByEmbedding(
           customerText,
@@ -2176,7 +2230,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       }
     }
-    if (asked) {
+    if (asked && !tresFilas) {
       const floorYear = yearFromThread ?? asked.year;
       const fromEmbed = this.filterByAskedYear(
         await this.lookupNamedByEmbedding(
@@ -2306,7 +2360,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
 
     const asksNow =
       isConcreteAsk(customerText) ||
-      (Boolean(concreteAsk) && namesBrandNow && !askingOther);
+      (Boolean(concreteAsk) && namesBrandNow && !askingOther) ||
+      (tresFilas &&
+        (brandsNow.length > 0 || Boolean(targetBrand) || anyTresFilasBrand));
     if (!asksNow && !namesBrandNow) {
       return empty;
     }
@@ -2489,17 +2545,20 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       };
     }
 
-    if (!concreteAsk) {
+    const filasAsk =
+      concreteAsk ||
+      (tresFilas ? customerText.trim() || '3 filas de asientos' : null);
+    if (!filasAsk) {
       return empty;
     }
 
-    const facts = await this.collectSpecFacts(concreteAsk, cars);
+    const facts = await this.collectSpecFacts(filasAsk, cars);
     const specNotes = formatSpecNotes(facts);
 
     const raw = await this.openai.completeJson(
       COMPLIANCE_SYSTEM_PROMPT,
       JSON.stringify({
-        pedido: concreteAsk,
+        pedido: filasAsk,
         vehiculos: carsForReview(cars),
         ...(facts.length > 0 ? { fichas_tecnicas: facts } : {}),
       }),
@@ -2510,7 +2569,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     );
     if (!review) {
       return {
-        text: [missedDrive, `PEDIDO: ${concreteAsk}\nNo se pudo revisar el inventario. No afirmes que un carro cumple. vehiculo null.`]
+        text: [missedDrive, `PEDIDO: ${filasAsk}\nNo se pudo revisar el inventario. No afirmes que un carro cumple. vehiculo null.`]
           .filter(Boolean)
           .join('\n'),
         holdVehicle: true,
@@ -2520,7 +2579,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       };
     }
 
-    const reviewed = [missedDrive, formatComplianceForAgent(concreteAsk, cars, review, includePrice), specNotes]
+    const reviewed = [missedDrive, formatComplianceForAgent(filasAsk, cars, review, includePrice), specNotes]
       .filter(Boolean)
       .join('\n');
 
@@ -2542,6 +2601,27 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       switchedModel: Boolean(kindForAsk && kindForAsk !== vehicleKind),
       vehicleKind: kindForAsk,
     };
+  }
+
+  /** Lo decide el resumen o que ya preguntamos marca. No una frase fija del cliente. */
+  private acceptsAnyTresFilasBrand(input: {
+    resumen: string;
+    history: { role: string; content: string }[];
+    namedBrand: boolean;
+    namedModel: boolean;
+  }): boolean {
+    if (input.namedBrand || input.namedModel) {
+      return false;
+    }
+    if (resumenPideOtras(input.resumen)) {
+      return true;
+    }
+    const last =
+      [...input.history]
+        .reverse()
+        .find((item) => item.role === 'assistant' && item.content)?.content ??
+      '';
+    return /marca|en mente/i.test(last);
   }
 
   /**
