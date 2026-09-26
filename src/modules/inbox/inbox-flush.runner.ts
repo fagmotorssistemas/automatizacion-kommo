@@ -5,10 +5,7 @@ import { ConversationService } from '../conversation/conversation.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { OutboundService } from '../outbound/outbound.service';
 import { asksForPhotos } from '../outbound/should-send-photos';
-import {
-  resumenAsksForListedPrice,
-  resumenAsksForPhotos,
-} from '../intelligence/parse-resumen';
+import { resumenAsksForPhotos } from '../intelligence/parse-resumen';
 import { LeadRow } from '../persistence/lead.types';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
@@ -280,6 +277,7 @@ export class InboxFlushRunner {
     );
     const alreadyShown = inventoryId
       ? latestShown?.inventoryId === inventoryId ||
+        turn.alreadyShownInThread === true ||
         (await this.persistenceService.hasShownCar(data.contactId, inventoryId))
       : false;
     const wantsPhotos =
@@ -301,10 +299,7 @@ export class InboxFlushRunner {
         alreadyShown,
         wantsPhotos,
         photoQueue: turn.photoQueue,
-        skipFirstShot:
-          Boolean(latestShown) &&
-          resumenAsksForListedPrice(turn.resumen) &&
-          !wantsPhotos,
+        skipFirstShot: alreadyShown && !wantsPhotos,
       },
     );
     if (!outbound.shadow) {

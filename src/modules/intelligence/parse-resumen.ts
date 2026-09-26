@@ -146,6 +146,8 @@ function stripResumenFlags(text: string): string {
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
     .replace(/tipo\s+de\s+patio:\s*[^\n]+/gi, '')
+    .replace(/pide\s+horario:\s*(s[ií]|no)/gi, '')
+    .replace(/pide\s+ubicaci[oó]n:\s*(s[ií]|no)/gi, '')
     .replace(/asientos:\s*[^\n]+/gi, '')
     .replace(/tres\s+filas:\s*(s[ií]|no)/gi, '')
     .replace(/toma\s+ficha:\s*.+/gi, '')
@@ -276,30 +278,9 @@ export function resumenAsksForPhotos(resumen: string): boolean {
   );
 }
 
-const LOCATION_ASK =
-  /\b(?:ubicacion|direccion|parqueadero|ir a ver|donde estan|donde queda)\b/;
-
-/** Quiere la dirección / ir a ver. No se condiciona a la entrada. */
-export function textAsksForLocation(text: string): boolean {
-  const n = fold(stripResumenFlags(text));
-  if (LOCATION_ASK.test(n)) {
-    return true;
-  }
-  return (
-    /\b(?:entrada|plata|deposit|apostar)\b/.test(n) &&
-    /\b(?:direccion|ubicacion|visita)\b/.test(n)
-  );
-}
-
-/** El resumen nombra ubicación, dirección o visita. */
+/** El resumen marca si pidió verla / la dirección. Sin bandera no es ubicación. */
 export function resumenAsksForLocation(resumen: string): boolean {
-  const solicitud = fold(
-    stripResumenFlags(parseResumen(resumen).solicitudActual ?? ''),
-  );
-  if (!solicitud) {
-    return false;
-  }
-  return textAsksForLocation(solicitud);
+  return flagSiNo(resumen, 'pide\\s+ubicaci[oó]n') === true;
 }
 
 /** El analizador vio que quiere crédito / financiamiento, no solo el precio de contado. */

@@ -89,6 +89,7 @@ function buildProcessor() {
     intelligence,
     runLog,
     conversation,
+    persistence,
   };
 }
 
@@ -163,6 +164,41 @@ describe('InboxDebounceProcessor candado', () => {
       job.leadId,
       expect.anything(),
       expect.objectContaining({ wantsPhotos: false }),
+    );
+  });
+
+  it('ficha ya salió en el hilo: no reabre fotos aunque la tabla aún no la tenga', async () => {
+    const { processor, outbound, agent, persistence } = buildProcessor();
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    persistence.hasShownCar.mockResolvedValue(false);
+    agent.handleTurn.mockResolvedValue({
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere el valor y dónde ver la unidad.\nPide precio: sí\nPide ubicación: sí',
+      reply: {
+        mensaje: 'El valor es $24500. Av. España 6-73 y Sevilla, Cuenca.',
+        meta: {
+          precioMostrado: true,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: 'dmax-2020', precio: 24500 },
+        },
+        img_prefix: '',
+      },
+      alreadyShownInThread: true,
+    });
+
+    await processor.run({
+      ...job,
+      text: 'Valor de la camioneta\nDonde la puedo revisar',
+    });
+
+    expect(outbound.dispatch).toHaveBeenCalledWith(
+      job.leadId,
+      expect.anything(),
+      expect.objectContaining({
+        alreadyShown: true,
+        wantsPhotos: false,
+        skipFirstShot: true,
+      }),
     );
   });
 

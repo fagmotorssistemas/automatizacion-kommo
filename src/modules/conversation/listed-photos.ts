@@ -1,4 +1,5 @@
 import {
+  carsShownInText,
   detectAskedCab,
   detectAskedDrive,
   modelFamily,
@@ -35,6 +36,66 @@ export function looksLikeUnitList(text: string): boolean {
     return true;
   }
   return proseUnitItems(text).length >= 2;
+}
+
+function isPhotoNoise(text: string): boolean {
+  const t = text.trim();
+  return /^(?:salesbot|descargar)\b/i.test(t);
+}
+
+/** Ficha o listado real. No el salesbot de fotos. */
+export function isUnitOfferText(text: string): boolean {
+  if (!text.trim() || isPhotoNoise(text)) {
+    return false;
+  }
+  if (lastOfferIsUnitList(text)) {
+    return true;
+  }
+  return (
+    /tenemos disponible|en patio/i.test(text) ||
+    /\d{3,7}\s*km\b/i.test(text) ||
+    (/\b(?:19|20)\d{2}\b/.test(text) &&
+      /\b(?:color|blanco|negro|rojo|azul|plomo|gris|plateado|fotos)\b/i.test(
+        text,
+      ))
+  );
+}
+
+/** Varias unidades en el último mensaje del bot. */
+export function lastOfferIsUnitList(text: string): boolean {
+  if (!text.trim() || isPhotoNoise(text)) {
+    return false;
+  }
+  if (looksLikeUnitList(text)) {
+    return true;
+  }
+  const years = text.match(/\b(?:19|20)\d{2}\b/g) ?? [];
+  return new Set(years).size >= 2;
+}
+
+export function lastOfferAssistantText(
+  history: { role: string; content: string }[],
+): string {
+  return (
+    [...history]
+      .reverse()
+      .find(
+        (item) =>
+          item.role === 'assistant' &&
+          item.content &&
+          isUnitOfferText(item.content),
+      )?.content ?? ''
+  );
+}
+
+/** “precio” de un listado = esas. “precio” de una ficha = esa, no toda la línea. */
+export function asksPricesOfListedUnits(
+  customerText: string,
+  lastOfferText: string,
+): boolean {
+  return (
+    /\bprecios?\b/i.test(customerText) && lastOfferIsUnitList(lastOfferText)
+  );
 }
 
 /**
@@ -155,13 +216,32 @@ export function lastListedUnits(
   history: { role: string; content: string }[],
   cars: StockCar[],
 ): StockCar[] {
-  const last = [...history]
-    .reverse()
-    .find((item) => item.role === 'assistant' && item.content);
+  const last = lastOfferAssistantText(history);
   if (!last) {
     return [];
   }
-  return carsNamedInList(last.content, cars);
+  return carsNamedInList(last, cars);
+}
+
+/** La última oferta fue UNA ficha. Null si fue listado o no hay ficha. */
+export function lastSingleShownUnit(
+  history: { role: string; content: string }[],
+  cars: StockCar[],
+): StockCar | null {
+  const last = lastOfferAssistantText(history);
+  if (!last || lastOfferIsUnitList(last)) {
+    return null;
+  }
+  const shown = carsNamedInOffer(last, cars);
+  return shown.length === 1 ? shown[0] : null;
+}
+
+function carsNamedInOffer(text: string, cars: StockCar[]): StockCar[] {
+  const listed = carsNamedInList(text, cars);
+  if (listed.length > 0) {
+    return listed;
+  }
+  return carsShownInText(text, cars);
 }
 
 /** Pidió otro modelo, no una de las que ya se nombraron. */

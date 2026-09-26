@@ -303,6 +303,7 @@ export function formatInterestedCar(
     skipMileageCare?: boolean;
     slimAfterFicha?: boolean;
     creditFollowUp?: boolean;
+    afterFicha?: 'price' | 'location' | 'doubt' | 'both';
   },
 ): string {
   const year = car.year ? ` ${car.year}` : '';
@@ -322,8 +323,15 @@ export function formatInterestedCar(
     const priceNote = hasLoadedPrice(car.price)
       ? ''
       : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
+    const after = options?.afterFicha;
     const close = options?.creditFollowUp
       ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
+      : after === 'location'
+      ? 'YA vio esta unidad. Contesta AHORA dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible”, km, placa o fotos. No pidas entrada para dar la dirección.'
+      : after === 'doubt'
+      ? 'YA vio esta unidad. Contesta la duda de ESA. PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
+      : after === 'both'
+      ? 'YA vio esta unidad. Di el $ de inventario y, en la misma respuesta, dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
       : hasLoadedPrice(car.price)
       ? 'YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.'
       : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';

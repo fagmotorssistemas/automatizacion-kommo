@@ -499,6 +499,30 @@ describe('vehículo de interés', () => {
         creditFollowUp: true,
       }),
     ).toMatch(/Pregunta con cuánto de entrada y a qué plazo/i);
+    expect(
+      formatInterestedCar(explorer, false, {
+        slimAfterFicha: true,
+        afterFicha: 'location',
+      }),
+    ).toMatch(/dónde verla/i);
+    expect(
+      formatInterestedCar(explorer, false, {
+        slimAfterFicha: true,
+        afterFicha: 'location',
+      }),
+    ).toMatch(/PROHIBIDO repetir/i);
+    expect(
+      formatInterestedCar(explorer, true, {
+        slimAfterFicha: true,
+        afterFicha: 'both',
+      }),
+    ).toMatch(/Di el \$ de inventario y, en la misma respuesta, dónde verla/i);
+    expect(
+      formatInterestedCar(explorer, false, {
+        slimAfterFicha: true,
+        afterFicha: 'doubt',
+      }),
+    ).toMatch(/Contesta la duda de ESA/i);
   });
 
   it('si pide furgoneta suelta el carro chico', () => {

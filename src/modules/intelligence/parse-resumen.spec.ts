@@ -36,7 +36,6 @@ import {
   textAsksForCredit,
   textAsksForListedPrice,
   textAsksForImmediateDelivery,
-  textAsksForLocation,
   textAsksForOtherColor,
   textIsPriceObjection,
 } from './parse-resumen';
@@ -458,21 +457,30 @@ describe('resumenEsToma', () => {
 });
 
 describe('resumenAsksForLocation', () => {
-  it('lee ubicación o el candado de entrada para la dirección', () => {
+  it('solo la bandera del resumen, no la solicitud', () => {
     expect(
       resumenAsksForLocation(
-        'SOLICITUD ACTUAL:\nCliente quiere confirmar que primero debe apostar la plata para obtener la dirección y coordinar la visita.',
+        'SOLICITUD ACTUAL:\nCliente quiere saber dónde puede ver la unidad.\nPide ubicación: sí\nPide horario: no',
       ),
     ).toBe(true);
     expect(
-      textAsksForLocation(
-        'Primero hay que apostar la plata para que le puedan dar la dirección para ir a ver.',
+      resumenAsksForLocation(
+        'SOLICITUD ACTUAL:\nCliente pregunta si primero deposita para que le den la dirección.\nPide ubicación: sí\nPide horario: no',
       ),
     ).toBe(true);
-    expect(textAsksForLocation('Unos tres mil de entrada')).toBe(false);
+    expect(
+      resumenAsksForLocation(
+        'SOLICITUD ACTUAL:\nCliente pregunta si atienden el sábado.\nPide ubicación: no\nPide horario: sí',
+      ),
+    ).toBe(false);
     expect(
       resumenAsksForLocation(
         'SOLICITUD ACTUAL:\nCliente quiere el precio del Sportage.\nPide precio: sí',
+      ),
+    ).toBe(false);
+    expect(
+      resumenAsksForLocation(
+        'SOLICITUD ACTUAL:\nCliente pregunta dónde puede revisar la camioneta que ya vio.\nPide ubicación: no',
       ),
     ).toBe(false);
   });

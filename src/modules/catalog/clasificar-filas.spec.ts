@@ -613,6 +613,35 @@ describe('clasificar filas', () => {
       'Vehículo: D-Max 2022 vino y Luv 2006',
     );
     expect(later.map((car) => car.id)).toEqual(['dmax-2022', 'luv-2006']);
+    const exp2018: StockCar = {
+      id: 'exp-2018',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4 ta',
+      year: 2018,
+      price: 33900,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 107740,
+    };
+    const exp1998: StockCar = {
+      id: 'exp-1998',
+      brand: 'ford',
+      model: 'explorer xlt 4x4 t/a 4.0',
+      year: 1998,
+      price: 6800,
+      typeBody: 'suv',
+      color: 'blanco',
+      mileage: 191066,
+    };
+    const explorerFicha =
+      'Buenas tardes, estimado. Tenemos disponible un Ford Explorer XLT AC 3.5 5p 4x4 automático 2018 color blanco, con 107740 km.';
+    expect(
+      carsShownInHistory(
+        [{ role: 'assistant', content: explorerFicha }],
+        [exp2018, exp1998],
+        'Vehículo: Ford Explorer\nCliente quiere el precio.',
+      ).map((car) => car.id),
+    ).toEqual(['exp-2018']);
     expect(
       pickShownByYear(later, `${listing}\nVehículo: D-Max 2022 vino`, 2022).map(
         (car) => car.id,

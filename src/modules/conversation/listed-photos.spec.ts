@@ -1,7 +1,9 @@
 import {
   askedOutsideListed,
+  asksPricesOfListedUnits,
   historyHasUnitList,
   lastListedUnits,
+  lastSingleShownUnit,
   looksLikeUnitList,
   pickListedUnit,
   shortUnitLabel,
@@ -359,5 +361,49 @@ describe('listed photos', () => {
   it('un Tucson no es del listado de Sportage', () => {
     expect(askedOutsideListed('tucson', sportages)).toBe(true);
     expect(askedOutsideListed('sportage', sportages)).toBe(false);
+  });
+
+  it('precio de una ficha no es precio de un listado', () => {
+    const ficha =
+      'Buenas tardes, estimado. Tenemos disponible un Ford Explorer XLT AC 3.5 5p 4x4 automático 2018 color blanco, con 107740 km. La placa es P6 Aquí tiene también las fotos del vehículo.';
+    expect(asksPricesOfListedUnits('precio', ficha)).toBe(false);
+    expect(
+      asksPricesOfListedUnits(
+        'Los precio por favor',
+        'Hay un Kia Río 2018 sedán y un Picanto 2017 hatchback en ese presupuesto.',
+      ),
+    ).toBe(true);
+    expect(asksPricesOfListedUnits('precio', listText)).toBe(true);
+    const explorers: StockCar[] = [
+      {
+        id: 'exp-2018',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+        price: 33900,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 107740,
+      },
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4 t/a 4.0',
+        year: 1998,
+        price: 6800,
+        typeBody: 'suv',
+        color: 'blanco',
+        mileage: 191066,
+      },
+    ];
+    expect(
+      lastSingleShownUnit(
+        [
+          { role: 'assistant', content: ficha },
+          { role: 'assistant', content: 'SalesBot (ford_explorer_2018)' },
+        ],
+        explorers,
+      )?.id,
+    ).toBe('exp-2018');
   });
 });

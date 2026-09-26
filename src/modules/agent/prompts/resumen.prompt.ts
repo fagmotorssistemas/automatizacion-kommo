@@ -72,12 +72,12 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
 Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
-- Sigue con la mostrada (el valor, el km, la visita, el crédito, confirmar esa, un detalle de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
+- Sigue con la mostrada (el valor, el km, la visita, dónde verla, el crédito, confirmar esa, un detalle de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
 - Ya no quiere la mostrada y pide otra (la otra del mismo hilo, otra del mismo modelo, u otra del patio): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
 - Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
 - Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
@@ -85,7 +85,10 @@ Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SO
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
 Pide horario: sí si pregunta si atienden, el horario o si están abiertos un día (hoy, mañana, sábado), aunque cancele una cita. SOLICITUD: canceló / pregunta si atienden ESE día. Pide otras: no. Falta vehículo: no. No es ver un carro ni cambiar de unidad.
-Pide horario: no si el turno es de un carro (precio, fotos, esa unidad).
+Pide horario: no si el turno es de un carro (precio, fotos, esa unidad) o si el sentido es ir a verla, no si abren.
+Pide ubicación: sí|no en CADA turno. Lee el sentido, no una frase.
+Pide ubicación: sí si quiere saber dónde ver, visitar o revisar ESA unidad o la casa, o si duda que le den la dirección sin pagar. No es horario. No es fotos. No es otra unidad. Pide otras: no. Falta vehículo: no.
+Pide ubicación: no si solo habla del carro (precio, un detalle) sin preguntar dónde verla.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
 - CIERRE (la primera que aplique gana; no mezcles banderas):
   1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
@@ -129,6 +132,7 @@ Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
 Pide horario: sí|no
+Pide ubicación: sí|no
 Asientos: [7 o no]
 Tres filas: sí|no
 Toma: sí|no
@@ -165,6 +169,16 @@ REGLA DE HORARIO (OBLIGATORIA):
 Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?
 - Pide horario: sí. La SOLICITUD dice qué día preguntó. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
 - Pide horario: no si habla de un vehículo (precio, fotos, esa unidad).
+
+REGLA DE UBICACIÓN (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Este turno quiere saber dónde ver, visitar o revisar ESA unidad (o la casa)?
+Pone Pide ubicación: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
+- Pide ubicación: sí. SOLICITUD: quiere la ubicación / ir a ver ESA. Pide otras: no. Falta vehículo: no. No es horario. No es pedir fotos. No es otra unidad.
+- Si condiciona la dirección a entrada, depósito o “confirmar valores”: Pide ubicación: sí. SOLICITUD: duda que le den la dirección sin pagar; quiere la ubicación ya.
+- Si en el mismo turno también pide el valor: Pide precio: sí y Pide ubicación: sí.
+- Si duda de un detalle de ESA (pintura, estado) y además quiere ir a verla: Tiene duda: sí y Pide ubicación: sí.
+- Pide ubicación: no si solo habla del carro (precio, fotos, un detalle) sin preguntar dónde verla.
+- Pide horario: no si el sentido es ir a ver el carro, no si abren.
 
 REGLA DEL TURNO ANTERIOR (OBLIGATORIA):
 Si hay RESUMEN DEL TURNO ANTERIOR con un vehículo, ese es el carro que el cliente pidió, salvo que AHORA nombre otro.

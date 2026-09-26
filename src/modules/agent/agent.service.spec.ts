@@ -519,6 +519,7 @@ describe('AgentService', () => {
         },
         img_prefix: '',
       },
+      alreadyShownInThread: false,
     });
     expect(conversation.appendMessage).toHaveBeenCalledTimes(2);
     expect(persistence.appendChatHistory).toHaveBeenCalledWith({
@@ -1450,6 +1451,230 @@ describe('AgentService', () => {
     expect(system).toMatch(/YA SE DIO LA FICHA/i);
     expect(system).toMatch(/justifica el valor/i);
     expect(system).toMatch(/Prohibido placa, cuota, cédula/i);
+  });
+
+  it('precio tras una sola Explorer no saca la de 1998', async () => {
+    const patio = [
+      {
+        id: 'exp-2018',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+        price: 33900,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 107740,
+        transmission: 'automática',
+      },
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4 t/a 4.0',
+        year: 1998,
+        price: 6800,
+        typeBody: 'suv',
+        color: 'blanco',
+        mileage: 191066,
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('ford');
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'ford explorer' },
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos disponible un Ford Explorer XLT AC 3.5 5p 4x4 automático 2018 color blanco, con 107740 km. La placa es P6 Aquí tiene también las fotos del vehículo.',
+      },
+      { role: 'assistant', content: 'SalesBot (ford_explorer_2018)' },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Ford Explorer\nSOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Ford Explorer XLT 4.0 4x4 1998 tiene un precio de $6800. El Ford Explorer XLT AC 3.5 automático 4x4 2018 está en $33900.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75535',
+      customerText: 'precio',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=exp-2018');
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|YA SE DIO LA FICHA/i);
+    expect(system).toContain('$33900');
+    expect(system).not.toContain('exp-1998');
+    expect(system).not.toMatch(/PIDIÓ LOS PRECIOS/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('exp-2018');
+  });
+
+  it('después de la ficha, ubicación o duda no reabre esa unidad', async () => {
+    const patio = [
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 24500,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: '¡Hola! Quiero más información' },
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos disponible un Chevrolet D-max crdi 2.5 cs 4x2 manual diesel 2020 color blanco, con 93,787 km y caja manual. La placa es P6 Aquí tiene también las fotos del vehículo.',
+      },
+      { role: 'assistant', content: 'SalesBot (dmax_cabina_sencilla_2020)' },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: D-Max 2020 CS\nSOLICITUD ACTUAL:\nCliente quiere el valor y dónde puede ver la unidad; duda si está repintada.\nPide precio: sí\nPide ubicación: sí\nTiene duda: sí\nPide otras: no\nFalta vehículo: no\nPide horario: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El valor es $24500. Av. España 6-73 y Sevilla, Cuenca. Puede venir a verla.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020', precio: 24500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A57585',
+      customerText: 'Valor de la camioneta\nEs repintada\nDonde la puedo revisar',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=dmax-2020');
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|ficha YA se presentó/i);
+    expect(system).toMatch(/PIDIÓ UBICACIÓN|dónde verla/i);
+    expect(system).toMatch(/ficha YA se presentó/i);
+    expect(system).toMatch(/PROHIBIDO repetir/i);
+    expect(system).not.toMatch(/EL CLIENTE YA PIDIÓ EL PRECIO[\s\S]*primera ficha/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('dmax-2020');
+    expect(result?.alreadyShownInThread).toBe(true);
+  });
+
+  it('después de la ficha, solo ubicación no reabre ni pide $', async () => {
+    const patio = [
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 24500,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos disponible un Chevrolet D-max crdi 2.5 cs 4x2 manual diesel 2020 color blanco, con 93,787 km y caja manual. Aquí tiene también las fotos del vehículo.',
+      },
+      { role: 'assistant', content: 'SalesBot (dmax_cabina_sencilla_2020)' },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: D-Max 2020 CS\nSOLICITUD ACTUAL:\nCliente quiere saber dónde puede revisar la unidad.\nPide precio: no\nPide ubicación: sí\nTiene duda: no\nPide otras: no\nFalta vehículo: no\nPide horario: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Av. España 6-73 y Sevilla, Cuenca. Puede venir a verla.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020', precio: 24500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A57585b',
+      customerText: 'Donde la puedo revisar',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=dmax-2020');
+    expect(system).toMatch(/dónde verla/i);
+    expect(system).toMatch(/PROHIBIDO repetir/i);
+    expect(system).not.toMatch(/Di el \$ de inventario y justifica/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.alreadyShownInThread).toBe(true);
+  });
+
+  it('después de la ficha, una duda de esa unidad no reabre', async () => {
+    const patio = [
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 24500,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos disponible un Chevrolet D-max crdi 2.5 cs 4x2 manual diesel 2020 color blanco, con 93,787 km y caja manual. Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: D-Max 2020 CS\nSOLICITUD ACTUAL:\nCliente duda si la unidad está repintada.\nPide precio: no\nPide ubicación: no\nTiene duda: sí\nPide otras: no\nFalta vehículo: no\nPide horario: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No está repintada. Puede traer a su mecánico a verla.',
+        meta: { vehiculo: { inventory_id: 'dmax-2020', precio: 24500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A57585c',
+      customerText: 'Es repintada',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=dmax-2020');
+    expect(system).toMatch(/Contesta la duda de ESA|DEJÓ UNA DUDA/i);
+    expect(system).toMatch(/PROHIBIDO repetir/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.alreadyShownInThread).toBe(true);
   });
 
   it('precio y ciudad: sale el valor y no el mecánico', async () => {
@@ -3714,7 +3939,7 @@ Falta vehículo: sí`,
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('lx-plata');
     expect(system).not.toContain('rojo-gti');
-    expect(system).toMatch(/PROHIBIDO otra versión/i);
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|YA SE DIO LA FICHA|PROHIBIDO otra versión/i);
     expect(result?.reply.meta.vehiculo?.inventory_id).toBe('lx-plata');
   });
 

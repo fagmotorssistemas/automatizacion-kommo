@@ -84,7 +84,11 @@ export function modelFamily(model: string): string {
 }
 
 /** Unidades que el último mensaje del bot realmente nombró (año/km/color), no toda la línea. */
-export function carsShownInText(text: string, cars: StockCar[]): StockCar[] {
+export function carsShownInText(
+  text: string,
+  cars: StockCar[],
+  loose = true,
+): StockCar[] {
   const mentioned = cars.filter((car) => textMentionsModel(text, car.model));
   if (mentioned.length === 0) {
     return [];
@@ -108,7 +112,10 @@ export function carsShownInText(text: string, cars: StockCar[]): StockCar[] {
   const byYear = mentioned.filter(
     (car) => car.year != null && new RegExp(`\\b${car.year}\\b`).test(text),
   );
-  return byYear.length > 0 ? byYear : mentioned;
+  if (byYear.length > 0) {
+    return byYear;
+  }
+  return loose ? mentioned : [];
 }
 
 /** Todas las unidades que el bot ya nombró en el hilo, no solo el último turno. */
@@ -127,7 +134,7 @@ export function carsShownInHistory(
     }
   }
   if (extraText.trim()) {
-    for (const car of carsShownInText(extraText, cars)) {
+    for (const car of carsShownInText(extraText, cars, false)) {
       byId.set(car.id, car);
     }
   }

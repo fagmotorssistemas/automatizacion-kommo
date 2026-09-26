@@ -114,9 +114,13 @@ import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
 import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
 import {
   askedOutsideListed,
+  asksPricesOfListedUnits,
   formatListedPhotoQueue,
   historyHasUnitList,
   lastListedUnits,
+  lastOfferAssistantText,
+  lastOfferIsUnitList,
+  lastSingleShownUnit,
   looksLikeUnitList,
   pickListedUnit,
   wantsPhotosOfListed,
@@ -159,7 +163,6 @@ import {
   textAsksForCredit,
   textAsksForImmediateDelivery,
   textAsksForListedPrice,
-  textAsksForLocation,
   textAsksForOtherColor,
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
@@ -456,7 +459,7 @@ export class AgentService {
       offerGreeting,
       hourInGuayaquil(),
     );
-    const interested = await this.persistence.latestInterestedCar(
+    let interested = await this.persistence.latestInterestedCar(
       input.contactId,
     );
     const handoffBrief = await this.attachHandoffBrief(
@@ -616,10 +619,35 @@ export class AgentService {
       asientos != null && !tresFilas
         ? await this.reviewAsientos(interested, asientos, askedPrice)
         : null;
-    const lastAssistantListed = looksLikeUnitList(
-      [...history].reverse().find((item) => item.role === 'assistant')
-        ?.content ?? '',
-    );
+    const lastOfferText = lastOfferAssistantText(history);
+    const lastAssistantListed = lastOfferIsUnitList(lastOfferText);
+    const askedLocation = resumenAsksForLocation(resumen);
+    const hasShownDoubt = resumenHasPendingDoubt(resumen);
+    const stayFollowUp =
+      (askedPrice || askedLocation || hasShownDoubt) &&
+      !lastAssistantListed &&
+      !resumenPideOtras(resumen);
+    if (stayFollowUp) {
+      const shown = lastSingleShownUnit(
+        history,
+        await this.catalog.listAvailableExcept('_'),
+      );
+      if (shown) {
+        interested = {
+          inventoryId: shown.id,
+          brand: shown.brand,
+          model: shown.model,
+          year: shown.year,
+          price: shown.price,
+          typeBody: shown.typeBody,
+          mileage: shown.mileage,
+          color: shown.color,
+          plateShort: shown.plateShort,
+          transmission: shown.transmission,
+          passengerCapacity: shown.passengerCapacity,
+        };
+      }
+    }
     const fichaAlreadyGiven = historyPresentedFicha(
       history,
       interested?.model,
@@ -642,11 +670,9 @@ export class AgentService {
     const boxNow = detectGearbox(input.customerText, lexicon);
     const shownBox = interested ? gearboxOf(interested) : null;
     if (
-      askedPrice &&
+      stayFollowUp &&
       interested &&
       fichaAlreadyGiven &&
-      !lastAssistantListed &&
-      !resumenPideOtras(resumen) &&
       !askedOtherColor &&
       !(boxNow && shownBox && boxNow !== shownBox) &&
       !detectNamedModelAsk(input.customerText, lexicon) &&
@@ -845,8 +871,21 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                 justifyPriceAfterFicha ||
                 financingFollowUp ||
                 textAsksForListedPrice(input.customerText),
-              slimAfterFicha: justifyPriceAfterFicha || financingFollowUp,
+              slimAfterFicha:
+                justifyPriceAfterFicha ||
+                financingFollowUp ||
+                (stayOnShown &&
+                  fichaAlreadyGiven &&
+                  (askedLocation || hasShownDoubt)),
               creditFollowUp: financingFollowUp,
+              afterFicha:
+                askedPrice && askedLocation
+                  ? 'both'
+                  : askedLocation
+                    ? 'location'
+                    : hasShownDoubt && !askedPrice
+                      ? 'doubt'
+                      : 'price',
             },
           )
         : '';
@@ -946,9 +985,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : objectionOnShown
       ? 'OBJECIÓN de la unidad que YA conoció. No vuelvas a mandar la ficha (color, caja, km, placa, “tenemos disponible”). Contesta la objeción: justifica el valor con estado, kilometraje y garantía en documentos (papeles/traspaso). No inventes garantía mecánica. No rebajes el precio. Usa las secciones OBJECIONES y MANEJOCARO del contexto.'
       : '';
-    const locationAsk =
-      textAsksForLocation(input.customerText) ||
-      resumenAsksForLocation(resumen);
+    const locationAsk = askedLocation;
     const locationHint = locationAsk
       ? 'PIDIÓ UBICACIÓN / VISITA (o dudó si hay que pagar para que le den la dirección). Dale Av. España 6-73 y Sevilla, Cuenca AHORA. PROHIBIDO pedir entrada, depósito o confirmar valores para pasar la dirección u otra información. La visita no se condiciona a la entrada. Si preguntó si primero deposita, la respuesta es no.'
       : '';
@@ -1144,7 +1181,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       this.logger.log(
         `Agente listo contactId=${input.contactId} inventory=cola:${revision.photoQueue.length}`,
       );
-      return { reply: parsed, resumen, photoQueue: revision.photoQueue };
+      return {
+        reply: parsed,
+        resumen,
+        photoQueue: revision.photoQueue,
+        alreadyShownInThread: false,
+      };
     }
 
     const raw = await this.openai.runSalesAgent({
@@ -1353,7 +1395,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       `Agente listo contactId=${input.contactId} inventory=${parsed.meta.vehiculo?.inventory_id ?? 'ninguno'}`,
     );
 
-    return { reply: parsed, resumen };
+    return {
+      reply: parsed,
+      resumen,
+      alreadyShownInThread:
+        fichaAlreadyGiven &&
+        stayOnShown &&
+        Boolean(interested?.inventoryId) &&
+        (!parsed.meta.vehiculo?.inventory_id ||
+          parsed.meta.vehiculo.inventory_id === interested.inventoryId),
+    };
   }
 
   /** Clic de Facebook sin carro en el título: una pregunta, sin listado. */
@@ -1518,10 +1569,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     tresFilas = false,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
-    const listedFollowUp = looksLikeUnitList(
-      [...history].reverse().find((item) => item.role === 'assistant')
-        ?.content ?? '',
-    );
+    const listedFollowUp = lastOfferIsUnitList(lastOfferAssistantText(history));
     const fromText = detectNamedModelAsk(customerText, lexicon);
     const fromSolicitud =
       cajaCompra === 'no'
@@ -1549,7 +1597,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : cashBudget;
-    const wantsListedPrices = /\bprecios?\b/i.test(customerText);
+    const wantsListedPrices = asksPricesOfListedUnits(
+      customerText,
+      lastOfferAssistantText(history),
+    );
     const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);
     const targetBrand = asked?.brand || brand;

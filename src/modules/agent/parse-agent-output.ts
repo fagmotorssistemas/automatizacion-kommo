@@ -24,6 +24,8 @@ export type AgentTurnResult = {
   reply: ParsedAgentOutput;
   resumen: string;
   photoQueue?: PhotoQueueItem[];
+  /** Esta unidad ya tuvo ficha en el hilo. Outbound no reabre fotos. */
+  alreadyShownInThread?: boolean;
 };
 
 const EMPTY_META: AgentMeta = {
