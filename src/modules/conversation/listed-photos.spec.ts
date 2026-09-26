@@ -80,6 +80,65 @@ describe('listed photos', () => {
     );
   });
 
+  it('Sportage 2019: blanco/negro/plateado/rojo cuenta como listado y elige el automático', () => {
+    const list =
+      'Buenas noches, estimado. Tenemos en patio 4 Kia Sportage 2019 en SUV 4x2: uno blanco manual con kilometraje aún no cargado, negro manual con 103736 km, plateado automático con 113170 km y rojo manual con 91096 km. ¿Cuál le interesa para enviarle más detalles?';
+    const patio: StockCar[] = [
+      {
+        id: 'sp-blanco',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0',
+        year: 2019,
+        price: 20000,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-negro',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0',
+        year: 2019,
+        price: 22200,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 103736,
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-plata',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 ta',
+        year: 2019,
+        price: 21500,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 113170,
+        transmission: 'automática',
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0',
+        year: 2019,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+        transmission: 'manual',
+      },
+    ];
+    expect(looksLikeUnitList(list)).toBe(true);
+    expect(
+      lastListedUnits([{ role: 'assistant', content: list }], patio).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['sp-blanco', 'sp-negro', 'sp-plata', 'sp-rojo']);
+    expect(pickListedUnit(patio, 'Precio del automático?', TEST_LEXICON)?.id).toBe(
+      'sp-plata',
+    );
+  });
+
   it('un párrafo con año y km también es listado', () => {
     const prose =
       'Tenemos estas opciones con motor 2.0 disponibles: Couper AC 1.6 automática blanco 2012 con 60746 km, Tunland G AC 2.0 manual plateado 2023 con 113692 km, Poer AC 2.0 plateado 2022 con 82103 km. ¿Cuál le interesa?';

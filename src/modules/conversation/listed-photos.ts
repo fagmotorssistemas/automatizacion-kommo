@@ -39,20 +39,30 @@ export function looksLikeUnitList(text: string): boolean {
 
 /**
  * Párrafo sin números: "Couper ... 2012 con 60746 km, Tunland ... 2023 con 113692 km".
+ * Si el año/modelo va en el encabezado ("4 Sportage 2019: blanco…, plateado automático…"),
+ * cada color/caja/km hereda ese encabezado.
  * La coma de miles (60,746) no parte la unidad.
  */
 function proseUnitItems(text: string): string[] {
   const head = text.split('?')[0] ?? text;
   const colon = head.lastIndexOf(':');
+  const prefix = colon >= 0 ? head.slice(0, colon).trim() : '';
   const body = colon >= 0 ? head.slice(colon + 1) : head;
+  const yearInPrefix = /\b(?:19|20)\d{2}\b/.test(prefix);
   return body
-    .split(/,(?!\d)\s+/)
+    .split(/,(?!\d)\s+|\s+y\s+/)
     .map((chunk) => chunk.trim())
-    .filter(
-      (chunk) =>
-        /\b(?:19|20)\d{2}\b/.test(chunk) &&
-        (/\d{3,7}\s*km\b/i.test(chunk) || /\bkilometraje\b/i.test(chunk)),
-    );
+    .filter(Boolean)
+    .filter((chunk) => {
+      const hasYear = /\b(?:19|20)\d{2}\b/.test(chunk) || yearInPrefix;
+      const hasKm =
+        /\d{3,7}\s*km\b/i.test(chunk) || /\bkilometraje\b/i.test(chunk);
+      const hasColorBox = Boolean(
+        detectColorInText(chunk) && detectGearbox(chunk),
+      );
+      return hasYear && (hasKm || hasColorBox);
+    })
+    .map((chunk) => (prefix ? `${prefix} ${chunk}` : chunk));
 }
 
 function listItems(text: string): string[] {

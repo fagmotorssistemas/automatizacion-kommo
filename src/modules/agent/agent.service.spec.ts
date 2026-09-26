@@ -2100,6 +2100,96 @@ describe('AgentService', () => {
     expect(system).toMatch(/YA le mostramos/i);
   });
 
+  it('A75358 Precio del automático no manda el Sportage negro manual', async () => {
+    const list =
+      'Buenas noches, estimado. Tenemos en patio 4 Kia Sportage 2019 en SUV 4x2: uno blanco manual con kilometraje aún no cargado, negro manual con 103736 km, plateado automático con 113170 km y rojo manual con 91096 km. ¿Cuál le interesa para enviarle más detalles?';
+    const patio = [
+      {
+        id: 'sp-blanco',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0',
+        year: 2019,
+        price: 20000,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-negro',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0',
+        year: 2019,
+        price: 22200,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 103736,
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-plata',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 ta',
+        year: 2019,
+        price: 21500,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 113170,
+        transmission: 'automática',
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0',
+        year: 2019,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(patio);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sp-negro',
+      brand: 'kia',
+      model: 'sportage sl ac 2.0',
+      year: 2019,
+      price: 22200,
+      typeBody: 'jeep',
+      color: 'negro',
+      transmission: 'manual',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'assistant', content: list },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Sportage automático.\nPide precio: sí\nPide otras: no\nCaja de compra: automática',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Kia Sportage 2019 color negro, con kilometraje aún no cargado, transmisión manual y precio de $22200.',
+        meta: { vehiculo: { inventory_id: 'sp-negro' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75358',
+      customerText: 'Precio del automático?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('sp-plata');
+    expect(system).toMatch(/plateado/i);
+    expect(system).not.toContain('inventory_id=sp-negro');
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS/);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('sp-plata');
+  });
+
   it('La 2018 elige la Explorer que ya listamos, no la Lariat', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('ford');
     persistence.latestInterestedCar.mockResolvedValue({

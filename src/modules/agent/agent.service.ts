@@ -626,6 +626,8 @@ export class AgentService {
             lexicon,
             pedido,
           });
+    const boxNow = detectGearbox(input.customerText, lexicon);
+    const shownBox = interested ? gearboxOf(interested) : null;
     if (
       askedPrice &&
       interested &&
@@ -633,6 +635,7 @@ export class AgentService {
       !lastAssistantListed &&
       !resumenPideOtras(resumen) &&
       !askedOtherColor &&
+      !(boxNow && shownBox && boxNow !== shownBox) &&
       !detectNamedModelAsk(input.customerText, lexicon) &&
       !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon))
     ) {
