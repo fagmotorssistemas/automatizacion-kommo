@@ -70,7 +70,7 @@ function mapStockRow(row: {
 }
 
 const LEAD_COLUMNS =
-  'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals, bot_apagado, bot_apagado_at, ultimo_mensaje_ignorado, handoff_transcript, handoff_resumen, fotos_enviadas_at, cedula';
+  'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals, bot_apagado, bot_apagado_at, ultimo_mensaje_ignorado, handoff_transcript, handoff_resumen, fotos_enviadas_at, cedula, nombre_cedula, origen';
 
 @Injectable()
 export class SupabasePersistenceClient implements SupabaseGateway {
@@ -800,6 +800,8 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         ? String(row.fotos_enviadas_at)
         : null,
       cedula: row.cedula ? String(row.cedula) : null,
+      nombreCedula: row.nombre_cedula ? String(row.nombre_cedula) : null,
+      origen: row.origen ? String(row.origen) : null,
     };
   }
 }

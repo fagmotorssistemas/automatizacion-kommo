@@ -1,5 +1,5 @@
 import { DEALERSHIP_TIMEZONE } from './dealership-hours';
-import { extractCedula } from './extract-cedula';
+import { cedulaIdentityFromText } from './extract-cedula';
 import { parseResumen } from './parse-resumen';
 import { buildVehicleUid } from './vehicle-uid';
 
@@ -10,6 +10,8 @@ export type TurnSignals = {
   requiereAtencionVendedor: boolean;
   detectadoAsesorFinanciamiento: boolean;
   cedula: string | null;
+  nombreCedula: string | null;
+  origenCedula: string | null;
   clienteTieneLimitePresupuesto: boolean;
   montoCliente: number | null;
   /** Este turno disparó salesbots de foto. */
@@ -114,7 +116,8 @@ export function analyzeTurn(input: {
   const textoBusqueda = `${resumen.contexto ?? ''} ${input.resumen}`.toLowerCase();
 
   const alertaFaltaDatos = lower.includes(FALTA_DATOS);
-  const cedula = extractCedula(input.customerText ?? '');
+  const identity = cedulaIdentityFromText(input.customerText ?? '');
+  const cedula = identity?.cedula ?? null;
   const detectadoAsesorFinanciamiento = cedula !== null;
 
   const montoCliente = extractMonto(textoBusqueda);
@@ -146,6 +149,8 @@ export function analyzeTurn(input: {
     requiereAtencionVendedor: alertaFaltaDatos || detectadoAsesorFinanciamiento,
     detectadoAsesorFinanciamiento,
     cedula,
+    nombreCedula: identity?.nombre ?? null,
+    origenCedula: identity?.origen ?? null,
     clienteTieneLimitePresupuesto,
     montoCliente,
     photosJustSent,

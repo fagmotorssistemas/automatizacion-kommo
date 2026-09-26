@@ -41,6 +41,8 @@ Cliente quiere financiamiento de la hilux.`;
     });
     expect(conCedula.detectadoAsesorFinanciamiento).toBe(true);
     expect(conCedula.cedula).toBe('0102030405');
+    expect(conCedula.nombreCedula).toBeNull();
+    expect(conCedula.origenCedula).toBeNull();
     expect(conCedula.requiereAtencionVendedor).toBe(true);
   });
 

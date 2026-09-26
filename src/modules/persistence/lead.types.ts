@@ -44,6 +44,8 @@ export type LeadRow = {
   /** ISO de cuándo se mandaron fotos; null = aún no. */
   fotosEnviadasAt?: string | null;
   cedula?: string | null;
+  nombreCedula?: string | null;
+  origen?: string | null;
 };
 
 export type HandoffBrief = {
@@ -94,6 +96,8 @@ export type LeadSignalPatch = {
   status?: LeadStatus;
   presupuesto_cliente?: string;
   cedula?: string;
+  nombre_cedula?: string;
+  origen?: string;
 };
 
 export type RequestedClientDataInput = {

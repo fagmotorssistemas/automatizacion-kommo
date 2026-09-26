@@ -27,6 +27,14 @@ export function planLeadSignalWrites(signals: TurnSignals): LeadSignalWrites {
   if (signals.detectadoAsesorFinanciamiento && signals.cedula) {
     patch.status = 'asesoria_financiamiento';
     patch.cedula = signals.cedula;
+    const nombre = signals.nombreCedula?.trim();
+    const origen = signals.origenCedula?.trim();
+    if (nombre) {
+      patch.nombre_cedula = nombre;
+    }
+    if (origen) {
+      patch.origen = origen;
+    }
   }
 
   if (signals.clienteTieneLimitePresupuesto) {

@@ -413,6 +413,24 @@ describe('PersistenceService', () => {
     });
   });
 
+  it('guarda nombre y origen cuando vienen de la foto', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: '59458509',
+    });
+
+    await service.saveLeadCedula('59458509', '1712345678', {
+      nombre: 'JUAN PEREZ',
+      origen: 'QUITO',
+    });
+    expect(supabase.updateLeadSignals).toHaveBeenCalledWith('lead-row-1', {
+      cedula: '1712345678',
+      status: 'asesoria_financiamiento',
+      nombre_cedula: 'JUAN PEREZ',
+      origen: 'QUITO',
+    });
+  });
+
   it('sin gateway no toca Supabase', async () => {
     const dry = new PersistenceService(null);
 

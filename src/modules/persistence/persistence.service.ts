@@ -505,7 +505,11 @@ export class PersistenceService {
     }
   }
 
-  async saveLeadCedula(contactId: string, cedula: string): Promise<void> {
+  async saveLeadCedula(
+    contactId: string,
+    cedula: string,
+    identity?: { nombre?: string | null; origen?: string | null },
+  ): Promise<void> {
     const value = cedula.trim();
     if (!this.supabase || !contactId || !value) {
       return;
@@ -518,9 +522,13 @@ export class PersistenceService {
         );
         return;
       }
+      const nombre = identity?.nombre?.trim();
+      const origen = identity?.origen?.trim();
       await this.supabase.updateLeadSignals(lead.id, {
         cedula: value,
         status: 'asesoria_financiamiento',
+        ...(nombre ? { nombre_cedula: nombre } : {}),
+        ...(origen ? { origen } : {}),
       });
     } catch (error) {
       this.logger.error(

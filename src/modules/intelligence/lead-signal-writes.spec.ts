@@ -8,6 +8,8 @@ const base: TurnSignals = {
   requiereAtencionVendedor: false,
   detectadoAsesorFinanciamiento: false,
   cedula: null,
+  nombreCedula: null,
+  origenCedula: null,
   clienteTieneLimitePresupuesto: false,
   montoCliente: null,
   photosJustSent: false,
@@ -81,6 +83,19 @@ describe('planLeadSignalWrites', () => {
     expect(writes.patch.cedula).toBe('0102030405');
     expect(writes.missingData).not.toBeNull();
     expect(writes.financingAdvice).toEqual({ message: '0102030405' });
+  });
+
+  it('la foto de la cédula guarda nombre y origen', () => {
+    const writes = planLeadSignalWrites({
+      ...base,
+      detectadoAsesorFinanciamiento: true,
+      cedula: '1712345678',
+      nombreCedula: 'JUAN PEREZ',
+      origenCedula: 'QUITO',
+    });
+    expect(writes.patch.cedula).toBe('1712345678');
+    expect(writes.patch.nombre_cedula).toBe('JUAN PEREZ');
+    expect(writes.patch.origen).toBe('QUITO');
   });
 
   it('presupuesto y llamada solo si las If disparan', () => {

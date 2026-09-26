@@ -11,8 +11,8 @@ import {
 } from '../intelligence/financiamiento';
 import {
   cedulaFromThread,
+  cedulaIdentityFromText,
   confirmCedulaReceived,
-  extractCedula,
   replyAsksForCedula,
 } from '../intelligence/extract-cedula';
 import {
@@ -983,9 +983,17 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const colorHint = askedOtherColor
       ? 'PIDIÓ OTRO COLOR del mismo modelo. Presenta las otras unidades de patio. PROHIBIDO repetir la que ya mostraste. No inventes colores. No sueltes precio si no lo pidió.'
       : '';
-    const sentCedulaNow = extractCedula(input.customerText);
-    if (sentCedulaNow) {
-      await this.persistence.saveLeadCedula(input.contactId, sentCedulaNow);
+    const identity = cedulaIdentityFromText(input.customerText);
+    const sentCedulaNow = identity?.cedula ?? null;
+    if (identity) {
+      if (identity.nombre || identity.origen) {
+        await this.persistence.saveLeadCedula(input.contactId, identity.cedula, {
+          nombre: identity.nombre,
+          origen: identity.origen,
+        });
+      } else {
+        await this.persistence.saveLeadCedula(input.contactId, identity.cedula);
+      }
     }
     const storedCedula = sentCedulaNow
       ? sentCedulaNow
@@ -999,7 +1007,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? 'Ya dijiste lo del carro cuidado y el mecánico. PROHIBIDO repetirlo. No vuelvas a mencionar mecánico ni “km reales” de respaldo.'
       : '';
     const cedulaHint = sentCedulaNow
-      ? 'YA ENVIÓ LA CÉDULA EN ESTE MENSAJE. PROHIBIDO pedirla otra vez. Confirma que un asesor revisa si califica. No repitas el número.'
+      ? `YA ENVIÓ LA CÉDULA EN ESTE MENSAJE${identity?.nombre ? ` a nombre de ${identity.nombre}` : ''}${identity?.origen ? `, de ${identity.origen}` : ''}. PROHIBIDO pedir cédula, nombre o de dónde es otra vez. Confirma que un asesor revisa si califica. No repitas el número.`
       : hasCedula
         ? 'YA TENEMOS LA CÉDULA. PROHIBIDO pedirla otra vez.'
         : historyHasShownCuota(history) &&

@@ -1,3 +1,47 @@
+/** Marca del texto que arma la visión cuando la foto es una cédula, no un carro. */
+export const CEDULA_PHOTO_MARK = 'Envió foto de su cédula.';
+
+export function formatCedulaPhotoMessage(input: {
+  numero: string;
+  nombre?: string | null;
+  origen?: string | null;
+}): string {
+  const lines = [CEDULA_PHOTO_MARK, `Número: ${input.numero}`];
+  const nombre = input.nombre?.trim();
+  const origen = input.origen?.trim();
+  if (nombre) {
+    lines.push(`Nombre: ${nombre}`);
+  }
+  if (origen) {
+    lines.push(`Origen: ${origen}`);
+  }
+  return lines.join('\n');
+}
+
+function photoLine(text: string, label: string): string | null {
+  const match = text.match(new RegExp(`^${label}:\\s*(.+)$`, 'im'));
+  const value = match?.[1]?.trim() ?? '';
+  return value || null;
+}
+
+/** Número siempre. Nombre y origen solo si el texto viene de la foto de la cédula. */
+export function cedulaIdentityFromText(text: string): {
+  cedula: string;
+  nombre: string | null;
+  origen: string | null;
+} | null {
+  const cedula = extractCedula(text);
+  if (!cedula) {
+    return null;
+  }
+  const fromPhoto = text.includes(CEDULA_PHOTO_MARK);
+  return {
+    cedula,
+    nombre: fromPhoto ? photoLine(text, 'Nombre') : null,
+    origen: fromPhoto ? photoLine(text, 'Origen') : null,
+  };
+}
+
 /** Cédula ecuatoriana: 10 dígitos, provincia 01-24. No es celular (09…). */
 export function extractCedula(text: string): string | null {
   const matches = text.match(/(?<!\d)\d{10}(?!\d)/g) ?? [];

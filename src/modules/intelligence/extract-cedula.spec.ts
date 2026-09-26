@@ -1,6 +1,8 @@
 import {
   cedulaFromThread,
+  cedulaIdentityFromText,
   extractCedula,
+  formatCedulaPhotoMessage,
   replyAsksForCedula,
 } from './extract-cedula';
 
@@ -26,6 +28,24 @@ describe('extractCedula', () => {
         { role: 'user', content: 'mi numero de cedula es 1102986013' },
       ]),
     ).toBe('1102986013');
+  });
+
+  it('de una foto guarda número, nombre y origen; el texto suelto solo el número', () => {
+    const photo = formatCedulaPhotoMessage({
+      numero: '1712345678',
+      nombre: 'JUAN PEREZ',
+      origen: 'QUITO',
+    });
+    expect(cedulaIdentityFromText(photo)).toEqual({
+      cedula: '1712345678',
+      nombre: 'JUAN PEREZ',
+      origen: 'QUITO',
+    });
+    expect(cedulaIdentityFromText('mi cedula es 0102030405')).toEqual({
+      cedula: '0102030405',
+      nombre: null,
+      origen: null,
+    });
   });
 
   it('detecta si la respuesta vuelve a pedir la cédula', () => {

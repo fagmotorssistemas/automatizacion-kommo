@@ -42,6 +42,8 @@ export function looksLikeUnitList(text: string): boolean {
  * Si el año/modelo va en el encabezado ("4 Sportage 2019: blanco…, plateado automático…"),
  * cada color/caja/km hereda ese encabezado.
  * La coma de miles (60,746) no parte la unidad.
+ * Un punto entre frases sí: "103,736 km. un Kia Sportage R GTI…".
+ * "2.0" no parte: el punto de versión no lleva espacio.
  */
 function proseUnitItems(text: string): string[] {
   const head = text.split('?')[0] ?? text;
@@ -50,7 +52,7 @@ function proseUnitItems(text: string): string[] {
   const body = colon >= 0 ? head.slice(colon + 1) : head;
   const yearInPrefix = /\b(?:19|20)\d{2}\b/.test(prefix);
   return body
-    .split(/,(?!\d)\s+|\s+y\s+/)
+    .split(/,(?!\d)\s+|\s+y\s+|\.\s+/)
     .map((chunk) => chunk.trim())
     .filter(Boolean)
     .filter((chunk) => {

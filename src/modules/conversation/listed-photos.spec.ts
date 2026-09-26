@@ -139,6 +139,69 @@ describe('listed photos', () => {
     );
   });
 
+  it('el párrafo de A75330 parte las 4 Sportage y elige el automático', () => {
+    const list =
+      'Buenas noches, estimado. Tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual blanco del 2019, con kilometraje aún no cargado y También hay un Kia Sportage SL AC 2.0 5p 4x2 manual negro de 2019 con 103,736 km. un Kia Sportage R GTI LX AC 2.0 5p 4x2 automática plateado del 2019 con 113,170 km. y un Kia Sportage R GTI AC 2.0 5p 4x2 manual rojo del 2019 con 91,096 km y ¿Cuál le interesa?';
+    const patio: StockCar[] = [
+      {
+        id: 'sp-blanco',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2',
+        year: 2019,
+        price: 20000,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-negro',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2',
+        year: 2019,
+        price: 22200,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 103736,
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-plata',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+        year: 2019,
+        price: 21500,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 113170,
+        transmission: 'automática',
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0 5p 4x2',
+        year: 2019,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+        transmission: 'manual',
+      },
+    ];
+    const listed = lastListedUnits(
+      [{ role: 'assistant', content: list }],
+      patio,
+    );
+    expect(listed.map((car) => car.id)).toEqual([
+      'sp-blanco',
+      'sp-negro',
+      'sp-plata',
+      'sp-rojo',
+    ]);
+    expect(
+      pickListedUnit(listed, 'Sportage R GTI automático', TEST_LEXICON)?.id,
+    ).toBe('sp-plata');
+  });
+
   it('un párrafo con año y km también es listado', () => {
     const prose =
       'Tenemos estas opciones con motor 2.0 disponibles: Couper AC 1.6 automática blanco 2012 con 60746 km, Tunland G AC 2.0 manual plateado 2023 con 113692 km, Poer AC 2.0 plateado 2022 con 82103 km. ¿Cuál le interesa?';

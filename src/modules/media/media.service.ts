@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { CEDULA_UNREADABLE, formatCedulaPhotoText } from './cedula-reading';
 import { MessageKind } from './classify-message-kind';
 import { downloadAttachment } from './download-attachment';
 import { OpenAiMediaClient } from './openai-media.client';
@@ -34,6 +35,34 @@ export class MediaService {
             input.attachmentLink,
           )) ?? input.text
         );
+      }
+
+      let imageKind: 'cedula' | 'vehiculo' = 'vehiculo';
+      try {
+        imageKind = await this.openai.classifyInboundImage(file);
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo clasificar la foto; sigue como vehículo. ${error instanceof Error ? error.message : ''}`,
+        );
+      }
+
+      if (imageKind === 'cedula') {
+        try {
+          const raw = await this.openai.readCedulaImage(file);
+          const text = formatCedulaPhotoText(raw);
+          if (!text) {
+            this.logger.warn('Foto de cédula sin número legible');
+            return CEDULA_UNREADABLE;
+          }
+          this.logger.log('Foto de cédula leída');
+          return text;
+        } catch (error) {
+          this.logger.error(
+            'Fallo al leer la cédula',
+            error instanceof Error ? error.stack : undefined,
+          );
+          return CEDULA_UNREADABLE;
+        }
       }
 
       return (
