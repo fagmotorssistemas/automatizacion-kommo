@@ -1403,7 +1403,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         stayOnShown &&
         Boolean(interested?.inventoryId) &&
         (!parsed.meta.vehiculo?.inventory_id ||
-          parsed.meta.vehiculo.inventory_id === interested.inventoryId),
+          parsed.meta.vehiculo.inventory_id === interested?.inventoryId),
     };
   }
 
