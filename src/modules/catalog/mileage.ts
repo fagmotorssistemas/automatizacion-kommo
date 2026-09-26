@@ -1,4 +1,7 @@
-import { stripUnloadedPriceClaim } from '../conversation/strip-unsolicited-price';
+import {
+  stripListedPriceAmounts,
+  stripUnloadedPriceClaim,
+} from '../conversation/strip-unsolicited-price';
 
 /** Piso: 15.000 km/año. Tope: 20.000 km/año. Alto solo si pasa el tope. */
 export const KM_PER_YEAR_MIN = 15_000;
@@ -132,11 +135,6 @@ function priceIsInText(text: string, amount: number): boolean {
   return text.includes(raw) || text.includes(comma) || text.includes(dot);
 }
 
-/** Ya hay un $ de lista: no se pega otro encima. */
-function textAlreadyHasListedPrice(text: string): boolean {
-  return /\$\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?/.test(text);
-}
-
 /** Quita el discurso del km cuando el cliente pidió el precio, no el recorrido. */
 export function stripMileageCareOnPriceAsk(text: string): string {
   return text
@@ -169,11 +167,12 @@ export function ensureListedPrice(text: string, price: number): string {
   if (!Number.isFinite(amount) || amount <= 0) {
     return body;
   }
-  if (priceIsInText(body, amount) || textAlreadyHasListedPrice(body)) {
+  if (priceIsInText(body, amount)) {
     return body;
   }
+  const clean = dropDanglingAnd(stripListedPriceAmounts(body));
   const lead = `El precio es $${amount.toLocaleString('en-US')}.`;
-  return body ? `${lead} ${body}` : lead;
+  return clean ? `${lead} ${clean}` : lead;
 }
 
 export function formatMileageFact(

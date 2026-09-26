@@ -2086,6 +2086,65 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/di el \$ de inventario primero/i);
   });
 
+  it('A75350 el blanco del listado sin $ en patio no inventa un valor', async () => {
+    const list =
+      'Buenas noches, estimado. Tenemos estas Kia Sportage 2019: blanco, manual, km aún no cargado,; negro, manual, 103736 km,; plateado, automática, 113170 km,; y rojo, manual, 91096 km, ¿Cuál le interesa?';
+    const patio = [
+      {
+        id: 'sp-blanco',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2',
+        year: 2019,
+        price: 0,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-negro',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2',
+        year: 2019,
+        price: 22200,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 103736,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(patio);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'assistant', content: list },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio del Sportage blanco.\nPide precio: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual 2019 color blanco, con el kilometraje aún no cargado, transmisión manual y precio de $18,500. El precio de esta unidad aún no está cargado en patio. En un momento un asesor le confirma el valor.',
+        meta: { vehiculo: { inventory_id: 'sp-blanco', precio: 18500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A75350',
+      customerText: 'El blanco q precio esta xfavor',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/18,?500/);
+    expect(result?.reply.mensaje).not.toMatch(/\$\s*\d/);
+    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+    expect(result?.reply.meta.vehiculo?.precio).toBeUndefined();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/AÚN NO CARGADO|PROHIBIDO inventar|no inventes/i);
+  });
+
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

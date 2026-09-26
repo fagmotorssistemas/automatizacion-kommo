@@ -60,11 +60,11 @@ describe('mileage', () => {
     expect(clean).not.toMatch(/kilometraje es acorde/i);
   });
 
-  it('si el recado ya trajo un $, no pega otro encima', () => {
+  it('si el recado inventó otro $, deja el de patio', () => {
     const already = 'El Prado 2016 dorado tiene un precio de $53800.';
     const clean = ensureListedPrice(already, 14990);
-    expect(clean).toBe(already);
-    expect(clean).not.toMatch(/14,?990/);
+    expect(clean).toMatch(/\$14,990/);
+    expect(clean).not.toMatch(/53800/);
   });
 
   it('si el precio se cortó, no deja la y colgada', () => {

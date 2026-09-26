@@ -381,7 +381,9 @@ export function describeUnit(car: StockCar, includePrice = false): string {
     km,
     includePrice && car.price && car.price > 0
       ? `precio=$${Math.round(car.price)}`
-      : '',
+      : includePrice
+        ? 'precio=aún no cargado (PROHIBIDO inventar un $)'
+        : '',
     plate
       ? `plate_short=${plate}`
       : 'sin plate_short (PROHIBIDO inventar placa; el km NO es placa)',
@@ -445,7 +447,13 @@ export function formatNamedUnits(
       car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
       text: `De este modelo hay una sola unidad y hay que mandarla: ${describeUnit(car, includePrice)}.
-En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".${
+        includePrice && !(car.price && car.price > 0)
+          ? '\nPidió el valor: el patio NO tiene $. Dilo así. PROHIBIDO inventar un número.'
+          : includePrice
+            ? '\nPidió el valor: di SOLO el $ de esta ficha. PROHIBIDO inventar otro.'
+            : ''
+      }`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,

@@ -44,11 +44,23 @@ export function stripUnloadedPriceClaim(text: string): string {
     .trim();
 }
 
+/** Quita cualquier $ / “precio de 18500”. No deja un número inventado. */
+export function stripListedPriceAmounts(text: string): string {
+  return tidyStrippedPriceHoles(
+    stripZeroListedPrice(text)
+      .replace(
+        /(?:\s+y)?\s*\b(?:precio(?:\s+de)?|vale|cuesta|sale|queda)\s*(?:en\s*)?\$?\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?\b/gi,
+        '',
+      )
+      .replace(/\$\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/g, '')
+      .replace(/\$\s*\d{4,6}(?:[.,]\d{2})?\b/g, '')
+      .replace(/\$\s*\d{1,4}[.,]\d{2}\b/g, '')
+      .replace(/\b(?:y\s+)?precio\s+de\b(?!\s+esta\s+unidad)/gi, ''),
+  );
+}
+
 export function appendUnloadedPrice(text: string): string {
-  const body = stripZeroListedPrice(text).trim();
-  if (replySaidPriceUnloaded(body)) {
-    return body;
-  }
+  const body = stripListedPriceAmounts(stripUnloadedPriceClaim(text)).trim();
   return body ? `${body}\n\n${PRICE_UNLOADED}` : PRICE_UNLOADED;
 }
 
@@ -62,15 +74,7 @@ export function stripUnsolicitedPriceAndPlate(
   const keepPlateShort = options?.keepPlateShort !== false;
 
   if (!keepPrice) {
-    out = out.replace(
-      /(?:\s+y)?\s*\b(?:precio(?:\s+de)?|vale|cuesta|sale|queda)\s*(?:en\s*)?\$?\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?\b/gi,
-      '',
-    );
-    out = out.replace(/\$\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/g, '');
-    out = out.replace(/\$\s*\d{4,6}(?:[.,]\d{2})?\b/g, '');
-    out = out.replace(/\$\s*\d{1,4}[.,]\d{2}\b/g, '');
-    out = out.replace(/\b(?:y\s+)?precio\s+de\b/gi, '');
-    out = tidyStrippedPriceHoles(out);
+    out = stripListedPriceAmounts(out);
   }
 
   // inventory_id / UUID: nunca va al cliente (a veces lo pegan como “placa”).

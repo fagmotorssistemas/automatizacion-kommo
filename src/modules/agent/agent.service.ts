@@ -952,12 +952,19 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           : null;
     const askedThisUnitPrice =
       askedPrice && hasQuotedUnit && unitPrice != null;
+    const quotingListedSet =
+      askedPrice &&
+      revision.sendId == null &&
+      revision.holdVehicle === true &&
+      /\$\s*\d/.test(revision.text);
     const canQuotePrice =
-      creditQuote ||
-      askedThisUnitPrice ||
-      (!objectionOnShown &&
-        ((hasQuotedUnit && alreadyShown && askedPrice) ||
-          lastAssistantListedOther));
+      quotingListedSet ||
+      (unitPrice != null &&
+        (creditQuote ||
+          askedThisUnitPrice ||
+          (!objectionOnShown &&
+            ((hasQuotedUnit && alreadyShown && askedPrice) ||
+              lastAssistantListedOther))));
     const cuotaYaDicha =
       historyAlreadyGaveCuota(history) &&
       !aceptaVerSiAplica &&
@@ -1238,14 +1245,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }
       parsed.img_prefix = '';
     }
-    if (
-      interested &&
-      parsed.meta.vehiculo?.inventory_id === interested.inventoryId &&
-      interested.price &&
-      interested.price > 0 &&
-      !parsed.meta.vehiculo.precio
-    ) {
-      parsed.meta.vehiculo.precio = Math.round(interested.price);
+    if (parsed.meta.vehiculo) {
+      if (unitPrice != null) {
+        parsed.meta.vehiculo.precio = unitPrice;
+      } else {
+        delete parsed.meta.vehiculo.precio;
+      }
     }
 
     if (parsed.mensaje) {
@@ -1259,7 +1264,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         askedPrice && unitPrice != null ? unitPrice : null;
       const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
         keepPrice:
-          canQuotePrice || listedPrice != null || confirmingCashOrDelivery,
+          quotingListedSet ||
+          (unitPrice != null &&
+            (canQuotePrice || listedPrice != null || confirmingCashOrDelivery)),
         keepPlateShort: askedPlate || firstPresentation,
       });
       if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
@@ -1349,7 +1356,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         askedPrice &&
         hasConfirmedUnit &&
         unitPrice == null &&
-        listedPriceKnown
+        !quotingListedSet
       ) {
         parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
         parsed.meta.precioMostrado = false;

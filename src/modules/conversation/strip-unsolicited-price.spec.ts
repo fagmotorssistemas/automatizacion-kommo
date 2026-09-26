@@ -151,6 +151,12 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(stripZeroListedPrice('El precio es $00')).not.toMatch(/\$0/);
     expect(stripZeroListedPrice('El X-Trail está en $16890.')).toMatch(/16890/);
     expect(appendUnloadedPrice('El valor es $0.')).toContain(PRICE_UNLOADED);
+    const invented = appendUnloadedPrice(
+      'Tenemos un Kia Sportage 2019 color blanco y precio de $18,500. El precio de esta unidad aún no está cargado en patio.',
+    );
+    expect(invented).not.toMatch(/18,?500/);
+    expect(invented).not.toMatch(/\$/);
+    expect(invented).toContain(PRICE_UNLOADED);
     expect(
       stripUnloadedPriceClaim(
         'Estimado, no tenemos el precio cargado aún para vehículos Nissan SUV. El precio de esta unidad aún no está cargado en patio.',
