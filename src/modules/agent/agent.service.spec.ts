@@ -1,5 +1,6 @@
 import { AgentService } from './agent.service';
 import { TEST_LEXICON } from '../conversation/test-lexicon';
+import * as turnPlanModule from '../intelligence/turn-plan';
 
 describe('AgentService', () => {
   const openai = {
@@ -523,6 +524,14 @@ describe('AgentService', () => {
         img_prefix: '',
       },
       alreadyShownInThread: false,
+      // Plan en sombra: este resumen simulado no trae «Pide otras», no decide.
+      plan: {
+        accion: 'RESPALDO',
+        fuente: 'respaldo',
+        razon: 'El resumen no trae «Pide otras»',
+        caminoViejo: 'REVIEW_BRAND',
+        coincide: null,
+      },
     });
     expect(conversation.appendMessage).toHaveBeenCalledTimes(2);
     expect(persistence.appendChatHistory).toHaveBeenCalledWith({
@@ -4404,15 +4413,35 @@ Falta vehículo: sí`,
     expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
   });
 
-  it('A70562 visito la otra semana no reabre Chevrolet', async () => {
-    persistence.latestInterestedCar.mockResolvedValue({
-      inventoryId: 'montero-2022',
+  it('A70562 «la otra semana» no se lee como Optra ni reabre Chevrolet', async () => {
+    const montero = {
+      id: 'montero-2022',
       brand: 'mitsubishi',
       model: 'montero sport 2.5',
       year: 2022,
       price: 28900,
       typeBody: 'jeep',
       color: 'blanco',
+    };
+    const chevrolets = ['camaro ss', 'vitara', 'optra advance 1.8l', 'tracker ltz'].map(
+      (model, i) => ({
+        id: `chev-${i}`,
+        brand: 'chevrolet',
+        model,
+        year: 2018 + i,
+        price: 15000 + i * 1000,
+        typeBody: 'jeep',
+        color: 'blanco',
+      }),
+    );
+    persistence.latestInterestedCar.mockResolvedValue(montero && {
+      inventoryId: montero.id,
+      brand: montero.brand,
+      model: montero.model,
+      year: montero.year,
+      price: montero.price,
+      typeBody: montero.typeBody,
+      color: montero.color,
     });
     conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
     conversation.recentMessages.mockResolvedValue([
@@ -4422,19 +4451,26 @@ Falta vehículo: sí`,
           'Alonso Bermeo, le envié fotos de la Mitsubishi Montero Sport 2022; ¿le gustó o hay algo que le detiene? Si prefiere, le busco otra opción o le doy más detalles.',
       },
     ]);
-    catalog.listByBrand.mockResolvedValue([
-      {
-        id: 'dmax-1',
-        brand: 'chevrolet',
-        model: 'd-max crdi',
-        year: 2022,
-        price: 28990,
-        typeBody: 'camioneta',
-      },
-    ]);
+    catalog.listAvailableExcept.mockResolvedValue([montero, ...chevrolets]);
+    catalog.listByBrand.mockResolvedValue(chevrolets);
+    // Resumen real que devolvió el analizador para este mensaje.
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente visita la otra semana.\nPide ubicación: sí\nPide otras: no\nEs despedida: no\nEs cortesía: sí',
+        [
+          'RESUMEN PREVIO:',
+          'Vehículo: Mitsubishi Montero Sport 2022',
+          'Contexto: El asesor envió fotos y preguntó al cliente si le gustó o si quiere otra opción.',
+          '',
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere visitar la próxima semana esa unidad.',
+          'Pide precio: no',
+          'Pide otras: no',
+          'Falta vehículo: no',
+          'Tipo de patio: suv',
+          'Pide horario: no',
+          'Pide ubicación: no',
+          'Es despedida: no',
+        ].join('\n'),
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -4451,13 +4487,46 @@ Falta vehículo: sí`,
     });
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/AÚN NO QUIERE VISITA|PAUSA|ESA unidad/i);
     expect(system).toContain('inventory_id=montero-2022');
-    expect(system).not.toMatch(/MARCA VIGENTE: chevrolet/i);
+    expect(system).not.toMatch(/MARCA VIGENTE/i);
     expect(system).not.toMatch(/PIDIÓ UBICACIÓN/i);
-    expect(system).not.toMatch(/Camaro|Tracker/i);
+    expect(system).not.toMatch(/Camaro|Tracker|Optra/i);
     expect(catalog.listByBrand).not.toHaveBeenCalled();
     expect(result?.reply.meta.vehiculo?.inventory_id).toBe('montero-2022');
+    // Plan en sombra: el plan y el camino viejo coinciden y queda registrado.
+    expect(result?.plan).toMatchObject({
+      accion: 'SEGUIR_UNIDAD',
+      fuente: 'resumen',
+      caminoViejo: 'SEGUIR_UNIDAD',
+      coincide: true,
+    });
+  });
+
+  it('si el plan en sombra falla, el turno responde igual y solo no registra el plan', async () => {
+    const spy = jest
+      .spyOn(turnPlanModule, 'buildTurnPlan')
+      .mockImplementation(() => {
+        throw new Error('boom');
+      });
+    try {
+      openai.complete
+        .mockResolvedValueOnce('SOLICITUD ACTUAL:\nCliente saluda.\nPide otras: no')
+        .mockResolvedValueOnce('{"intenciones":["compra"]}');
+      openai.runSalesAgent.mockResolvedValue(
+        JSON.stringify({
+          respuesta_cliente: 'Hola, ¿en qué le ayudo?',
+          meta: { vehiculo: null },
+        }),
+      );
+      const result = await service.handleTurn({
+        contactId: '1',
+        customerText: 'Hola',
+      });
+      expect(result?.reply.mensaje).toBe('Hola, ¿en qué le ayudo?');
+      expect(result?.plan).toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('A65562 jeptour sale del listado de Sportage y busca Jetour', async () => {

@@ -9,6 +9,7 @@ import {
   unitDoors,
   unitDrive,
 } from '../catalog/clasificar-filas';
+import { textoQueNombra } from './named-this-turn';
 import { formatMileageFact } from '../catalog/mileage';
 import { detectVehicleKind, kindFromTypeBody } from './vehicle-kind';
 import {
@@ -38,6 +39,8 @@ import {
   resumenHasPendingDoubt,
   resumenPideOtras,
   resumenStaysOnShownUnit,
+  solicitudSinBanderas,
+  vehicleClientePidio,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
@@ -190,6 +193,13 @@ export function leftShownCar(input: ShownCarContext): boolean {
   }
   const lexicon = input.lexicon ?? emptyLexicon();
   const resumen = input.resumen ?? '';
+  // Lo que nombró ESTE turno lo dice el resumen si sigue en la unidad mostrada.
+  const nombra = textoQueNombra(resumen, input.text, lexicon);
+  // Del resumen se lee el pedido de ESTE turno (solicitud + vehículo), no el
+  // Contexto de turnos viejos: ahí una palabra suelta («otra opción») ensucia.
+  const pedidoResumen = solicitudSinBanderas(resumen)
+    ? [solicitudSinBanderas(resumen), vehicleClientePidio(resumen) ?? ''].join('\n')
+    : resumen;
   if (
     textAsksForOtherColor(input.text) ||
     resumenAsksForOtherColor(resumen)
@@ -200,7 +210,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return true;
   }
   const stays = resumenStaysOnShownUnit(resumen);
-  if (!stays && namedOtherUnit(input.text, car, lexicon)) {
+  if (!stays && namedOtherUnit(nombra, car, lexicon)) {
     return true;
   }
   const budget = resumenTopeContado(resumen);
@@ -221,7 +231,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
       }
     }
   }
-  if (input.resumen && namedOtherUnit(input.resumen, car, lexicon)) {
+  if (pedidoResumen && namedOtherUnit(pedidoResumen, car, lexicon)) {
     return true;
   }
   if (input.pedido && !vehicleLabelFitsCar(input.pedido, car, lexicon)) {
@@ -233,17 +243,17 @@ export function leftShownCar(input: ShownCarContext): boolean {
       return true;
     }
   }
-  if (askedOtherUnitFacts(input.text, car, lexicon)) {
+  if (askedOtherUnitFacts(nombra, car, lexicon)) {
     return true;
   }
-  if (input.resumen && askedOtherUnitFacts(input.resumen, car, lexicon)) {
+  if (pedidoResumen && askedOtherUnitFacts(pedidoResumen, car, lexicon)) {
     return true;
   }
-  const otherBrand = detectBrand(input.text, lexicon);
+  const otherBrand = detectBrand(nombra, lexicon);
   if (
     otherBrand &&
     otherBrand !== car.brand.trim().toLowerCase() &&
-    detectNamedModelAsk(input.text, lexicon)?.brand !==
+    detectNamedModelAsk(nombra, lexicon)?.brand !==
       car.brand.trim().toLowerCase()
   ) {
     return true;

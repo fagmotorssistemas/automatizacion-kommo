@@ -5,10 +5,7 @@ const SOFT_NO =
   /(?:^|\b)(?:no gracias|gracias no|no por ahora|por ahora no|en este momento no)(?:\b|$)|^(?:no)[.!]?$/i;
 
 const PAUSE_LATER =
-  /\b(?:aun no|luego|mas tarde|seguimos en contacto|te aviso|otro (?:dia|momento)|la otra semana|la proxima semana|la semana que viene|semana que viene)\b/i;
-
-const VISIT_LATER =
-  /\b(?:le|la|lo|te)?\s*visito\b|\bpaso\s+(?:la\s+)?(?:otra|proxima)\s+semana\b|\bvoy\s+(?:la\s+)?(?:otra|proxima)\s+semana\b/i;
+  /\b(?:aun no|luego|mas tarde|seguimos en contacto|te aviso|otro (?:dia|momento))\b/i;
 
 const GRACIAS = /\b(?:gracias|agradezco|muy amable)\b/i;
 
@@ -36,18 +33,13 @@ export function isSoftNo(text: string): boolean {
   return SOFT_NO.test(fold(clean));
 }
 
-/** Aún no / luego / la otra semana. Sigue vivo, no ahora. */
+/** Aún no / luego. Sigue vivo, no ahora. */
 export function isPauseLater(text: string): boolean {
   const n = fold(text);
   if (!n || isHardFarewell(n) || isSoftNo(text)) {
     return false;
   }
-  return PAUSE_LATER.test(n) || VISIT_LATER.test(n);
-}
-
-/** Pregunta dónde verla, no que irá otro día. */
-export function asksWhereNow(text: string): boolean {
-  return /\b(?:donde|ubicad|direccion|como llego)\b/i.test(fold(text));
+  return PAUSE_LATER.test(n);
 }
 
 /** El bot acaba de preguntar financiamiento y/o visita. */

@@ -268,6 +268,8 @@ export class InboxFlushRunner {
         mensaje: turn.reply.mensaje.slice(0, 1000),
         inventoryId: turn.reply.meta.vehiculo?.inventory_id ?? null,
         imgPrefix: turn.reply.img_prefix,
+        // Plan en sombra: qué decidiría el resumen vs qué hizo el código viejo.
+        plan: turn.plan ?? null,
       },
     });
 

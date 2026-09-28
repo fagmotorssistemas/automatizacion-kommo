@@ -1,3 +1,5 @@
+import type { TurnPlanLog } from '../intelligence/turn-plan';
+
 export type AgentVehicleMeta = {
   inventory_id?: string;
   precio?: number;
@@ -26,6 +28,11 @@ export type AgentTurnResult = {
   photoQueue?: PhotoQueueItem[];
   /** Esta unidad ya tuvo ficha en el hilo. Outbound no reabre fotos. */
   alreadyShownInThread?: boolean;
+  /**
+   * Plan en sombra: qué habría decidido el resumen vs qué hizo el camino viejo.
+   * Solo se registra; no cambia la respuesta.
+   */
+  plan?: TurnPlanLog;
 };
 
 const EMPTY_META: AgentMeta = {

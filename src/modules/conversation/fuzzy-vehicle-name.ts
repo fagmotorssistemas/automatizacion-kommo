@@ -179,7 +179,14 @@ function closeEnough(
   if (left === right) {
     return true;
   }
-  const allowed = maxDistance(Math.min(token.length, key.length), mode);
+  const shortest = Math.min(token.length, key.length);
+  // Palabra corta: casi cualquier palabra común está a 1 letra de un modelo
+  // («otra» → Optra, insertando una p). Solo se perdona cambiar una letra
+  // («avio» → Aveo), no agregar ni quitar.
+  const allowed =
+    shortest < 5 && token.length !== key.length
+      ? 0
+      : maxDistance(shortest, mode);
   if (
     allowed > 0 &&
     (levenshtein(left, right) <= allowed || levenshtein(token, key) <= allowed)

@@ -70,7 +70,6 @@ describe('no a la última oferta no se repite', () => {
 
   it('aún no es pausa, no cierre ni la misma pregunta', () => {
     expect(isPauseLater('aún no, seguimos en contacto')).toBe(true);
-    expect(isPauseLater('Gracias yo le visito la otra semana')).toBe(true);
     expect(
       salesFollowHint({
         customerText: 'aún no, seguimos en contacto',
@@ -78,16 +77,6 @@ describe('no a la última oferta no se repite', () => {
         hasDoubt: false,
         isFarewell: false,
         isCourtesy: false,
-      }),
-    ).toBe(PAUSA_SIGUE);
-    expect(
-      salesFollowHint({
-        customerText: 'Gracias yo le visito la otra semana',
-        lastAssistant:
-          'Alonso, le envié fotos de la Mitsubishi Montero Sport 2022; ¿le gustó?',
-        hasDoubt: false,
-        isFarewell: false,
-        isCourtesy: true,
       }),
     ).toBe(PAUSA_SIGUE);
   });

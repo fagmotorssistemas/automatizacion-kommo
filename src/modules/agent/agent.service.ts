@@ -115,8 +115,16 @@ import {
 } from '../conversation/negotiate-in-person';
 import { ungateLocationReply } from '../conversation/location-without-entrada';
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
+import { resumenBrandFitsShown, textoQueNombra } from '../conversation/named-this-turn';
+import {
+  buildTurnPlan,
+  turnPlanLog,
+  type LegacyPath,
+  type TurnPlanInput,
+  type TurnPlanLog,
+} from '../intelligence/turn-plan';
 import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
-import { DESPEDIDA_AMABLE, asksWhereNow, isPauseLater, salesFollowHint } from '../conversation/polite-thanks';
+import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
 import {
   askedOutsideListed,
   askedOtherBrandThanListed,
@@ -178,6 +186,7 @@ import {
 } from '../catalog/mileage';
 import {
   followsShownCar,
+  leftShownCar,
   formatInterestedCar,
   historyPresentedFicha,
   askedMatchesShownModel,
@@ -503,8 +512,9 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
-    const brandSaidNow = detectBrand(input.customerText, lexicon);
-    let pedido = detectNamedModelAsk(input.customerText, lexicon)
+    const nombra = textoQueNombra(resumen, input.customerText, lexicon);
+    const brandSaidNow = detectBrand(nombra, lexicon);
+    let pedido = detectNamedModelAsk(nombra, lexicon)
       ? null
       : vehicleQueSigue(resumen, previousResumen);
     if (pedido && brandSaidNow) {
@@ -526,9 +536,25 @@ export class AgentService {
       !detectVehicleKind(input.customerText) &&
       !asksAnyBrand(input.customerText)
     ) {
-      return this.replyAskWhichCar(input.contactId, input.customerText, {
-        wantsPrice: resumenAsksForListedPrice(resumen),
-      });
+      const asked = await this.replyAskWhichCar(
+        input.contactId,
+        input.customerText,
+        { wantsPrice: resumenAsksForListedPrice(resumen) },
+      );
+      return {
+        ...asked,
+        plan: this.shadowPlan(
+          {
+            resumen,
+            previousResumen,
+            lexicon,
+            unidad: interested,
+            history,
+            ultimoBotListo: lastOfferIsUnitList(lastOfferAssistantText(history)),
+          },
+          'PEDIR_CARRO',
+        ),
+      };
     }
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
@@ -563,7 +589,7 @@ export class AgentService {
     const brand = await this.rememberBrand(
       input.contactId,
       history,
-      purchaseText,
+      esToma ? purchaseText : nombra,
       lexicon,
     );
     let concreteAsk = await this.rememberConcreteAsk(
@@ -648,10 +674,7 @@ export class AgentService {
         : null;
     const lastOfferText = lastOfferAssistantText(history);
     const lastAssistantListed = lastOfferIsUnitList(lastOfferText);
-    const pauseLater = isPauseLater(input.customerText);
-    const askedLocation =
-      resumenAsksForLocation(resumen) &&
-      (!pauseLater || asksWhereNow(input.customerText));
+    const askedLocation = resumenAsksForLocation(resumen);
     const hasShownDoubt = resumenHasPendingDoubt(resumen);
     const shownBrandEarly = interested?.brand.trim().toLowerCase() ?? '';
     const otherBrandNow = Boolean(
@@ -688,8 +711,11 @@ export class AgentService {
       interested?.model,
       resumen,
     );
+    // Un «gracias» no acepta «le busco otra opción» si el resumen dice Pide otras: no.
     const acceptedOtherOffer =
-      (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
+      (resumenPideOtras(resumen) ||
+        (!resumenStaysOnShownUnit(resumen) &&
+          (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)))) &&
       lastOfferedOtherOptions(lastOfferText);
     let stayOnShown = lastAssistantListed
       ? false
@@ -718,7 +744,7 @@ export class AgentService {
       !otherBrandNow &&
       !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon)) &&
       (resumenStaysOnShownUnit(resumen) ||
-        !detectNamedModelAsk(input.customerText, lexicon))
+        !detectNamedModelAsk(nombra, lexicon))
     ) {
       stayOnShown = true;
     }
@@ -731,7 +757,7 @@ export class AgentService {
     ) {
       const yearNow = detectYearInText(input.customerText);
       const colorNow = detectColorInText(input.customerText);
-      const namedNow = detectNamedModelAsk(input.customerText, lexicon);
+      const namedNow = detectNamedModelAsk(nombra, lexicon);
       const namedOther = namedNow
         ? !askedMatchesShownModel(namedNow.family, interested.model)
         : false;
@@ -755,7 +781,26 @@ export class AgentService {
     if (boxNow && shownBox && boxNow !== shownBox) {
       stayOnShown = false;
     }
-    if (pauseLater && interested) {
+    // El resumen manda: si dice que sigue en la unidad (Pide otras: no) y con
+    // SOLO lo que él entendió (sin releer palabras sueltas del texto) no se fue
+    // de ella, se responde sobre esa unidad. No se abre marca ni catálogo.
+    if (
+      interested &&
+      !lastAssistantListed &&
+      !acceptedOtherOffer &&
+      !askedOtherColor &&
+      resumenStaysOnShownUnit(resumen) &&
+      !resumenFaltaVehiculo(resumen) &&
+      resumenBrandFitsShown(resumen, interested.brand, lexicon) &&
+      !leftShownCar({
+        text: '',
+        resumen,
+        history,
+        car: interested,
+        lexicon,
+        pedido,
+      })
+    ) {
       stayOnShown = true;
     }
     const priceObjection =
@@ -786,6 +831,30 @@ export class AgentService {
       promptNames,
       resumen,
       input.customerText,
+    );
+    // Plan en sombra: solo se registra, no cambia la respuesta.
+    const caminoViejo: LegacyPath = closing
+      ? 'CIERRE'
+      : pideHorario
+        ? 'HORARIO'
+        : asientosRevision
+          ? 'ASIENTOS'
+          : selling && !buying
+            ? 'VENTA_PROPIA'
+            : stayOnShown && interested
+              ? 'SEGUIR_UNIDAD'
+              : 'REVIEW_BRAND';
+    const planLog = this.shadowPlan(
+      {
+        resumen,
+        previousResumen,
+        lexicon,
+        unidad: interested,
+        history,
+        ultimoBotListo: lastAssistantListed,
+        ventaPropia: selling && !buying,
+      },
+      caminoViejo,
     );
     let revision: BrandReview;
     if (pideHorario) {
@@ -1294,6 +1363,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         resumen,
         photoQueue: revision.photoQueue,
         alreadyShownInThread: false,
+        plan: planLog,
       };
     }
 
@@ -1520,7 +1590,26 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         Boolean(interested?.inventoryId) &&
         (!parsed.meta.vehiculo?.inventory_id ||
           parsed.meta.vehiculo.inventory_id === interested?.inventoryId),
+      plan: planLog,
     };
+  }
+
+  /**
+   * Calcula el plan del turno y lo compara con el camino viejo.
+   * Nunca lanza: si el plan falla, el turno sigue igual y solo no se registra.
+   */
+  private shadowPlan(
+    input: TurnPlanInput,
+    caminoViejo: LegacyPath,
+  ): TurnPlanLog | undefined {
+    try {
+      return turnPlanLog(buildTurnPlan(input), caminoViejo);
+    } catch (error) {
+      this.logger.warn(
+        `Plan en sombra falló: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return undefined;
+    }
   }
 
   /** Clic de Facebook sin carro en el título: una pregunta, sin listado. */
@@ -1704,11 +1793,11 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const lastAsst = lastOfferAssistantText(history);
     const listedFollowUp = lastOfferIsUnitList(lastAsst);
     const staysOnShown = resumenStaysOnShownUnit(resumen);
-    const brandSaidInTurn = detectBrand(customerText, lexicon);
-    const namesBrandNow = Boolean(brandSaidInTurn);
-    const fromText = staysOnShown
+    const nombraAhora = textoQueNombra(resumen, customerText, lexicon);
+    const brandSaidInTurn = detectBrand(nombraAhora, lexicon);
+    const namesBrandNow = Boolean(brandSaidInTurn);    const fromText = staysOnShown
       ? null
-      : detectNamedModelAsk(customerText, lexicon);
+      : detectNamedModelAsk(nombraAhora, lexicon);
     const fromSolicitud =
       cajaCompra === 'no' || (namesBrandNow && !fromText)
         ? null
@@ -1749,7 +1838,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       );
     const acceptedOther =
       lastOfferedOtherOptions(lastAsst) &&
-      (isThreadAck(customerText) || pideOtras);
+      (pideOtras || (!staysOnShown && isThreadAck(customerText)));
     const tipoAhoraEarly = resumenTipoPatio(resumen);
     const kindAhoraEarly =
       tipoAhoraEarly && tipoAhoraEarly !== 'no'
@@ -1843,7 +1932,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       return empty;
     }
 
-    const brandsNow = detectBrands(customerText, lexicon);
+    const brandsNow = detectBrands(nombraAhora, lexicon);
     const anyTresFilasBrand =
       tresFilas &&
       this.acceptsAnyTresFilasBrand({
@@ -2651,7 +2740,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     const askingOther =
       Boolean(referenceFamily) &&
       !mentionsReference &&
-      Boolean(detectBrand(customerText, lexicon));
+      Boolean(detectBrand(nombraAhora, lexicon));
 
     const asksNow =
       isConcreteAsk(customerText) ||

@@ -60,4 +60,13 @@ describe('nombre de vehículo mal escrito', () => {
   it('no toma fotos por Foton si Foton no está o la palabra es fotos', () => {
     expect(fuzzyBrandHits('Ayúdeme con fotos', TEST_LEXICON)).toEqual([]);
   });
+
+  it('una palabra corta no es un modelo: «otra» no es Optra', () => {
+    expect(fuzzyModelHits('Gracias yo le visito la otra semana', TEST_LEXICON)).toEqual([]);
+    expect(fuzzyModelHits('si quiere otra opción', TEST_LEXICON)).toEqual([]);
+  });
+
+  it('el modelo escrito bien sigue valiendo', () => {
+    expect(fuzzyModelHits('me interesa el optra', TEST_LEXICON).map((hit) => hit.name)).toContain('optra');
+  });
 });
