@@ -3,7 +3,10 @@ import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock, hourInGuayaquil } from '../intelligence/dealership-hours';
 import { formatHoursAskHint } from '../intelligence/dealership-hours';
-import { entregadoEnHilo } from '../conversation/entregado-en-hilo';
+import {
+  entregadoEnHilo,
+  formatEntregadoForPedido,
+} from '../conversation/entregado-en-hilo';
 import { formatVisitHourHint, isMoneyNotVisit, PRECIO_NO_HORARIO } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
@@ -116,6 +119,7 @@ import {
 } from '../conversation/negotiate-in-person';
 import {
   appendMapLink,
+  dropRepeatedAddress,
   ungateLocationReply,
 } from '../conversation/location-without-entrada';
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
@@ -1149,6 +1153,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const locationHint = locationAsk
       ? 'PIDIÓ UBICACIÓN / VISITA. Dale Av. España 6-73 y Sevilla, Cuenca AHORA. Solo la dirección. El sistema pega el link del mapa: PROHIBIDO escribir tú un link o URL. PROHIBIDO pedir entrada, depósito o confirmar valores. PROHIBIDO decir que no hace falta depósito o entrada: esa frase no va en la respuesta.'
       : '';
+    const noRepetirHint = formatEntregadoForPedido(
+      entregadoEnHilo(history, { unitPrice }),
+    );
     const faltaCarroHint =
       (resumenFaltaVehiculo(resumen) ||
         (isFacebookMoreInfoOpener(input.customerText) && !adVehicle)) &&
@@ -1269,6 +1276,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            noRepetirHint,
             faltaCarroHint,
             cashDeliveryHint,
             precioHint,
@@ -1321,6 +1329,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            noRepetirHint,
             faltaCarroHint,
             cashDeliveryHint,
             precioHint,
@@ -1573,7 +1582,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parsed.mensaje = withoutHoliday;
       }
       // Donde va la dirección va el mapa (lo pega el sistema, no el modelo).
-      parsed.mensaje = appendMapLink(parsed.mensaje);
+      // Si ya se entregó y el resumen no la volvió a pedir, se quita.
+      if (entregado.direccion && !askedLocation) {
+        parsed.mensaje = dropRepeatedAddress(parsed.mensaje);
+      } else {
+        parsed.mensaje = appendMapLink(parsed.mensaje);
+      }
     }
 
     if (parsed.mensaje) {

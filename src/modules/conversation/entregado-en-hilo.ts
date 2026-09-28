@@ -76,3 +76,14 @@ export function formatEntregadoForResumen(
   }
   return lines.length ? lines.join('\n') : null;
 }
+
+/** La misma lista, para el agente de ventas: no repetir salvo que el resumen lo pida. */
+export function formatEntregadoForPedido(
+  entregado: EntregadoEnHilo,
+): string | null {
+  const lista = formatEntregadoForResumen(entregado);
+  if (!lista) {
+    return null;
+  }
+  return `YA ENTREGADO EN EL HILO (no lo repitas, salvo que el resumen lo pida otra vez):\n${lista}`;
+}

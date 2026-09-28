@@ -1,6 +1,7 @@
 import {
   appendMapLink,
   DEALERSHIP_ADDRESS,
+  dropRepeatedAddress,
   MAP_URL,
   replyGatesInfoOnEntrada,
   stripDepositDisclaimer,
@@ -84,6 +85,29 @@ describe('link del mapa junto a la dirección', () => {
   it('no repite el mapa si ya está', () => {
     const once = appendMapLink(DEALERSHIP_ADDRESS);
     expect(appendMapLink(once)).toBe(once);
+  });
+
+  it('A76176: si ya se dio, quita dirección y mapa y deja el resto', () => {
+    const out = dropRepeatedAddress(
+      `Confirmo que tenemos camionetas doble cabina 4x4 para que revise con calma cuando esté listo tras su cirugía. La dirección es Av. España 6-73 y Sevilla, Cuenca. Para el avalúo de su Kia Sportage 2020 blanco, solo falta que pueda enviarnos fotos cuando pueda. Aquí la ubicación en el mapa: ${MAP_URL}\n\n¿Podrá hacerlo o prefiere traerlo cuando esté disponible?`,
+    );
+    expect(out).toMatch(/camionetas doble cabina 4x4/);
+    expect(out).toMatch(/avalúo de su Kia Sportage/);
+    expect(out).toMatch(/¿Podrá hacerlo/);
+    expect(out).not.toMatch(/Av\. España/i);
+    expect(out).not.toContain(MAP_URL);
+  });
+
+  it('si todo el mensaje es la dirección, no deja el chat vacío', () => {
+    expect(dropRepeatedAddress('Av. España 6-73 y Sevilla, Cuenca.')).toBe(
+      'Av. España 6-73 y Sevilla, Cuenca.',
+    );
+  });
+
+  it('sin dirección no toca el texto', () => {
+    expect(dropRepeatedAddress('Cuando pueda, envíenos las fotos.')).toBe(
+      'Cuando pueda, envíenos las fotos.',
+    );
   });
 
   it('sin dirección en la respuesta no pega el mapa', () => {

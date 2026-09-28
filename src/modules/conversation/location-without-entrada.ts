@@ -100,6 +100,23 @@ export const MAP_URL =
  * Donde va la dirección va el mapa. Lo pega el sistema, no el modelo: así sale
  * siempre y nunca es un link inventado. Sin dirección en el texto no toca nada.
  */
+/**
+ * Quita la dirección y el mapa de una respuesta. No parte por «Av.»: esa
+ * abreviatura tiene punto y un corte por oración dejaría la dirección a
+ * medias. Si no queda texto, no toca nada.
+ */
+export function dropRepeatedAddress(text: string): string {
+  const stripped = text
+    .replace(/\s*Aquí la ubicación en el mapa:\s*\S+/gi, '')
+    .replace(/https?:\/\/(?:maps\.app\.goo\.gl|maps\.google\.com)\S*/gi, '')
+    .replace(/[^.!?\n]*\bav\.?\s*espa[nñ]a[^.!?\n]*[.!?]*/gi, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  return stripped || text;
+}
+
 export function appendMapLink(text: string): string {
   if (!hasDealershipAddress(text) || text.includes(MAP_URL)) {
     return text;

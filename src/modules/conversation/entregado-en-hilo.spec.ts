@@ -1,6 +1,7 @@
 import { buildResumenInput } from './build-resumen-input';
 import {
   entregadoEnHilo,
+  formatEntregadoForPedido,
   formatEntregadoForResumen,
 } from './entregado-en-hilo';
 import { MAP_URL } from './location-without-entrada';
@@ -71,6 +72,19 @@ describe('entregadoEnHilo', () => {
     expect(text).toContain('dirección');
     expect(text).toContain('$22900');
     expect(text).not.toContain('horario');
+  });
+
+  it('la lista para el agente de ventas es la misma, con la instrucción de no repetir', () => {
+    const pedido = formatEntregadoForPedido(
+      entregadoEnHilo([bot('Av. España 6-73. El precio es $22,900.')], {
+        unitPrice: 22900,
+      }),
+    );
+    expect(pedido).toMatch(/YA ENTREGADO EN EL HILO/);
+    expect(pedido).toMatch(/salvo que el resumen lo pida otra vez/);
+    expect(pedido).toContain('dirección');
+    expect(pedido).toContain('$22900');
+    expect(formatEntregadoForPedido(entregadoEnHilo([]))).toBeNull();
   });
 });
 

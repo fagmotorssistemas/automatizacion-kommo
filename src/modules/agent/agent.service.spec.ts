@@ -490,6 +490,55 @@ describe('AgentService', () => {
     expect(msg.replace(MAP_URL, '').match(/\?/g)).toHaveLength(1);
   });
 
+  it('A76176: "Perfecto" no vuelve a mandar dirección ni mapa si ya se entregaron', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: `La dirección para su visita es Av. España 6-73 y Sevilla, Cuenca. Aquí la ubicación en el mapa: ${MAP_URL}`,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'RESUMEN PREVIO:',
+          'Vehículo: Chevrolet D-max 2020',
+          'Contexto: ya tiene la dirección para visitar.',
+          '',
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere seguir con la visita y el cambio, sin pedir la dirección otra vez.',
+          'Pide precio: no',
+          'Pide crédito: no',
+          'Pide otras: no',
+          'Falta vehículo: no',
+          'Pide horario: no',
+          'Pide ubicación: no',
+          'Toma: sí',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: `Confirmo que tenemos camionetas doble cabina 4x4. La dirección es Av. España 6-73 y Sevilla, Cuenca. Para el avalúo faltan las fotos. Aquí la ubicación en el mapa: ${MAP_URL}\n\n¿Podrá enviarlas?`,
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76176',
+      customerText: 'Perfecto',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA ENTREGADO EN EL HILO/);
+    expect(system).toMatch(/dirección de la casa/);
+    expect(system).not.toMatch(/PIDIÓ UBICACIÓN/);
+    const msg = result?.reply.mensaje ?? '';
+    expect(msg).toMatch(/camionetas doble cabina 4x4/);
+    expect(msg).toMatch(/avalúo|fotos/i);
+    expect(msg).not.toMatch(/Av\. España/i);
+    expect(msg).not.toContain(MAP_URL);
+  });
+
   it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
     openai.complete
       .mockResolvedValueOnce('RESUMEN\nPide el Fiat 500 del anuncio.')
