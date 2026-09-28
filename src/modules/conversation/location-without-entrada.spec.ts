@@ -64,6 +64,23 @@ describe('link del mapa junto a la dirección', () => {
     expect(out.trim().endsWith(MAP_URL)).toBe(true);
   });
 
+  it('si cierra con una pregunta, el mapa va antes y la pregunta queda al final', () => {
+    const out = appendMapLink(
+      'Estamos en Av. España 6-73 y Sevilla, Cuenca. ¿Qué carro le interesa?',
+    );
+    expect(out).toBe(
+      `Estamos en Av. España 6-73 y Sevilla, Cuenca.\n\nAquí la ubicación en el mapa: ${MAP_URL}\n\n¿Qué carro le interesa?`,
+    );
+    expect(out.endsWith('¿Qué carro le interesa?')).toBe(true);
+  });
+
+  it('una pregunta ANTES de la dirección no mueve el mapa', () => {
+    const out = appendMapLink(
+      '¿Desea venir? Estamos en Av. España 6-73 y Sevilla, Cuenca.',
+    );
+    expect(out.trim().endsWith(MAP_URL)).toBe(true);
+  });
+
   it('no repite el mapa si ya está', () => {
     const once = appendMapLink(DEALERSHIP_ADDRESS);
     expect(appendMapLink(once)).toBe(once);

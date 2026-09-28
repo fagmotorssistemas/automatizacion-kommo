@@ -153,46 +153,72 @@ describe('AgentService', () => {
     expect(conversation.appendMessage).not.toHaveBeenCalled();
   });
 
+  const responderFaltaCarro = (respuesta: string, banderas = '') => {
+    openai.complete
+      .mockResolvedValueOnce(
+        `SOLICITUD ACTUAL:\nCliente pide información pero no especificó qué carro; hay que preguntarle.\nPide otras: no\nFalta vehículo: sí\n${banderas}`.trim(),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: respuesta,
+        meta: { vehiculo: null },
+      }),
+    );
+  };
+
+  /** Falta carro: responde el agente (con la instrucción), sin listar ni mandar fotos. */
+  const esperaSoloPreguntarCarro = (
+    result: Awaited<ReturnType<AgentService['handleTurn']>>,
+  ) => {
+    expect(openai.runSalesAgent).toHaveBeenCalledTimes(1);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/NO HAY CARRO DEFINIDO/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue).toBeUndefined();
+    expect(catalog.searchByQuery).not.toHaveBeenCalled();
+    // Ninguna unidad entra al prompt: ni listado ni una ficha inventada.
+    expect(system).not.toMatch(/inventory_id=/);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    return system;
+  };
+
   it('clic de Facebook A75239 no busca patio ni manda fotos', async () => {
+    responderFaltaCarro('¿Qué carro le interesa?');
     const result = await service.handleTurn({
       contactId: 'A75239',
       customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
     });
 
+    esperaSoloPreguntarCarro(result);
     expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
-    expect(result?.reply.meta.vehiculo).toBeNull();
-    expect(result?.photoQueue).toBeUndefined();
-    expect(openai.complete).not.toHaveBeenCalled();
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
-    expect(catalog.searchByQuery).not.toHaveBeenCalled();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
   });
 
   it('clic de Facebook con sí pegado sigue preguntando cuál', async () => {
+    responderFaltaCarro('¿Qué carro le interesa?');
     const result = await service.handleTurn({
       contactId: 'A75239b',
       customerText:
         'Hola. ¿Puedo obtener más información sobre esto?\nSí, por favor',
     });
 
+    esperaSoloPreguntarCarro(result);
     expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
-    expect(result?.photoQueue).toBeUndefined();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
   });
 
   it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
+    responderFaltaCarro(
+      'Buenas tardes, estimado. ¿Qué carro le interesa?',
+    );
     const result = await service.handleTurn({
       contactId: '59099901',
       customerText: '¡Hola! Quiero más información',
     });
 
-    expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(
+      /SALUDO: (Buenos días|Buenas tardes|Buenas noches), estimado/,
     );
-    expect(result?.reply.mensaje).not.toMatch(/Claro\./);
-    expect(result?.reply.meta.vehiculo).toBeNull();
-    expect(openai.complete).not.toHaveBeenCalled();
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
     expect(conversation.saveLastSeen).toHaveBeenCalledWith('59099901');
     expect(conversation.appendMessage).toHaveBeenCalledWith('59099901', {
       role: 'assistant',
@@ -201,8 +227,9 @@ describe('AgentService', () => {
   });
 
   it('envíeme fotos sin carro ni listado no arma cola', async () => {
-    openai.complete.mockResolvedValueOnce(
-      'SOLICITUD ACTUAL:\nCliente pide fotos pero no especificó qué carro y solicita fotos.\nFalta vehículo: sí',
+    responderFaltaCarro(
+      '¿De qué carro le envío las fotos?',
+      'Pide precio: no',
     );
 
     const result = await service.handleTurn({
@@ -210,10 +237,7 @@ describe('AgentService', () => {
       customerText: 'Envíeme fotos por favor',
     });
 
-    expect(result?.reply.meta.vehiculo).toBeNull();
-    expect(result?.photoQueue).toBeUndefined();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    esperaSoloPreguntarCarro(result);
   });
 
   it('si el analizador inventa solicita fotos y pide otras sin carro no manda cola', async () => {
@@ -258,8 +282,9 @@ describe('AgentService', () => {
   });
 
   it('si el analizador marca falta vehículo no busca ni manda fotos', async () => {
-    openai.complete.mockResolvedValueOnce(
-      'SOLICITUD ACTUAL:\nCliente pide información y el valor pero no especificó qué carro.\nFalta vehículo: sí\nPide precio: sí',
+    responderFaltaCarro(
+      'Con gusto le paso el valor apenas me diga cuál. ¿De qué vehículo?',
+      'Pide precio: sí',
     );
 
     const result = await service.handleTurn({
@@ -267,13 +292,9 @@ describe('AgentService', () => {
       customerText: '¡Hola! Quiero más información\nA cómo sale',
     });
 
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(/PROHIBIDO inventar una unidad, precio o ficha/);
     expect(result?.reply.mensaje).toMatch(/¿De qué vehículo\?$/);
-    expect(result?.reply.mensaje).not.toMatch(/Qué carro le interesa/);
-    expect(result?.reply.meta.vehiculo).toBeNull();
-    expect(result?.photoQueue).toBeUndefined();
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
-    expect(catalog.searchByQuery).not.toHaveBeenCalled();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
   });
 
   it('si el analizador nombra un carro no pregunta cuál', async () => {
@@ -364,29 +385,27 @@ describe('AgentService', () => {
   });
 
   it('clic de Facebook con catálogo de varios carros no lista ni manda fotos', async () => {
+    responderFaltaCarro('¿Qué carro le interesa?');
     const result = await service.handleTurn({
       contactId: 'A75239c',
       customerText:
         'Hola. ¿Puedo obtener más información sobre esto {Ranger 2026 Tracker 2022 Santa Fe 2018}',
     });
 
+    esperaSoloPreguntarCarro(result);
     expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
-    expect(result?.photoQueue).toBeUndefined();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
   });
 
   it('clic de Facebook con botón no usa ese título como carro', async () => {
+    responderFaltaCarro('Buenas tardes, estimado. ¿Qué carro le interesa?');
     const result = await service.handleTurn({
       contactId: '56671451',
       customerText:
         '¡Hola! Me gustaría conseguir más información sobre esto {Chatea con nosotros}',
     });
 
-    expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
-    );
-    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).not.toMatch(/Chatea con nosotros.*inventory_id/s);
   });
 
   it('si ya hay hilo de hoy no vuelve a saludar', async () => {
@@ -395,13 +414,15 @@ describe('AgentService', () => {
       { role: 'user', content: 'busco SUV' },
       { role: 'assistant', content: 'Tenemos Escape y Grand Vitara.' },
     ]);
+    responderFaltaCarro('Con gusto. ¿Qué carro le interesa?');
 
     const result = await service.handleTurn({
       contactId: '59099901',
       customerText: '¡Hola! Quiero más información',
     });
 
-    expect(result?.reply.mensaje).toBe('Con gusto. ¿Qué carro le interesa?');
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(/SALUDO: no/);
   });
 
   it('si volvió después de días sí saluda otra vez', async () => {
@@ -411,14 +432,16 @@ describe('AgentService', () => {
     conversation.recentMessages.mockResolvedValue([
       { role: 'user', content: 'busco SUV' },
     ]);
+    responderFaltaCarro('Buenas tardes, estimado. ¿Qué carro le interesa?');
 
     const result = await service.handleTurn({
       contactId: '59099901',
       customerText: '¡Hola! Quiero más información',
     });
 
-    expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(
+      /SALUDO: (Buenos días|Buenas tardes|Buenas noches), estimado/,
     );
   });
 
@@ -432,37 +455,39 @@ describe('AgentService', () => {
           'Actualmente no tenemos Mitsubishi L200 2022 disponibles, pero tenemos un Mitsubishi Montero Sport.',
       },
     ]);
+    responderFaltaCarro('Buenas tardes, estimado. ¿Qué carro le interesa?');
 
     const result = await service.handleTurn({
       contactId: 'A65061',
       customerText: '¡Hola! Quiero más información',
     });
 
-    expect(result?.reply.mensaje).toMatch(
-      /^(Buenos días|Buenas tardes|Buenas noches), estimado\. ¿Qué carro le interesa\?$/,
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(
+      /SALUDO: (Buenos días|Buenas tardes|Buenas noches), estimado/,
     );
   });
 
-  it('no repite Con gusto qué carro le interesa si ya lo preguntó', async () => {
-    conversation.loadLastSeen.mockResolvedValue(Date.now() - 60 * 1000);
-    conversation.recentMessages.mockResolvedValue([
-      { role: 'user', content: '¡Hola! Quiero más información' },
-      { role: 'assistant', content: 'Con gusto. ¿Qué carro le interesa?' },
-    ]);
-    openai.complete.mockResolvedValueOnce(
-      'SOLICITUD ACTUAL:\nCliente pide el precio pero no dijo qué carro.\nFalta vehículo: sí\nPide precio: sí',
+  it('A76356: info sin carro + dirección → el agente da dirección, el sistema el mapa antes de la única pregunta', async () => {
+    conversation.loadLastSeen.mockResolvedValue(null);
+    conversation.recentMessages.mockResolvedValue([]);
+    responderFaltaCarro(
+      'Con gusto. Estamos en Av. España 6-73 y Sevilla, Cuenca. ¿Qué carro le interesa?',
+      'Pide precio: no\nPide ubicación: sí',
     );
 
     const result = await service.handleTurn({
-      contactId: 'A65061b',
-      customerText: 'Buenas tardes, cuál es el precio por favor',
+      contactId: 'A76356',
+      customerText: '¡Hola! Quiero más información dirección x favor gracias',
     });
 
-    expect(result?.reply.mensaje).not.toBe(
-      'Con gusto. ¿Qué carro le interesa?',
-    );
-    expect(result?.reply.mensaje).toBe('Claro. ¿De qué vehículo?');
-    expect(result?.reply.meta.vehiculo).toBeNull();
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(/PIDIÓ UBICACIÓN/);
+    const msg = result?.reply.mensaje ?? '';
+    expect(msg).toMatch(/Av\. España 6-73 y Sevilla/);
+    expect(msg).toContain(MAP_URL);
+    expect(msg.endsWith('¿Qué carro le interesa?')).toBe(true);
+    expect(msg.replace(MAP_URL, '').match(/\?/g)).toHaveLength(1);
   });
 
   it('clic de Facebook con carro del anuncio manda esa unidad', async () => {
@@ -764,6 +789,53 @@ describe('AgentService', () => {
       }),
     );
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'fiat500' });
+  });
+
+  it('falta carro + toma: no usa el atajo, contesta el agente y cierra con la pregunta del carro', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si reciben vehículos como parte de pago; no especificó qué carro.\nPide otras: no\nFalta vehículo: sí\nPide ubicación: no\nToma: sí\nToma ficha: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Sí recibimos vehículos como parte de pago. ¿Qué carro le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'toma-sin-carro',
+      customerText: 'Hola, aceptan vehículos como parte de pago?',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledTimes(1);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/NO HAY CARRO DEFINIDO/);
+    expect(result?.reply.mensaje).toMatch(/parte de pago/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('falta carro + horario: no usa el atajo', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si atienden hoy y quiere información; no especificó qué carro.\nPide otras: no\nFalta vehículo: sí\nPide horario: sí\nPide ubicación: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["horario"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Hoy atendemos. ¿Qué carro le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'horario-sin-carro',
+      customerText: 'Hola, atienden hoy? quiero información',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalledTimes(1);
   });
 
   it('la caja de la toma no se guarda ni se inyecta', async () => {

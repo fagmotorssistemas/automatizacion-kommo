@@ -83,11 +83,11 @@ Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SO
 - Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
 
 REGLAS:
-- Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo.
+- Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo. Excepción: si en el mismo turno también pide información o precio de un carro sin nombrarlo, aplica la REGLA DE VARIOS PEDIDOS.
 Pide horario: sí si pregunta si atienden, el horario o si están abiertos un día (hoy, mañana, sábado), aunque cancele una cita. SOLICITUD: canceló / pregunta si atienden ESE día. Pide otras: no. Falta vehículo: no. No es ver un carro ni cambiar de unidad.
 Pide horario: no si el turno es de un carro (precio, fotos, esa unidad) o si el sentido es ir a verla, no si abren.
 Pide ubicación: sí|no en CADA turno. Lee el sentido, no una frase.
-Pide ubicación: sí si quiere saber dónde ver, visitar o revisar ESA unidad o la casa, o si duda que le den la dirección sin pagar. No es horario. No es fotos. No es otra unidad. Pide otras: no. Falta vehículo: no.
+Pide ubicación: sí si quiere saber dónde ver, visitar o revisar ESA unidad o la casa, o si duda que le den la dirección sin pagar. No es horario. No es fotos. No es otra unidad. Pide otras: no. Falta vehículo: no (salvo la REGLA DE VARIOS PEDIDOS).
 Pide ubicación: no si solo habla del carro (precio, un detalle) sin preguntar dónde verla.
 Pide ubicación: no si dice que va a visitar después (la otra semana, más adelante, luego paso) sin preguntar la dirección. Eso es pausa, no pedido de ubicación. Pide otras: no.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
@@ -179,7 +179,7 @@ Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, m
 REGLA DE UBICACIÓN (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno quiere saber dónde ver, visitar o revisar ESA unidad (o la casa)?
 Pone Pide ubicación: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
-- Pide ubicación: sí. SOLICITUD: quiere la ubicación / ir a ver ESA. Pide otras: no. Falta vehículo: no. No es horario. No es pedir fotos. No es otra unidad.
+- Pide ubicación: sí. SOLICITUD: quiere la ubicación / ir a ver ESA. Pide otras: no. Falta vehículo: no (salvo la REGLA DE VARIOS PEDIDOS). No es horario. No es pedir fotos. No es otra unidad.
 - Si condiciona la dirección a entrada, depósito o “confirmar valores”: Pide ubicación: sí. SOLICITUD: duda que le den la dirección sin pagar; quiere la ubicación ya.
 - Si en el mismo turno también pide el valor: Pide precio: sí y Pide ubicación: sí.
 - Si duda de un detalle de ESA (pintura, estado) y además quiere ir a verla: Tiene duda: sí y Pide ubicación: sí.
@@ -196,9 +196,15 @@ Solo sueltas ese vehículo si nombra otro, o si el turno no es de un carro (hora
 REGLA DE FALTA VEHÍCULO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aún no hay uno (ni lo nombró, ni sigue con el ya mostrado)?
 - Falta vehículo: sí si pide info, precio o ver unidades y no hay un carro/tipo concreto. La SOLICITUD: no especificó qué carro; hay que preguntarle.
-- Falta vehículo: no si nombró marca, modelo o tipo, o sigue con la unidad ya mostrada, o el turno no necesita carro (dirección, horario).
+- Falta vehículo: no si nombró marca, modelo o tipo, o sigue con la unidad ya mostrada, o el turno no necesita carro (dirección, horario). Si el turno además pide información, precio o ver unidades sin carro concreto y no hay unidad en el hilo, Falta vehículo: sí (ver REGLA DE VARIOS PEDIDOS).
 - Un clic de anuncio sin carro + otro pedido (precio, info) sin nombrar unidad: Falta vehículo: sí.
 - El clic “más información sobre esto” sin marca/modelo/tipo: Falta vehículo: sí. Pide otras: no. No es ver todo el patio ni pedir fotos.
+- Clic de un anuncio de catálogo cuyo título nombra VARIOS carros distintos y el cliente no eligió uno: Falta vehículo: sí. Pide otras: no. La SOLICITUD: no especificó qué carro; hay que preguntarle. Un título con un solo carro sí es ese carro.
+
+REGLA DE VARIOS PEDIDOS (OBLIGATORIA):
+Lee el sentido. Si el turno trae más de un pedido (ubicación, información, precio, crédito…), la SOLICITUD ACTUAL los nombra todos y cada uno lleva su bandera. Una bandera no apaga a otra.
+- Pide información de un carro sin nombrarlo (y sin unidad en el hilo) Y pide la dirección/ubicación: Pide ubicación: sí y Falta vehículo: sí. SOLICITUD: quiere la ubicación y más información, pero no especificó qué carro; hay que preguntarle. Pide otras: no.
+- Si hay unidad en el hilo o nombró un carro, "información" es de ESA unidad: Falta vehículo: no.
 
 REGLA DE TOPE DE CONTADO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?

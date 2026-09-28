@@ -104,5 +104,19 @@ export function appendMapLink(text: string): string {
   if (!hasDealershipAddress(text) || text.includes(MAP_URL)) {
     return text;
   }
-  return `${text.trimEnd()}\n\nAquí la ubicación en el mapa: ${MAP_URL}`;
+  const map = `Aquí la ubicación en el mapa: ${MAP_URL}`;
+  const body = text.trimEnd();
+  // Si el mensaje cierra con una pregunta que viene DESPUÉS de la dirección,
+  // el mapa va antes de esa pregunta: la pregunta siempre queda al final.
+  const addressAt = body.search(/av\.?\s*espa[nñ]a/i);
+  const questionAt = body.lastIndexOf('¿');
+  if (
+    body.endsWith('?') &&
+    questionAt > addressAt &&
+    addressAt >= 0 &&
+    questionAt > 0
+  ) {
+    return `${body.slice(0, questionAt).trimEnd()}\n\n${map}\n\n${body.slice(questionAt)}`;
+  }
+  return `${body}\n\n${map}`;
 }

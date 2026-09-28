@@ -99,7 +99,6 @@ import {
   resolveConcreteAsk,
 } from '../conversation/concrete-ask';
 import {
-  askWhichCarMessage,
   formatGreetingPedido,
   shouldOfferGreeting,
 } from '../conversation/day-greeting';
@@ -472,9 +471,6 @@ export class AgentService {
 
     const lexicon = await this.catalog.getLexicon();
     const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
-    if (isFacebookMoreInfoOpener(input.customerText) && !adVehicle) {
-      return this.replyAskWhichCar(input.contactId, input.customerText);
-    }
 
     if (!this.openai.isReady()) {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
@@ -533,34 +529,8 @@ export class AgentService {
       await this.conversation.savePreviousResumen(input.contactId, nextResumen);
     }
     const cajaCompra = resumenCajaCompra(resumen);
-    if (
-      resumenFaltaVehiculo(resumen) &&
-      !adVehicle &&
-      !pedido &&
-      !brandSaidNow &&
-      !detectVehicleKind(input.customerText) &&
-      !asksAnyBrand(input.customerText)
-    ) {
-      const asked = await this.replyAskWhichCar(
-        input.contactId,
-        input.customerText,
-        { wantsPrice: resumenAsksForListedPrice(resumen) },
-      );
-      return {
-        ...asked,
-        plan: this.shadowPlan(
-          {
-            resumen,
-            previousResumen,
-            lexicon,
-            unidad: interested,
-            history,
-            ultimoBotListo: lastOfferIsUnitList(lastOfferAssistantText(history)),
-          },
-          'PEDIR_CARRO',
-        ),
-      };
-    }
+    // Ya no hay salida rápida de «¿qué carro?»: siempre responde el agente, que
+    // contesta todo lo pedido y cierra preguntando el carro (faltaCarroHint).
     await this.conversation.appendMessage(input.contactId, {
       role: 'user',
       content: input.customerText,
@@ -1174,6 +1144,17 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const locationHint = locationAsk
       ? 'PIDIÓ UBICACIÓN / VISITA. Dale Av. España 6-73 y Sevilla, Cuenca AHORA. Solo la dirección. El sistema pega el link del mapa: PROHIBIDO escribir tú un link o URL. PROHIBIDO pedir entrada, depósito o confirmar valores. PROHIBIDO decir que no hace falta depósito o entrada: esa frase no va en la respuesta.'
       : '';
+    const faltaCarroHint =
+      (resumenFaltaVehiculo(resumen) ||
+        (isFacebookMoreInfoOpener(input.customerText) && !adVehicle)) &&
+      !adVehicle &&
+      !hasQuotedUnit &&
+      !brandSaidNow &&
+      !pedido &&
+      !detectVehicleKind(input.customerText) &&
+      !asksAnyBrand(input.customerText)
+        ? 'NO HAY CARRO DEFINIDO: el cliente aún no dijo cuál quiere. Contesta TODO lo que pidió que no dependa del carro (con tus filas: ubicación, horario, toma…). Lo que depende del carro (precio, fotos, cuota) queda pendiente: dile que se lo pasas apenas diga cuál. Termina con UNA sola pregunta: qué carro le interesa. PROHIBIDO inventar una unidad, precio o ficha. PROHIBIDO cerrar con otra pregunta (visita, agendar).'
+        : '';
     const cashDeliveryHint = confirmingCashOrDelivery
       ? 'YA le dijo el $. Ahora confirma lo que pidió: ese valor ES de contado y/o SÍ hay entrega inmediata. PROHIBIDO repetir ficha, km, color ni el $ como si no lo hubiera dicho. No abras crédito. Una o dos frases.'
       : '';
@@ -1283,6 +1264,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            faltaCarroHint,
             cashDeliveryHint,
             precioHint,
             selling ? formatTomaPedido(tomaChecklist) : '',
@@ -1334,6 +1316,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             mileageCareHint,
             objecionHint,
             locationHint,
+            faltaCarroHint,
             cashDeliveryHint,
             precioHint,
           ]
@@ -1635,54 +1618,6 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       );
       return undefined;
     }
-  }
-
-  /** Clic de Facebook sin carro en el título: una pregunta, sin listado. */
-  private async replyAskWhichCar(
-    contactId: string,
-    customerText: string,
-    opts?: { wantsPrice?: boolean },
-  ): Promise<AgentTurnResult> {
-    const history = await this.recentDialogue(contactId);
-    const lastSeenAt = await this.conversation.loadLastSeen(contactId);
-    const lastAssistant =
-      [...history].reverse().find((item) => item.role === 'assistant')
-        ?.content ?? '';
-    const mensaje = askWhichCarMessage(
-      shouldOfferGreeting({
-        lastSeenAt,
-        hasHistory: history.length > 0,
-      }),
-      hourInGuayaquil(),
-      {
-        lastAssistant,
-        wantsPrice: opts?.wantsPrice === true,
-      },
-    );
-    const reply: ParsedAgentOutput = {
-      mensaje,
-      meta: {
-        precioMostrado: false,
-        cuotaMostrada: false,
-        vehiculo: null,
-      },
-      img_prefix: '',
-    };
-    await this.conversation.appendMessage(contactId, {
-      role: 'user',
-      content: customerText,
-    });
-    await this.conversation.appendMessage(contactId, {
-      role: 'assistant',
-      content: mensaje,
-    });
-    await this.persistence.appendChatHistory({
-      contactId,
-      human: customerText,
-      ai: serializeAgentTurn(reply),
-    });
-    await this.conversation.saveLastSeen(contactId);
-    return { reply, resumen: customerText };
   }
 
   private async recentDialogue(contactId: string) {
