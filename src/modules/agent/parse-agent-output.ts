@@ -1,3 +1,4 @@
+import type { EntregadoEnHilo } from '../conversation/entregado-en-hilo';
 import type { TurnPlanLog } from '../intelligence/turn-plan';
 
 export type AgentVehicleMeta = {
@@ -33,6 +34,8 @@ export type AgentTurnResult = {
    * Solo se registra; no cambia la respuesta.
    */
   plan?: TurnPlanLog;
+  /** Piezas que el bot ya había entregado en el hilo al empezar el turno. */
+  entregado?: EntregadoEnHilo;
 };
 
 const EMPTY_META: AgentMeta = {

@@ -1,5 +1,9 @@
 import { MemoryMessage } from './conversation.service';
 import {
+  formatEntregadoForResumen,
+  type EntregadoEnHilo,
+} from './entregado-en-hilo';
+import {
   formatTomaForResumen,
   type TomaChecklist,
 } from './toma-checklist';
@@ -28,6 +32,7 @@ export function buildResumenInput(input: {
   tomaChecklist?: TomaChecklist | null;
   cashBudget?: number | null;
   previousResumen?: string | null;
+  entregado?: EntregadoEnHilo | null;
 }): string {
   const parts: string[] = [];
   if (input.handoffBrief?.trim()) {
@@ -42,6 +47,13 @@ export function buildResumenInput(input: {
   }
   if (input.previousResumen?.trim()) {
     parts.push(`RESUMEN DEL TURNO ANTERIOR:\n${input.previousResumen.trim()}`);
+  }
+
+  const entregado = input.entregado
+    ? formatEntregadoForResumen(input.entregado)
+    : null;
+  if (entregado) {
+    parts.push(`YA ENTREGADO EN EL HILO (lo dijo el Asesor):\n${entregado}`);
   }
 
   const historial = formatDialogueForResumen(input.history);

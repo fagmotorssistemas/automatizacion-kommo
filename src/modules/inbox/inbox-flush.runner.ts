@@ -270,6 +270,8 @@ export class InboxFlushRunner {
         imgPrefix: turn.reply.img_prefix,
         // Plan en sombra: qué decidiría el resumen vs qué hizo el código viejo.
         plan: turn.plan ?? null,
+        // Lo que el bot ya había entregado en el hilo (registro que ve el resumen).
+        entregado: turn.entregado ?? null,
       },
     });
 

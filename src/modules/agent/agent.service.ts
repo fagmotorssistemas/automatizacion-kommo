@@ -3,6 +3,7 @@ import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock, hourInGuayaquil } from '../intelligence/dealership-hours';
 import { formatHoursAskHint } from '../intelligence/dealership-hours';
+import { entregadoEnHilo } from '../conversation/entregado-en-hilo';
 import { formatVisitHourHint, isMoneyNotVisit, PRECIO_NO_HORARIO } from '../intelligence/visit-hours';
 import {
   calcularFinanciamiento,
@@ -106,7 +107,6 @@ import {
   appendUnloadedPrice,
   asksForPlate,
   dropRepeatedListedPrice,
-  mentionsAmount,
   messageLeaksPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
@@ -502,6 +502,13 @@ export class AgentService {
       input.contactId,
     );
 
+    // Registro de lo que el bot ya entregó (texto del bot, no del cliente).
+    const entregado = entregadoEnHilo(history, {
+      unitPrice:
+        interested?.price && interested.price > 0
+          ? Math.round(interested.price)
+          : null,
+    });
     const resumenInput = buildResumenInput({
       history,
       customerText: input.customerText,
@@ -509,6 +516,7 @@ export class AgentService {
       tomaChecklist: rememberedToma,
       cashBudget: rememberedBudget,
       previousResumen,
+      entregado,
     });
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
@@ -1094,10 +1102,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     // El bot ya dijo el monto de contado de ESTA unidad en el hilo.
     const priceAlreadySaid =
       unitPrice != null &&
-      history.some(
-        (item) =>
-          item.role === 'assistant' && mentionsAmount(item.content, unitPrice),
-      );
+      entregadoEnHilo(history, { unitPrice }).precio != null;
     const quotingListedSet =
       askedPrice &&
       revision.sendId == null &&
@@ -1599,6 +1604,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         (!parsed.meta.vehiculo?.inventory_id ||
           parsed.meta.vehiculo.inventory_id === interested?.inventoryId),
       plan: planLog,
+      entregado,
     };
   }
 

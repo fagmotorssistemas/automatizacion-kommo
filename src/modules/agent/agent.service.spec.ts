@@ -558,6 +558,13 @@ describe('AgentService', () => {
         caminoViejo: 'REVIEW_BRAND',
         coincide: null,
       },
+      // Hilo vacío: el bot aún no entregó nada.
+      entregado: {
+        direccion: false,
+        precio: null,
+        horario: false,
+        preguntaAplica: false,
+      },
     });
     expect(conversation.appendMessage).toHaveBeenCalledTimes(2);
     expect(persistence.appendChatHistory).toHaveBeenCalledWith({

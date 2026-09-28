@@ -89,8 +89,7 @@ Pide horario: no si el turno es de un carro (precio, fotos, esa unidad) o si el 
 Pide ubicación: sí|no en CADA turno. Lee el sentido, no una frase.
 Pide ubicación: sí si quiere saber dónde ver, visitar o revisar ESA unidad o la casa, o si duda que le den la dirección sin pagar. No es horario. No es fotos. No es otra unidad. Pide otras: no. Falta vehículo: no (salvo la REGLA DE VARIOS PEDIDOS).
 Pide ubicación: no si solo habla del carro (precio, un detalle) sin preguntar dónde verla.
-Pide ubicación: no si dice que va a visitar después (la otra semana, más adelante, luego paso) sin preguntar la dirección. Eso es pausa, no pedido de ubicación. Pide otras: no.
-- Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
+Pide ubicación: no si dice que va a visitar después (la otra semana, más adelante, luego paso) sin preguntar la dirección. Eso es pausa, no pedido de ubicación. Pide otras: no.- Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
 - CIERRE (la primera que aplique gana; no mezcles banderas):
   1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
   2) Despedida dura SOLO si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda: Es despedida: sí.
@@ -176,6 +175,13 @@ Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, m
 - Pide horario: sí. La SOLICITUD dice qué día preguntó. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
 - Pide horario: no si habla de un vehículo (precio, fotos, esa unidad).
 
+REGLA DE LO YA ENTREGADO (OBLIGATORIA):
+Si viene la sección YA ENTREGADO EN EL HILO, esas piezas ya las tiene el cliente (dirección, precio de contado, horario, pregunta de si aplica al crédito).
+- Una pieza ya entregada se vuelve a pedir SOLO si el cliente la pide otra vez por su sentido (pregunta de nuevo dónde queda, cuánto cuesta, a qué hora abren). Si no la pide, su bandera es no (Pide ubicación, Pide precio, Pide horario…) y la SOLICITUD no la nombra.
+- Hablar de ir, de la visita, de la cita o del carro NO es pedir de nuevo la dirección, el precio ni el horario.
+- Preguntar de nuevo por una pieza (aunque diga «otra vez», «cuánto era», «recuérdeme», «no me acuerdo») SÍ es pedirla: pon su bandera en sí.
+- Si la pieza NO está en la sección, no se ha entregado: pídela por sentido como siempre.
+
 REGLA DE UBICACIÓN (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno quiere saber dónde ver, visitar o revisar ESA unidad (o la casa)?
 Pone Pide ubicación: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
@@ -183,8 +189,7 @@ Pone Pide ubicación: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
 - Si condiciona la dirección a entrada, depósito o “confirmar valores”: Pide ubicación: sí. SOLICITUD: duda que le den la dirección sin pagar; quiere la ubicación ya.
 - Si en el mismo turno también pide el valor: Pide precio: sí y Pide ubicación: sí.
 - Si duda de un detalle de ESA (pintura, estado) y además quiere ir a verla: Tiene duda: sí y Pide ubicación: sí.
-- Pide ubicación: no si solo habla del carro (precio, fotos, un detalle) sin preguntar dónde verla.
-- Pide horario: no si el sentido es ir a ver el carro, no si abren.
+- Pide ubicación: no si solo habla del carro (precio, fotos, un detalle) sin preguntar dónde verla.- Pide horario: no si el sentido es ir a ver el carro, no si abren.
 
 REGLA DEL TURNO ANTERIOR (OBLIGATORIA):
 Si hay RESUMEN DEL TURNO ANTERIOR con un vehículo, ese es el carro que el cliente pidió, salvo que AHORA nombre otro.

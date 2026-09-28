@@ -17,7 +17,7 @@ export function replyGatesInfoOnEntrada(text: string): boolean {
   return pay && first && info;
 }
 
-function hasDealershipAddress(text: string): boolean {
+export function hasDealershipAddress(text: string): boolean {
   return /av\.?\s*espa[nñ]a/i.test(text);
 }
 
