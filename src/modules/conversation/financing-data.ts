@@ -55,7 +55,8 @@ export function historyHasShownCuota(
 
 export function replyAsksIfApplies(text: string): boolean {
   const n = fold(text);
-  if (/ver si aplica/.test(n) && /\bcredito\b/.test(n)) {
+  // «ver si aplica» ya es la pregunta del crédito, con o sin la palabra «crédito».
+  if (/ver si aplica/.test(n)) {
     return true;
   }
   return /ayudemos/.test(n) && /\b(?:este\s+)?(?:financiamiento|credito)\b/.test(n);

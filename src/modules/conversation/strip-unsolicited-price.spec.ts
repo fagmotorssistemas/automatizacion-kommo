@@ -1,5 +1,7 @@
 import {
   appendUnloadedPrice,
+  dropRepeatedListedPrice,
+  stripListedPriceAmounts,
   stripUnloadedPriceClaim,
   messageLeaksPrice,
   PRICE_UNLOADED,
@@ -137,6 +139,42 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).not.toMatch(/\$/);
     expect(clean).not.toMatch(/está en\./i);
     expect(clean).toMatch(/Peugeot 2008 2022/i);
+  });
+
+  it('con precio permitido no se comen palabras de la cuota (A76351)', () => {
+    const raw =
+      'Con una entrada de $4,000 y un plazo de 4 años, la cuota sería de $654.68 mensuales.';
+    expect(stripUnsolicitedPriceAndPlate(raw, { keepPrice: true })).toBe(raw);
+    expect(stripUnsolicitedPriceAndPlate(raw, { keepPrice: true })).toMatch(
+      /con una entrada de \$4,000.*la cuota sería de \$654\.68 mensuales/i,
+    );
+  });
+
+  it('un texto sin montos que quitar queda igual', () => {
+    const raw = 'Con una entrada de la que usted disponga vemos la cuota.';
+    expect(stripListedPriceAmounts(raw)).toBe(raw);
+    expect(stripZeroListedPrice(raw)).toBe(raw);
+  });
+
+  it('dropRepeatedListedPrice quita la frase del precio ya dicho y deja la cuota', () => {
+    const out = dropRepeatedListedPrice(
+      'El precio de contado del Kia Sportage 2019 es $22,900. Con una entrada de $4,000 y un plazo de 4 años, la cuota es $654.68.',
+      22900,
+    );
+    expect(out).not.toMatch(/22,900/);
+    expect(out).toBe(
+      'Con una entrada de $4,000 y un plazo de 4 años, la cuota es $654.68.',
+    );
+  });
+
+  it('dropRepeatedListedPrice no vacía el mensaje ni toca frases con la cuota', () => {
+    const solo = 'El precio es $22,900.';
+    expect(dropRepeatedListedPrice(solo, 22900)).toBe(solo);
+    const junto = 'Son $22,900 y la cuota es $522.88.';
+    expect(dropRepeatedListedPrice(junto, 22900)).toBe(junto);
+    expect(dropRepeatedListedPrice('Entrada de $4,000.', 22900)).toBe(
+      'Entrada de $4,000.',
+    );
   });
 
   it('detecta fuga de precio', () => {

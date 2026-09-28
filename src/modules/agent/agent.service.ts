@@ -106,6 +106,8 @@ import {
 import {
   appendUnloadedPrice,
   asksForPlate,
+  dropRepeatedListedPrice,
+  mentionsAmount,
   messageLeaksPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
@@ -1119,6 +1121,13 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           : null;
     const askedThisUnitPrice =
       askedPrice && hasQuotedUnit && unitPrice != null;
+    // El bot ya dijo el monto de contado de ESTA unidad en el hilo.
+    const priceAlreadySaid =
+      unitPrice != null &&
+      history.some(
+        (item) =>
+          item.role === 'assistant' && mentionsAmount(item.content, unitPrice),
+      );
     const quotingListedSet =
       askedPrice &&
       revision.sendId == null &&
@@ -1149,7 +1158,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? 'YA hay ficha y precio de ESA unidad. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
       : askedCredit
       ? hasQuotedUnit && alreadyShown
-        ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. En el turno de la cuota NO pidas cédula. El sistema pregunta si ayudamos a ver si aplica.'
+        ? priceAlreadySaid
+          ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. El precio de contado YA se dijo en el hilo: PROHIBIDO repetirlo. Di la entrada que indicó y la cuota de la herramienta en una frase completa (“Con una entrada de $X y a N años la cuota aproximada es $Y”). No inventes una cuota si falta entrada o plazo: pregunta lo que falta. En el turno de la cuota NO pidas cédula ni preguntes si aplica: el sistema lo pregunta.'
+          : 'PIDIÓ CRÉDITO / FINANCIAMIENTO. Di el precio de contado de inventario, la entrada que indicó y la cuota de la herramienta. PROHIBIDO dejar huecos (“es de .”, “entrada de y”). No inventes una cuota si no hay entrada. En el turno de la cuota NO pidas cédula. El sistema pregunta si ayudamos a ver si aplica.'
         : hasQuotedUnit
           ? 'PIDIÓ CRÉDITO / FINANCIAMIENTO. En la primera ficha no digas el precio. Pregunta entrada y plazo. No inventes cuota.'
           : 'PIDIÓ CRÉDITO pero no hay unidad confirmada. Pregunta qué vehículo. PROHIBIDO inventar cuotas ni precios.'
@@ -1453,6 +1464,15 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         ? stripRepeatedMileageCare(cleaned)
         : cleaned;
       parsed.mensaje = stripGestionarOffer(parsed.mensaje);
+      if (
+        askedCredit &&
+        !askedPrice &&
+        alreadyShown &&
+        unitPrice != null &&
+        priceAlreadySaid
+      ) {
+        parsed.mensaje = dropRepeatedListedPrice(parsed.mensaje, unitPrice);
+      }
       const showedCuotaNow =
         parsed.meta.cuotaMostrada || replyShowsCuota(parsed.mensaje);
       if (showedCuotaNow) {

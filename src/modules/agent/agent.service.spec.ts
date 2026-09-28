@@ -8094,6 +8094,54 @@ Falta vehículo: sí`,
     expect(result?.reply.mensaje).toMatch(/ver si aplica al crédito/i);
   });
 
+  it('A76351: crédito con el precio ya dicho no lo repite, no come palabras y pregunta si aplica una sola vez', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Precio del Kia Sportage 2019' },
+      {
+        role: 'assistant',
+        content: 'El precio de contado del Kia Sportage 2019 es $22,900.',
+      },
+      { role: 'user', content: 'Puedo con 4000 de entrada' },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-2019',
+      brand: 'kia',
+      model: 'sportage',
+      year: 2019,
+      price: 22900,
+      typeBody: 'suv',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente da 4000 de entrada a 4 años.\nPide precio: no\nPide crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El precio de contado del Kia Sportage 2019 es $22,900. Con una entrada de $4,000 y un plazo de 4 años, la cuota sería de $654.68 mensuales. ¿Desea que un asesor le ayude a ver si aplica?',
+        meta: {
+          cuota_mostrada: true,
+          vehiculo: { inventory_id: 'sportage-2019', precio: 22900 },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'A 4 años',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/YA se dijo en el hilo: PROHIBIDO repetirlo/i);
+    const reply = result?.reply.mensaje ?? '';
+    expect(reply).not.toMatch(/22,900/);
+    expect(reply).toMatch(
+      /Con una entrada de \$4,000 y un plazo de 4 años, la cuota sería de \$654\.68 mensuales/,
+    );
+    expect(reply.match(/ver si aplica/gi)).toHaveLength(1);
+  });
+
   it('si ya hubo cuota y acepta, pide los 3 datos una vez', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

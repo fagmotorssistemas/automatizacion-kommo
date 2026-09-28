@@ -58,6 +58,19 @@ describe('datos de financiamiento', () => {
     ).toBe(true);
   });
 
+  it('«ver si aplica» sin la palabra crédito no se vuelve a preguntar (A76351)', () => {
+    const reply = `${cuotaMsg} ¿Desea que un asesor le ayude a ver si aplica?`;
+    expect(replyAsksIfApplies(reply)).toBe(true);
+    expect(
+      shouldAskIfApplies({
+        showedCuotaNow: true,
+        hasCedula: false,
+        history: [],
+        reply,
+      }),
+    ).toBe(false);
+  });
+
   it('en la cuota quita gestionar y cédula, y pregunta si aplica', () => {
     const raw = `${cuotaMsg} ¿Desea que le ayudemos para gestionar esto? ¿Me pasa su cédula?`;
     const text = appendApplyAsk(

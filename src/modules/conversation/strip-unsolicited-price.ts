@@ -15,13 +15,18 @@ export const PRICE_UNLOADED =
 
 /** $0 / $00 no es un valor real. */
 export function stripZeroListedPrice(text: string): string {
+  const stripped = text
+    .replace(/\$\s*0+(?:[.,]0+)?\b/g, '')
+    .replace(
+      /\b(?:el\s+)?(?:precio|valor)\s+(?:es\s+)?(?:de\s+)?0+(?:[.,]0+)?\b/gi,
+      '',
+    );
+  // Si no se quitó ningún monto no hay huecos que arreglar: no se toca el texto.
+  if (stripped === text) {
+    return text;
+  }
   return tidyStrippedPriceHoles(
-    text
-      .replace(/\$\s*0+(?:[.,]0+)?\b/g, '')
-      .replace(
-        /\b(?:el\s+)?(?:precio|valor)\s+(?:es\s+)?(?:de\s+)?0+(?:[.,]0+)?\b/gi,
-        '',
-      )
+    stripped
       .replace(/\s{2,}/g, ' ')
       .replace(/\s+\./g, '.')
       .trim(),
@@ -46,17 +51,52 @@ export function stripUnloadedPriceClaim(text: string): string {
 
 /** Quita cualquier $ / “precio de 18500”. No deja un número inventado. */
 export function stripListedPriceAmounts(text: string): string {
-  return tidyStrippedPriceHoles(
-    stripZeroListedPrice(text)
-      .replace(
-        /(?:\s+y)?\s*\b(?:precio(?:\s+de)?|vale|cuesta|sale|queda)\s*(?:en\s*)?\$?\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?\b/gi,
-        '',
-      )
-      .replace(/\$\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/g, '')
-      .replace(/\$\s*\d{4,6}(?:[.,]\d{2})?\b/g, '')
-      .replace(/\$\s*\d{1,4}[.,]\d{2}\b/g, '')
-      .replace(/\b(?:y\s+)?precio\s+de\b(?!\s+esta\s+unidad)/gi, ''),
+  const withoutZero = stripZeroListedPrice(text);
+  const stripped = withoutZero
+    .replace(
+      /(?:\s+y)?\s*\b(?:precio(?:\s+de)?|vale|cuesta|sale|queda)\s*(?:en\s*)?\$?\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?\b/gi,
+      '',
+    )
+    .replace(/\$\s*\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/g, '')
+    .replace(/\$\s*\d{4,6}(?:[.,]\d{2})?\b/g, '')
+    .replace(/\$\s*\d{1,4}[.,]\d{2}\b/g, '')
+    .replace(/\b(?:y\s+)?precio\s+de\b(?!\s+esta\s+unidad)/gi, '');
+  return stripped === withoutZero ? withoutZero : tidyStrippedPriceHoles(stripped);
+}
+
+/**
+ * En un turno de crédito, si el precio de contado ya se dijo en el hilo,
+ * no se vuelve a decir: se quitan las frases que traen ese monto exacto
+ * (salvo las que llevan la cuota). Va por el número, no por palabras.
+ */
+export function mentionsAmount(text: string, price: number): boolean {
+  const amount = Math.round(price);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return false;
+  }
+  const raw = String(amount);
+  const variants = [
+    raw,
+    raw.replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+    raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
+  ];
+  return variants.some((v) =>
+    new RegExp(`(?<![\\d.,])${v.replace(/[.,]/g, '\\$&')}(?!\\d)`).test(text),
   );
+}
+
+export function dropRepeatedListedPrice(text: string, price: number): string {
+  const hasPrice = (sentence: string): boolean => mentionsAmount(sentence, price);
+  const carriesCuota = (sentence: string): boolean =>
+    /\b(?:cuota|mensual|mensuales)\b/i.test(sentence);
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const kept = sentences.filter(
+    (sentence) => !hasPrice(sentence) || carriesCuota(sentence),
+  );
+  if (kept.length === sentences.length || kept.length === 0) {
+    return text;
+  }
+  return kept.join(' ').trim();
 }
 
 export function appendUnloadedPrice(text: string): string {
