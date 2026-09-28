@@ -1020,7 +1020,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : '';
     const locationAsk = askedLocation;
     const locationHint = locationAsk
-      ? 'PIDIÓ UBICACIÓN / VISITA (o dudó si hay que pagar para que le den la dirección). Dale Av. España 6-73 y Sevilla, Cuenca AHORA. PROHIBIDO pedir entrada, depósito o confirmar valores para pasar la dirección u otra información. La visita no se condiciona a la entrada. Si preguntó si primero deposita, la respuesta es no.'
+      ? 'PIDIÓ UBICACIÓN / VISITA. Dale Av. España 6-73 y Sevilla, Cuenca AHORA. Solo la dirección. PROHIBIDO pedir entrada, depósito o confirmar valores. PROHIBIDO decir que no hace falta depósito o entrada: esa frase no va en la respuesta.'
       : '';
     const cashDeliveryHint = confirmingCashOrDelivery
       ? 'YA le dijo el $. Ahora confirma lo que pidió: ese valor ES de contado y/o SÍ hay entrega inmediata. PROHIBIDO repetir ficha, km, color ni el $ como si no lo hubiera dicho. No abras crédito. Una o dos frases.'

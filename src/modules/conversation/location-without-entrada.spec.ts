@@ -1,6 +1,7 @@
 import {
   DEALERSHIP_ADDRESS,
   replyGatesInfoOnEntrada,
+  stripDepositDisclaimer,
   ungateLocationReply,
 } from './location-without-entrada';
 
@@ -30,6 +31,14 @@ describe('ubicación sin pedir entrada', () => {
     expect(out).toBe(DEALERSHIP_ADDRESS);
     expect(out).toMatch(/Av\. España/i);
     expect(out).not.toMatch(/primero se confirma la entrada/i);
+  });
+
+  it('la dirección no lleva la frase del depósito', () => {
+    const out = stripDepositDisclaimer(
+      'La puede visitar en Av. España 6-73 y Sevilla, Cuenca. No es necesario ningún depósito para la dirección.',
+    );
+    expect(out).toBe('La puede visitar en Av. España 6-73 y Sevilla, Cuenca.');
+    expect(out).not.toMatch(/dep[oó]sito/i);
   });
 
   it('si ya dio la cuota, la conserva y agrega la dirección', () => {

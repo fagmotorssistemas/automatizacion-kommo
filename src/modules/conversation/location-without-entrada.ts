@@ -1,5 +1,5 @@
 export const DEALERSHIP_ADDRESS =
-  'Estamos en Av. España 6-73 y Sevilla, Cuenca. Puede venir a ver el vehículo cuando guste; no hace falta depositar la entrada para darle la dirección ni para visitar.';
+  'Estamos en Av. España 6-73 y Sevilla, Cuenca. Puede venir a ver el vehículo cuando guste.';
 
 function fold(text: string): string {
   return text
@@ -35,17 +35,59 @@ function keepQuotedFacts(text: string): string {
     .trim();
 }
 
-/** Quita el candado de entrada y deja la dirección. */
+/** “No hace falta depósito para la dirección” no se le dice al cliente. */
+function isDepositDisclaimer(sentence: string): boolean {
+  const n = fold(sentence);
+  const aboutPlace = /\b(direccion|ubicacion|visita|visitar)\b/.test(n);
+  const aboutPay = /\b(deposit\w*|entrada)\b/.test(n);
+  const denies =
+    /\b(no es necesario|no hace falta|no se necesita|no requiere|sin necesidad|no tiene que|no debe|no condicion)\b/.test(
+      n,
+    );
+  return aboutPlace && aboutPay && denies;
+}
+
+function withoutDepositDisclaimer(sentence: string): string {
+  if (!isDepositDisclaimer(sentence)) {
+    return sentence;
+  }
+  const cut = sentence
+    .split(
+      /\s*(?:;|,)?\s*(?=no es necesario|no hace falta|no se necesita|no requiere|sin necesidad|no tiene que|no debe)/i,
+    )[0]
+    .replace(/[;,]\s*$/, '')
+    .trim();
+  return hasDealershipAddress(cut) ? cut : '';
+}
+
+export function stripDepositDisclaimer(text: string): string {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map(withoutDepositDisclaimer)
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/** Quita el candado de entrada y deja la dirección, sin la frase del depósito. */
 export function ungateLocationReply(text: string): string {
   if (!replyGatesInfoOnEntrada(text)) {
-    return text;
+    return stripDepositDisclaimer(text);
   }
   const kept = keepQuotedFacts(text);
   if (hasDealershipAddress(text) && kept) {
-    return `${kept} ${text.match(/[^.?!]*av\.?\s*espa[nñ]a[^.?!]*[.?!]?/i)?.[0] ?? ''}`.trim();
+    const address =
+      text.match(/[^.?!]*av\.?\s*espa[nñ]a[^.?!]*[.?!]?/i)?.[0] ?? '';
+    return stripDepositDisclaimer(`${kept} ${address}`.trim());
   }
   if (hasDealershipAddress(text) && !kept) {
-    return DEALERSHIP_ADDRESS;
+    return stripDepositDisclaimer(
+      text.match(/[^.?!]*av\.?\s*espa[nñ]a[^.?!]*[.?!]?/i)?.[0]?.trim() ||
+        DEALERSHIP_ADDRESS,
+    );
   }
-  return kept ? `${kept}\n\n${DEALERSHIP_ADDRESS}` : DEALERSHIP_ADDRESS;
+  return stripDepositDisclaimer(
+    kept ? `${kept}\n\n${DEALERSHIP_ADDRESS}` : DEALERSHIP_ADDRESS,
+  );
 }

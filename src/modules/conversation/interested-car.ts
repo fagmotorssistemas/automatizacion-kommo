@@ -374,7 +374,7 @@ export function formatInterestedCar(
     const close = options?.creditFollowUp
       ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
       : after === 'location'
-      ? 'YA vio esta unidad. Contesta AHORA dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible”, km, placa o fotos. No pidas entrada para dar la dirección.'
+      ? 'YA vio esta unidad. Contesta AHORA dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible”, km, placa o fotos. No menciones entrada ni depósito.'
       : after === 'doubt'
       ? 'YA vio esta unidad. Contesta la duda de ESA. PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
       : after === 'both'
