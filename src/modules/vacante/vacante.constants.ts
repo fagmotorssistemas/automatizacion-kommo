@@ -1,6 +1,7 @@
 import { DEFAULT_ASSIGNEE } from '../handoff/seller-map';
 
 export const VACANTE_ETIQUETA = 'vacante_asesor_comercial';
+export const VACANTE_ETIQUETA_DESARROLLADOR = 'vacante_desarrollador';
 
 /** Fila de agent_prompts. El content se manda tal cual, una sola vez. */
 export const VACANTE_PROMPT_NAME = 'vacante';

@@ -54,8 +54,8 @@ describe('ubicación sin pedir entrada', () => {
 });
 
 describe('link del mapa junto a la dirección', () => {
-  it('el mapa es el de Fag Motors / K-SI Nuevos', () => {
-    expect(MAP_URL).toContain('maps.google.com/maps/search/Fag%20Motors');
+  it('el mapa es el enlace corto de la ubicación de Fag Motors', () => {
+    expect(MAP_URL).toBe('https://maps.app.goo.gl/vxJe7vw4cxNMQXtq8');
   });
 
   it('pega el mapa cuando la respuesta trae la dirección', () => {

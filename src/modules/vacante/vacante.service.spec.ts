@@ -82,6 +82,31 @@ describe('VacanteService', () => {
     );
   });
 
+  it('el desarrollador va por el mismo camino de vacante y solo cambia la etiqueta', async () => {
+    await expect(
+      service.intercept({
+        ...opening,
+        text: 'Hola. Me interesa el puesto de Desarrollador de Software',
+      }),
+    ).resolves.toBe('opened');
+    expect(catalog.fetchAgentPrompts).toHaveBeenCalledWith(['vacante']);
+    expect(repository.insert).toHaveBeenCalledWith({
+      leadIdKommo: '41807269',
+      phone: '+593999000111',
+      etiqueta: 'vacante_desarrollador',
+      assignedTo: FAG_MOTORS_ASSIGNEE,
+    });
+    expect(outbound.sendText).toHaveBeenCalledWith(
+      '41807269',
+      'Gracias, revisaremos su postulación.',
+    );
+    expect(crm.markVacanteLead).toHaveBeenCalledWith(
+      '41807269',
+      'vacante_desarrollador',
+      42,
+    );
+  });
+
   it('si ya está en ofertas no responde ni sigue', async () => {
     repository.findByLeadId.mockResolvedValue('found');
 

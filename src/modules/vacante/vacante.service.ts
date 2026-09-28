@@ -5,10 +5,9 @@ import { OutboundService } from '../outbound/outbound.service';
 import { fagMotorsUserId } from './fag-motors-user';
 import {
   FAG_MOTORS_ASSIGNEE,
-  VACANTE_ETIQUETA,
   VACANTE_PROMPT_NAME,
 } from './vacante.constants';
-import { isVacanteAsesorComercial } from './is-vacante-asesor';
+import { detectVacanteEtiqueta } from './detect-vacante';
 import { VacanteRepository } from './vacante.repository';
 
 export type VacanteIntercept = 'pass' | 'silent' | 'opened' | 'held';
@@ -36,13 +35,12 @@ export class VacanteService {
       return 'silent';
     }
 
-    const opening =
-      input.inbound && isVacanteAsesorComercial(input.text);
+    const etiqueta = input.inbound ? detectVacanteEtiqueta(input.text) : null;
     if (found === 'unavailable') {
-      return opening ? 'held' : 'pass';
+      return etiqueta ? 'held' : 'pass';
     }
 
-    if (!opening) {
+    if (!etiqueta) {
       return 'pass';
     }
 
@@ -52,7 +50,7 @@ export class VacanteService {
     const inserted = await this.repository.insert({
       leadIdKommo: input.leadId,
       phone,
-      etiqueta: VACANTE_ETIQUETA,
+      etiqueta,
       assignedTo: FAG_MOTORS_ASSIGNEE,
     });
 
@@ -68,7 +66,7 @@ export class VacanteService {
     }
 
     await this.replyOnce(input.leadId);
-    await this.markKommo(input.leadId);
+    await this.markKommo(input.leadId, etiqueta);
     return 'opened';
   }
 
@@ -97,11 +95,11 @@ export class VacanteService {
     }
   }
 
-  private async markKommo(leadId: string): Promise<void> {
+  private async markKommo(leadId: string, etiqueta: string): Promise<void> {
     const responsibleUserId = await this.resolveFagMotorsUser();
     const marked = await this.crm.markVacanteLead(
       leadId,
-      VACANTE_ETIQUETA,
+      etiqueta,
       responsibleUserId,
     );
     if (!marked) {
