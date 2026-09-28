@@ -113,7 +113,10 @@ import {
   appendNegotiateInPerson,
   shouldSayNegotiateInPerson,
 } from '../conversation/negotiate-in-person';
-import { ungateLocationReply } from '../conversation/location-without-entrada';
+import {
+  appendMapLink,
+  ungateLocationReply,
+} from '../conversation/location-without-entrada';
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
 import { resumenBrandFitsShown, textoQueNombra } from '../conversation/named-this-turn';
 import {
@@ -1158,7 +1161,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : '';
     const locationAsk = askedLocation;
     const locationHint = locationAsk
-      ? 'PIDIÓ UBICACIÓN / VISITA. Dale Av. España 6-73 y Sevilla, Cuenca AHORA. Solo la dirección. PROHIBIDO pedir entrada, depósito o confirmar valores. PROHIBIDO decir que no hace falta depósito o entrada: esa frase no va en la respuesta.'
+      ? 'PIDIÓ UBICACIÓN / VISITA. Dale Av. España 6-73 y Sevilla, Cuenca AHORA. Solo la dirección. El sistema pega el link del mapa: PROHIBIDO escribir tú un link o URL. PROHIBIDO pedir entrada, depósito o confirmar valores. PROHIBIDO decir que no hace falta depósito o entrada: esa frase no va en la respuesta.'
       : '';
     const cashDeliveryHint = confirmingCashOrDelivery
       ? 'YA le dijo el $. Ahora confirma lo que pidió: ese valor ES de contado y/o SÍ hay entrega inmediata. PROHIBIDO repetir ficha, km, color ni el $ como si no lo hubiera dicho. No abras crédito. Una o dos frases.'
@@ -1561,6 +1564,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         );
         parsed.mensaje = withoutHoliday;
       }
+      // Donde va la dirección va el mapa (lo pega el sistema, no el modelo).
+      parsed.mensaje = appendMapLink(parsed.mensaje);
     }
 
     if (parsed.mensaje) {

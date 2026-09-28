@@ -91,3 +91,18 @@ export function ungateLocationReply(text: string): string {
     kept ? `${kept}\n\n${DEALERSHIP_ADDRESS}` : DEALERSHIP_ADDRESS,
   );
 }
+
+/** Mapa de Fag Motors / K-SI Nuevos (Av. España 6-73 y Sevilla, Cuenca). */
+export const MAP_URL =
+  'https://maps.google.com/maps/search/Fag%20Motors%20%2F%20Ksi%20Nuevos/@-2.890498638153076,-78.98988342285156,17z?hl=en';
+
+/**
+ * Donde va la dirección va el mapa. Lo pega el sistema, no el modelo: así sale
+ * siempre y nunca es un link inventado. Sin dirección en el texto no toca nada.
+ */
+export function appendMapLink(text: string): string {
+  if (!hasDealershipAddress(text) || text.includes(MAP_URL)) {
+    return text;
+  }
+  return `${text.trimEnd()}\n\nAquí la ubicación en el mapa: ${MAP_URL}`;
+}

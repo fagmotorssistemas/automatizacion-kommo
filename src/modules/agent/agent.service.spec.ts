@@ -1,6 +1,7 @@
 import { AgentService } from './agent.service';
 import { TEST_LEXICON } from '../conversation/test-lexicon';
 import * as turnPlanModule from '../intelligence/turn-plan';
+import { MAP_URL } from '../conversation/location-without-entrada';
 
 describe('AgentService', () => {
   const openai = {
@@ -4500,6 +4501,48 @@ Falta vehículo: sí`,
       caminoViejo: 'SEGUIR_UNIDAD',
       coincide: true,
     });
+  });
+
+  it('pide ubicación: la dirección va siempre con el link del mapa', async () => {
+    {
+      persistence.latestInterestedCar.mockResolvedValue({
+        inventoryId: 'montero-2022',
+        brand: 'mitsubishi',
+        model: 'montero sport 2.5',
+        year: 2022,
+        price: 28900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      });
+      conversation.recentMessages.mockResolvedValue([
+        {
+          role: 'assistant',
+          content:
+            'Alonso, le envié fotos de la Mitsubishi Montero Sport 2022; ¿le gustó?',
+        },
+      ]);
+      openai.complete
+        .mockResolvedValueOnce(
+          'SOLICITUD ACTUAL:\nCliente pregunta dónde verla.\nPide ubicación: sí\nPide otras: no\nEs despedida: no',
+        )
+        .mockResolvedValueOnce('{"intenciones":["compra"]}');
+      openai.runSalesAgent.mockResolvedValue(
+        JSON.stringify({
+          respuesta_cliente: 'Estamos en Av. España 6-73 y Sevilla, Cuenca.',
+          meta: { vehiculo: { inventory_id: 'montero-2022' } },
+        }),
+      );
+
+      const result = await service.handleTurn({
+        contactId: 'A70562',
+        customerText: 'Dónde están ubicados',
+      });
+
+      expect(result?.reply.mensaje).toContain('Av. España 6-73');
+      expect(result?.reply.mensaje).toContain(MAP_URL);
+      const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+      expect(system).toMatch(/PROHIBIDO escribir tú un link/i);
+    }
   });
 
   it('si el plan en sombra falla, el turno responde igual y solo no registra el plan', async () => {

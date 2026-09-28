@@ -1,5 +1,7 @@
 import {
+  appendMapLink,
   DEALERSHIP_ADDRESS,
+  MAP_URL,
   replyGatesInfoOnEntrada,
   stripDepositDisclaimer,
   ungateLocationReply,
@@ -48,5 +50,28 @@ describe('ubicación sin pedir entrada', () => {
     expect(out).toMatch(/517\.61/);
     expect(out).toMatch(/Av\. España/i);
     expect(out).not.toMatch(/primero se confirma la entrada/i);
+  });
+});
+
+describe('link del mapa junto a la dirección', () => {
+  it('el mapa es el de Fag Motors / K-SI Nuevos', () => {
+    expect(MAP_URL).toContain('maps.google.com/maps/search/Fag%20Motors');
+  });
+
+  it('pega el mapa cuando la respuesta trae la dirección', () => {
+    const out = appendMapLink(DEALERSHIP_ADDRESS);
+    expect(out).toContain(DEALERSHIP_ADDRESS);
+    expect(out.trim().endsWith(MAP_URL)).toBe(true);
+  });
+
+  it('no repite el mapa si ya está', () => {
+    const once = appendMapLink(DEALERSHIP_ADDRESS);
+    expect(appendMapLink(once)).toBe(once);
+  });
+
+  it('sin dirección en la respuesta no pega el mapa', () => {
+    expect(appendMapLink('Con gusto le ayudo con el precio.')).toBe(
+      'Con gusto le ayudo con el precio.',
+    );
   });
 });
