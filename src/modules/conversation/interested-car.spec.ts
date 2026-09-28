@@ -72,6 +72,27 @@ describe('vehículo de interés', () => {
         car: sportage,
       }),
     ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'Quería el precio del Nissan ok gracias',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'No me interesa el precio del Nissan',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'No me interesa el Kia, quiero el Nissan',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
   });
 
   it('se suelta si pide un modelo que no está en patio', () => {

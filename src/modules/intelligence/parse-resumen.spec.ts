@@ -152,6 +152,15 @@ describe('textAsksForListedPrice', () => {
     expect(textAsksForListedPrice('me puede alludar cotisando')).toBe(true);
     expect(textAsksForListedPrice('Dispongo de 10.000$')).toBe(false);
     expect(textAsksForListedPrice('El precio muy alto')).toBe(false);
+    expect(textAsksForListedPrice('No me interesa el precio del Nissan')).toBe(
+      true,
+    );
+    expect(
+      textAsksForListedPrice(
+        'No me interesa el Kia, quiero el precio del Nissan',
+      ),
+    ).toBe(true);
+    expect(textAsksForListedPrice('Quería el precio del Nissan')).toBe(true);
     expect(textIsPriceObjection('El precio muy alto')).toBe(true);
     expect(textIsPriceObjection('Si iel valor')).toBe(false);
     expect(

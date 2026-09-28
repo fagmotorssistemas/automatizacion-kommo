@@ -489,15 +489,27 @@ export class AgentService {
     const resumen =
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
       input.customerText;
-    const pedido = detectNamedModelAsk(input.customerText, lexicon)
+    const brandSaidNow = detectBrand(input.customerText, lexicon);
+    let pedido = detectNamedModelAsk(input.customerText, lexicon)
       ? null
       : vehicleQueSigue(resumen, previousResumen);
+    if (pedido && brandSaidNow) {
+      const pedidoBrand = detectBrand(pedido, lexicon);
+      if (pedidoBrand && pedidoBrand !== brandSaidNow) {
+        pedido = null;
+      }
+    }
     const nextResumen = mergeResumenForNext(resumen, previousResumen);
     if (nextResumen) {
       await this.conversation.savePreviousResumen(input.contactId, nextResumen);
     }
     const cajaCompra = resumenCajaCompra(resumen);
-    if (resumenFaltaVehiculo(resumen) && !adVehicle && !pedido) {
+    if (
+      resumenFaltaVehiculo(resumen) &&
+      !adVehicle &&
+      !pedido &&
+      !brandSaidNow
+    ) {
       return this.replyAskWhichCar(input.contactId, input.customerText, {
         wantsPrice: resumenAsksForListedPrice(resumen),
       });
@@ -625,10 +637,15 @@ export class AgentService {
     const lastAssistantListed = lastOfferIsUnitList(lastOfferText);
     const askedLocation = resumenAsksForLocation(resumen);
     const hasShownDoubt = resumenHasPendingDoubt(resumen);
+    const shownBrandEarly = interested?.brand.trim().toLowerCase() ?? '';
+    const otherBrandNow = Boolean(
+      brandSaidNow && shownBrandEarly && brandSaidNow !== shownBrandEarly,
+    );
     const stayFollowUp =
       (askedPrice || askedLocation || hasShownDoubt) &&
       !lastAssistantListed &&
-      !resumenPideOtras(resumen);
+      !resumenPideOtras(resumen) &&
+      !otherBrandNow;
     if (stayFollowUp) {
       const shown = lastSingleShownUnit(
         history,
@@ -678,6 +695,7 @@ export class AgentService {
       !askedOtherColor &&
       !(boxNow && shownBox && boxNow !== shownBox) &&
       !detectNamedModelAsk(input.customerText, lexicon) &&
+      !otherBrandNow &&
       !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon))
     ) {
       stayOnShown = true;
@@ -714,7 +732,10 @@ export class AgentService {
     let revision: BrandReview;
     if (pideHorario) {
       revision = {
-        text: formatHoursAskHint(),
+        text: formatHoursAskHint(
+          new Date(),
+          `${input.customerText}\n${resumen}`,
+        ),
         holdVehicle: true,
         sendId: null,
       };
@@ -1646,6 +1667,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     }
 
     const namesBrandNow = Boolean(detectBrand(customerText, lexicon));
+    const shownBrandNow = reference?.brand?.trim().toLowerCase() ?? '';
+    const switchedBrand = Boolean(
+      targetBrand &&
+        namesBrandNow &&
+        shownBrandNow &&
+        targetBrand !== shownBrandNow,
+    );
     const maybeAsk =
       isConcreteAsk(customerText) ||
       (Boolean(concreteAsk) && namesBrandNow) ||
@@ -1764,7 +1792,7 @@ vehiculo null.`,
       !spaceAsk &&
       !yearPick &&
       !colorPick &&
-      !pideOtras &&
+      (!pideOtras || switchedBrand) &&
       !cashBudgetEarly &&
       !isConcreteAsk(customerText) &&
       !detectVehicleKind(customerText) &&
@@ -1910,7 +1938,13 @@ vehiculo null.`,
     ) {
       return empty;
     }
-    if (pideOtras && !asked && !resumenAsientos(resumen) && !tresFilas) {
+    if (
+      pideOtras &&
+      !asked &&
+      !resumenAsientos(resumen) &&
+      !tresFilas &&
+      !switchedBrand
+    ) {
       const patio = await this.catalog.listAvailableExcept('_');
       const exceptId = reference?.inventoryId;
       let pool = patio.filter((car) => car.id !== exceptId);

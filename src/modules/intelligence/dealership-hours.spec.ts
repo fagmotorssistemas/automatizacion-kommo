@@ -54,4 +54,26 @@ describe('formatHoursAskHint', () => {
     expect(text).toMatch(/Hoy es Domingo: NO atienden/);
     expect(text).toMatch(/Mañana es Lunes: SÍ atienden, 08:30 a 18:00/);
   });
+
+  it('preguntó por sábado: solo ese día, no hoy ni mañana', () => {
+    const text = formatHoursAskHint(
+      new Date('2026-09-28T12:10:00-05:00'),
+      'Atienden los sábados tanvien',
+    );
+    expect(text).toMatch(/Sábado: SÍ atienden, 09:30 a 13:30/);
+    expect(text).toMatch(/preguntó por Sábado/i);
+    expect(text).not.toMatch(/Hoy es Lunes/);
+    expect(text).not.toMatch(/Mañana es Martes/);
+    expect(text).toMatch(/PROHIBIDO hablar de hoy o mañana/i);
+  });
+
+  it('preguntó por mañana: solo mañana', () => {
+    const text = formatHoursAskHint(
+      new Date('2026-09-25T14:06:00-05:00'),
+      'El dia de mañna atiende?',
+    );
+    expect(text).toMatch(/Mañana es Sábado: SÍ atienden, 09:30 a 13:30/);
+    expect(text).not.toMatch(/Hoy es Viernes/);
+    expect(text).toMatch(/preguntó por MAÑANA/i);
+  });
 });

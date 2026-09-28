@@ -1416,6 +1416,139 @@ describe('AgentService', () => {
     expect(system).toMatch(/resumen y el HISTORIAL/i);
   });
 
+  it('precio del Nissan no se queda en el Sportage ya mostrado', async () => {
+    conversation.loadPreviousResumen.mockResolvedValue(
+      'Vehículo: Kia Sportage R GTI 2019\nSOLICITUD: Cliente pidió el Sportage.',
+    );
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sp-gti',
+      brand: 'kia',
+      model: 'sportage r gti lx ac 2.0',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Kia Sportage R GTI LX AC 2.0 5p 4x2 TA 2019 tiene un precio de $22,900.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'versa-1',
+        brand: 'nissan',
+        model: 'versa advance',
+        year: 2020,
+        price: 14900,
+        typeBody: 'sedan',
+        color: 'blanco',
+      },
+      {
+        id: 'sentra-1',
+        brand: 'nissan',
+        model: 'sentra b17',
+        year: 2018,
+        price: 13900,
+        typeBody: 'sedan',
+        color: 'negro',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Nissan.\nPide precio: sí\nPide otras: sí\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          '¿Qué modelo Nissan le interesa para darle el precio?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A65054',
+      customerText: 'Quería el precio del Nissan ok gracias',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/inventory_id=sp-gti/);
+    expect(catalog.listByBrand).toHaveBeenCalledWith('nissan');
+    expect(result?.reply.mensaje).not.toMatch(/22,?900/);
+  });
+
+  it('A65054 Nissan no se queda en el $ del Sportage', async () => {
+    conversation.loadPreviousResumen.mockResolvedValue(
+      'Vehículo: Kia Sportage R GTI 2019\nSOLICITUD: Cliente pidió el Sportage.',
+    );
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sp-gti',
+      brand: 'kia',
+      model: 'sportage r gti lx ac 2.0',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'El Kia Sportage R GTI LX AC 2.0 5p 4x2 TA 2019 tiene un precio de $22,900.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'versa-1',
+        brand: 'nissan',
+        model: 'versa advance',
+        year: 2020,
+        price: 14900,
+        typeBody: 'sedan',
+        color: 'blanco',
+      },
+      {
+        id: 'sentra-1',
+        brand: 'nissan',
+        model: 'sentra b17',
+        year: 2018,
+        price: 13900,
+        typeBody: 'sedan',
+        color: 'negro',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Nissan.\nPide precio: sí\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          '¿Qué modelo Nissan le interesa para darle el precio?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A65054',
+      customerText: 'No me interesa el precio del Nissan',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/inventory_id=sp-gti/);
+    expect(system).toMatch(/MARCA VIGENTE: nissan/i);
+    expect(catalog.listByBrand).toHaveBeenCalledWith('nissan');
+    expect(result?.reply.mensaje).not.toMatch(/22,?900/);
+  });
+
   it('Cuánto pide el precio de la unidad que ya mostramos', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
@@ -4800,8 +4933,8 @@ Falta vehículo: sí`,
     expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
     expect(catalog.listByBrand).not.toHaveBeenCalled();
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/Hoy es \S+: (SÍ atienden|NO atienden)/);
     expect(system).toMatch(/Mañana es \S+: (SÍ atienden|NO atienden)/);
+    expect(system).not.toMatch(/Hoy es \S+: (SÍ atienden|NO atienden)/);
     expect(system).toMatch(/PROHIBIDO ofrecer carro/);
     expect(system).toMatch(/PROHIBIDO "horario habitual"/);
     expect(system).not.toMatch(/Tipo: hatchback/i);

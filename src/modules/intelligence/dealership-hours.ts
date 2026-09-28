@@ -139,14 +139,91 @@ function dayOpenLine(day: number, when: 'Hoy' | 'Mañana'): string {
   return `${when} es ${name}: SÍ atienden, ${hoursLabel(day)}.`;
 }
 
-/** Preguntó horario: nombra HOY y MAÑANA (abren o no), no “habitual”, no un carro. */
-export function formatHoursAskHint(now = new Date()): string {
+function namedWeekdayInHoursAsk(text: string): number | null {
+  const n = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const names: [string, number][] = [
+    ['domingo', 0],
+    ['lunes', 1],
+    ['martes', 2],
+    ['miercoles', 3],
+    ['jueves', 4],
+    ['viernes', 5],
+    ['sabado', 6],
+  ];
+  let best = -1;
+  let day: number | null = null;
+  for (const [name, weekday] of names) {
+    const idx = n.lastIndexOf(name);
+    if (idx > best) {
+      best = idx;
+      day = weekday;
+    }
+  }
+  return day;
+}
+
+function hoursAskIsTomorrow(text: string): boolean {
+  const n = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (/\ben la ma+n+a\b/.test(n)) {
+    return false;
+  }
+  return /\bma+n+a\b/.test(n);
+}
+
+function hoursAskIsToday(text: string): boolean {
+  const n = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return /\bhoy\b/.test(n);
+}
+
+const HOURS_FACTS = 'L-V 08:30–18:00 | Sáb 09:30–13:30 | Dom cerrado.';
+const HOURS_TAIL =
+  'PROHIBIDO "horario habitual". Si canceló una cita, reconócelo. PROHIBIDO ofrecer carro, fotos, cuota o cambiar de unidad. vehiculo null.';
+
+/** Preguntó horario: el día que dijo; si no dijo día, HOY y MAÑANA. */
+export function formatHoursAskHint(now = new Date(), askedText = ''): string {
   const clock = getDealershipClock(now);
+  const weekday = namedWeekdayInHoursAsk(askedText);
+  if (weekday != null) {
+    const name = WEEKDAY[weekday] ?? '';
+    const line =
+      weekday === 0
+        ? `${name}: NO atienden.`
+        : `${name}: SÍ atienden, ${hoursLabel(weekday)}.`;
+    return `ATENCIÓN / HORARIO (reloj Cuenca/Guayaquil):
+${line}
+${HOURS_FACTS}
+El cliente preguntó por ${name}. Contesta ESE día (si atienden y el horario). PROHIBIDO hablar de hoy o mañana si no lo preguntó.
+${HOURS_TAIL}`;
+  }
+  if (hoursAskIsTomorrow(askedText)) {
+    const tomorrow = (clock.diaActual + 1) % 7;
+    return `ATENCIÓN / HORARIO (reloj Cuenca/Guayaquil):
+${dayOpenLine(tomorrow, 'Mañana')}
+${HOURS_FACTS}
+El cliente preguntó por MAÑANA. Contesta MAÑANA (${WEEKDAY[tomorrow]}). PROHIBIDO rellenar con hoy si no lo preguntó. Nombra el día. PROHIBIDO "hoy/mañana" sin el nombre del día.
+${HOURS_TAIL}`;
+  }
+  if (hoursAskIsToday(askedText)) {
+    return `ATENCIÓN / HORARIO (reloj Cuenca/Guayaquil):
+${dayOpenLine(clock.diaActual, 'Hoy')}
+${HOURS_FACTS}
+El cliente preguntó por HOY. Contesta HOY (${WEEKDAY[clock.diaActual]}). PROHIBIDO rellenar con mañana si no lo preguntó. Nombra el día. PROHIBIDO "hoy/mañana" sin el nombre del día.
+${HOURS_TAIL}`;
+  }
   const tomorrow = (clock.diaActual + 1) % 7;
   return `ATENCIÓN / HORARIO (reloj Cuenca/Guayaquil):
 ${dayOpenLine(clock.diaActual, 'Hoy')}
 ${dayOpenLine(tomorrow, 'Mañana')}
-L-V 08:30–18:00 | Sáb 09:30–13:30 | Dom cerrado.
+${HOURS_FACTS}
 Di HOY (qué día es + si atienden) y MAÑANA (abren o no + horario). Nombra el día (Viernes, Sábado). PROHIBIDO "horario habitual". PROHIBIDO "hoy/mañana" sin el nombre del día.
 Si canceló una cita, reconócelo. PROHIBIDO ofrecer carro, fotos, cuota o cambiar de unidad. vehiculo null.`;
 }
