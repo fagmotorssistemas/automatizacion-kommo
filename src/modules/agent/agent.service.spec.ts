@@ -4404,6 +4404,62 @@ Falta vehículo: sí`,
     expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
   });
 
+  it('A70562 visito la otra semana no reabre Chevrolet', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'montero-2022',
+      brand: 'mitsubishi',
+      model: 'montero sport 2.5',
+      year: 2022,
+      price: 28900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Alonso Bermeo, le envié fotos de la Mitsubishi Montero Sport 2022; ¿le gustó o hay algo que le detiene? Si prefiere, le busco otra opción o le doy más detalles.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-1',
+        brand: 'chevrolet',
+        model: 'd-max crdi',
+        year: 2022,
+        price: 28990,
+        typeBody: 'camioneta',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente visita la otra semana.\nPide ubicación: sí\nPide otras: no\nEs despedida: no\nEs cortesía: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Perfecto, le esperamos la otra semana con el Montero Sport.',
+        meta: { vehiculo: { inventory_id: 'montero-2022' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A70562',
+      customerText: 'Gracias yo le visito la otra semana',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/AÚN NO QUIERE VISITA|PAUSA|ESA unidad/i);
+    expect(system).toContain('inventory_id=montero-2022');
+    expect(system).not.toMatch(/MARCA VIGENTE: chevrolet/i);
+    expect(system).not.toMatch(/PIDIÓ UBICACIÓN/i);
+    expect(system).not.toMatch(/Camaro|Tracker/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('montero-2022');
+  });
+
   it('A65562 jeptour sale del listado de Sportage y busca Jetour', async () => {
     const sportages = [
       {

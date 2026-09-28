@@ -10,6 +10,7 @@ import {
   type PostFotosPaso,
 } from './post-fotos.constants';
 import { PostFotosLlmClient } from './post-fotos-llm.client';
+import { greetingName } from './post-fotos.prompt';
 import { PostFotosRepository } from './post-fotos.repository';
 
 export type PostFotosRunResult = {
@@ -165,7 +166,7 @@ export class PostFotosService {
     }
 
     const mensaje = await this.llm.draft(row.paso, {
-      name: row.name,
+      name: greetingName(row.name),
       brand: row.brand,
       model: row.model,
       year: row.year,

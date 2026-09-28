@@ -89,13 +89,14 @@ Pide horario: no si el turno es de un carro (precio, fotos, esa unidad) o si el 
 Pide ubicación: sí|no en CADA turno. Lee el sentido, no una frase.
 Pide ubicación: sí si quiere saber dónde ver, visitar o revisar ESA unidad o la casa, o si duda que le den la dirección sin pagar. No es horario. No es fotos. No es otra unidad. Pide otras: no. Falta vehículo: no.
 Pide ubicación: no si solo habla del carro (precio, un detalle) sin preguntar dónde verla.
+Pide ubicación: no si dice que va a visitar después (la otra semana, más adelante, luego paso) sin preguntar la dirección. Eso es pausa, no pedido de ubicación. Pide otras: no.
 - Si el bot indicó NO hay disponibilidad del vehículo mencionado, ese vehículo queda DESCARTADO y NO debe aparecer ni en RESUMEN PREVIO ni en SOLICITUD ACTUAL.
 - CIERRE (la primera que aplique gana; no mezcles banderas):
   1) Si agradece Y deja una duda, malentendido o incógnita (aunque vaya mal escrito): Tiene duda: sí. Es despedida: no. Es cortesía: no. SOLICITUD ACTUAL debe decir ESA duda. No lo conviertas en "quiere irse" ni en solo financiamiento/visita.
   2) Despedida dura SOLO si deja claro que no sigue (no le interesa, ya no, ya compró, no lo contacten) Y no queda ninguna duda: Es despedida: sí.
   Si el bot YA confirmó la visita o el siguiente paso para más adelante y AHORA solo cierra (ya quedó, entendió), Es despedida: sí. SOLICITUD: se despide amable. No vuelvas a confirmar la fecha ni la visita.
   3) Si el bot acaba de preguntar financiamiento y/o visita y el cliente dice "no", "no gracias" o "no por ahora": NO es despedida. NO es cortesía. Pide otras: no. SOLICITUD: no quiere financiamiento ni visita ahora; sigue con ESA unidad y no insistas con esa pregunta.
-  4) Si dice que siguen en contacto o que aún no (visita, más info): Es despedida: no. Es cortesía: no. SOLICITUD: sigue interesado en ESA unidad, pero no ahora.
+  4) Si dice que siguen en contacto, que aún no, o que visita / pasa la otra semana (más adelante): Es despedida: no. Es cortesía: no. Pide ubicación: no. Pide otras: no. SOLICITUD: sigue interesado en ESA unidad, pero no ahora. No es un catálogo nuevo.
   5) "gracias" o "ahí nomás gracias" SIN "no", si ya se le mostró un vehículo: NO es despedida. Es cortesía: sí.
 - Si pide furgoneta, van o muchas plazas, SOLICITUD debe decir que quiere un vehículo GRANDE. No lo conviertas en camioneta ni en un carro chico. Si hay unidad mostrada, Asientos: N y Pide otras: no: primero validar ESA.
 - Después de Pide negociar agrega: Tiene duda: sí|no   y   Es despedida: sí|no

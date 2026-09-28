@@ -1,6 +1,11 @@
 import { formatMileageForPrompt } from '../catalog/mileage';
 import type { PostFotosPaso } from './post-fotos.constants';
 
+export function greetingName(name: string): string {
+  const first = name.trim().split(/\s+/).find(Boolean) ?? '';
+  return first || 'Cliente';
+}
+
 export type PostFotosCarInput = {
   name: string;
   brand: string | null;
@@ -15,7 +20,7 @@ export type PostFotosCarInput = {
 const SHARED_RULES = `
 REGLAS ESTRICTAS:
 - Máximo 2 líneas
-- Empieza con el nombre del cliente
+- Empieza con el primer nombre del cliente (el de Kommo). No el apellido completo.
 - SIEMPRE trato de "usted". Prohibido tutear: te, tú, tu, tus, prefieres, quieres, tienes, puedes, dime.
 - Correcto: "le envié", "le gustó", "prefiere que le busque otra opción"
 - Incorrecto: "te envié", "te gustó", "prefieres que te busque"

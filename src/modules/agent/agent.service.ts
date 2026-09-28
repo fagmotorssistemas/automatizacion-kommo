@@ -116,7 +116,7 @@ import {
 import { ungateLocationReply } from '../conversation/location-without-entrada';
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
 import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
-import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
+import { DESPEDIDA_AMABLE, asksWhereNow, isPauseLater, salesFollowHint } from '../conversation/polite-thanks';
 import {
   askedOutsideListed,
   askedOtherBrandThanListed,
@@ -648,7 +648,10 @@ export class AgentService {
         : null;
     const lastOfferText = lastOfferAssistantText(history);
     const lastAssistantListed = lastOfferIsUnitList(lastOfferText);
-    const askedLocation = resumenAsksForLocation(resumen);
+    const pauseLater = isPauseLater(input.customerText);
+    const askedLocation =
+      resumenAsksForLocation(resumen) &&
+      (!pauseLater || asksWhereNow(input.customerText));
     const hasShownDoubt = resumenHasPendingDoubt(resumen);
     const shownBrandEarly = interested?.brand.trim().toLowerCase() ?? '';
     const otherBrandNow = Boolean(
@@ -751,6 +754,9 @@ export class AgentService {
     }
     if (boxNow && shownBox && boxNow !== shownBox) {
       stayOnShown = false;
+    }
+    if (pauseLater && interested) {
+      stayOnShown = true;
     }
     const priceObjection =
       resumenIsPriceObjection(resumen) ||

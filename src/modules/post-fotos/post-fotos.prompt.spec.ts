@@ -1,5 +1,6 @@
 import {
   flattenPostFotosMessage,
+  greetingName,
   postFotosSystemPrompt,
   postFotosUserPrompt,
 } from './post-fotos.prompt';
@@ -7,6 +8,11 @@ import {
 describe('post-fotos prompt', () => {
   it('paso 1 habla de validar / qué le pasó', () => {
     expect(postFotosSystemPrompt(1)).toMatch(/VALIDAR/i);
+  });
+
+  it('del nombre de Kommo usa solo el primero', () => {
+    expect(greetingName('Alonso Bermeo')).toBe('Alonso');
+    expect(greetingName('Cliente')).toBe('Cliente');
   });
 
   it('todos los pasos exigen usted y prohíben tutear', () => {
