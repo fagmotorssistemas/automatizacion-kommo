@@ -24,6 +24,11 @@ import {
   SupabaseGateway,
 } from './supabase.gateway';
 import { SUPABASE_CONFIG, type SupabaseConfig } from './supabase.config';
+import {
+  isMissingLeadIdentityColumn,
+  LEAD_COLUMNS,
+  omitLeadIdentityFields,
+} from './lead-columns';
 
 function mapStockRow(row: {
   id?: unknown;
@@ -68,9 +73,6 @@ function mapStockRow(row: {
     botId: botId && botId > 0 ? botId : null,
   };
 }
-
-const LEAD_COLUMNS =
-  'id, contact_id, lead_id_kommo, name, phone, source, assigned_to, mensajes_enviados, behavior_signals, bot_apagado, bot_apagado_at, ultimo_mensaje_ignorado, handoff_transcript, handoff_resumen, fotos_enviadas_at, cedula, nombre_cedula, origen';
 
 @Injectable()
 export class SupabasePersistenceClient implements SupabaseGateway {
@@ -607,11 +609,19 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       return;
     }
 
-    const { error } = await client.from('leads').update(patch).eq('id', leadId);
+    const first = await client.from('leads').update(patch).eq('id', leadId);
+    const result = isMissingLeadIdentityColumn(first.error?.message)
+      ? await client
+          .from('leads')
+          .update(
+            omitLeadIdentityFields({ ...patch } as Record<string, unknown>),
+          )
+          .eq('id', leadId)
+      : first;
 
-    if (error) {
-      this.logger.warn(`UPDATE leads id=${leadId}: ${error.message}`);
-      throw error;
+    if (result.error) {
+      this.logger.warn(`UPDATE leads id=${leadId}: ${result.error.message}`);
+      throw result.error;
     }
   }
 
