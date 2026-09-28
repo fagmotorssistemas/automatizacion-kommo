@@ -7,6 +7,7 @@ import {
   detectTrimInText,
   detectTresFilas,
   detectYearInText,
+  detectYearSpan,
   modelPhraseMatchesCar,
   resolveBrand,
   resolveTresFilas,
@@ -95,6 +96,17 @@ describe('marca y tres filas', () => {
       detectNamedModelAsk('tiene el hyundai gran i 10', TEST_LEXICON),
     ).toEqual({ brand: 'hyundai', family: 'i10', year: null });
     expect(detectYearInText('Chevrolet D-max CRDI 2023q')).toBe(2023);
+    expect(detectYearSpan('camionetas 2020 a 2022')).toEqual({
+      min: 2020,
+      max: 2022,
+    });
+    expect(detectYearSpan('Hilux 2020-2022')).toEqual({ min: 2020, max: 2022 });
+    expect(detectYearSpan('Sonet 2021 o 2022')).toEqual({
+      min: 2021,
+      max: 2022,
+    });
+    expect(detectYearSpan('Peugeot 2008 2022')).toBeNull();
+    expect(detectYearSpan('premiere 2020')).toBeNull();
     expect(
       detectNamedModelAsk(
         'Hola. Me interesa el Chevrolet D-max CRDI 2023q',

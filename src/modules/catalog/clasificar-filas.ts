@@ -402,6 +402,17 @@ export function carsFromYearOnward<T extends { year?: number | null }>(
   return cars.filter((car) => car.year == null || car.year >= minYear);
 }
 
+export function carsInYearSpan<T extends { year?: number | null }>(
+  cars: T[],
+  minYear: number,
+  maxYear: number,
+): T[] {
+  return cars.filter(
+    (car) =>
+      car.year != null && car.year >= minYear && car.year <= maxYear,
+  );
+}
+
 /**
  * Si hay unidades del 2010 en adelante, no mezcla las anteriores.
  * Si solo hay antiguas, se quedan. Si pidió ese año antiguo, se presenta ese.

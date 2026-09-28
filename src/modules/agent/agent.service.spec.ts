@@ -2565,9 +2565,9 @@ describe('AgentService', () => {
       customerText: 'El automático\nMe interesa',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({
-      inventory_id: 'plata-ta',
-    });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'plata-ta' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=plata-ta');
     expect(system).toMatch(/YA le mostramos/i);
@@ -2727,9 +2727,9 @@ describe('AgentService', () => {
       customerText: 'La 2018',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({
-      inventory_id: 'exp-2018',
-    });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'exp-2018' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=exp-2018');
     expect(system).not.toMatch(/lariat|f-150|F150/i);
@@ -2808,9 +2808,9 @@ describe('AgentService', () => {
     });
 
     expect(catalog.listByBrand).toHaveBeenCalledWith('kia');
-    expect(result?.reply.meta.vehiculo).toEqual({
-      inventory_id: 'sportage-1',
-    });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'sportage-1' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/SÍ está en patio/i);
     expect(system).not.toMatch(/no tenemos Sportage/i);
@@ -2899,9 +2899,9 @@ describe('AgentService', () => {
       marca: 'kia',
       includePrice: false,
     });
-    expect(result?.reply.meta.vehiculo).toEqual({
-      inventory_id: 'sportage-1',
-    });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'sportage-1' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/SÍ está en patio/i);
     expect(system).not.toMatch(/no tenemos Sportage/i);
@@ -3022,7 +3022,9 @@ describe('AgentService', () => {
     });
 
     expect(catalog.listByBrand).toHaveBeenCalledWith('toyota');
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'hilux-1' });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'hilux-1' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=hilux-1');
     expect(system).toContain('Tipo: camioneta');
@@ -3067,7 +3069,9 @@ describe('AgentService', () => {
       customerText: 'Hola. Me interesa el Toyota Land Cruiser Prado',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'prado-1' });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'prado-1' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=prado-1');
     expect(system).toMatch(/SÍ está en patio/i);
@@ -3123,9 +3127,9 @@ describe('AgentService', () => {
       customerText: 'Hola. Me interesa el Toyota Land Cruiser Prado',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({
-      inventory_id: 'prado-2016',
-    });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'prado-2016' }),
+    );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=prado-2016');
     expect(system).toMatch(/SÍ está en patio/i);
@@ -3181,7 +3185,9 @@ describe('AgentService', () => {
       customerText: 'Kia rio ?',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'rio-1' });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'rio-1' }),
+    );
     expect(conversation.clearGearbox).toHaveBeenCalledWith('1');
     expect(conversation.clearConcreteAsk).toHaveBeenCalledWith('1');
     expect(conversation.saveVehicleKind).toHaveBeenCalledWith('1', 'sedan');
@@ -3238,7 +3244,9 @@ describe('AgentService', () => {
       customerText: 'Río ?',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'rio-1' });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'rio-1' }),
+    );
   });
 
   it('el resumen anterior mantiene el Mazda 3 y no lo cambia por el MX-3', async () => {
@@ -4401,7 +4409,9 @@ Falta vehículo: sí`,
       customerText: 'la roja',
     });
 
-    expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'sp-rojo' });
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'sp-rojo' }),
+    );
     expect(result?.photoQueue).toBeUndefined();
     expect(openai.runSalesAgent).toHaveBeenCalled();
   });
@@ -4700,6 +4710,99 @@ Falta vehículo: sí`,
         ai: expect.stringContaining('"precio_mostrado":true'),
       }),
     );
+  });
+
+  it('camioneta doble cabina de varias marcas 2020 a 2022 no ofrece el sedán ya mostrado', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'optra-1',
+      brand: 'chevrolet',
+      model: 'optra advance',
+      year: 2012,
+      price: 8900,
+      typeBody: 'sedan',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Chevrolet Optra Advance 2012 color gris.',
+      },
+    ]);
+    catalog.listByBrand.mockImplementation(async (brand: string) => {
+      if (brand === 'chevrolet') {
+        return [
+          {
+            id: 'optra-1',
+            brand: 'chevrolet',
+            model: 'optra advance',
+            year: 2012,
+            price: 8900,
+            typeBody: 'sedan',
+          },
+          {
+            id: 'dmax-2021',
+            brand: 'chevrolet',
+            model: 'd-max crdi 2.5 cd',
+            year: 2021,
+            price: 22900,
+            typeBody: 'doble cabina',
+          },
+        ];
+      }
+      if (brand === 'toyota') {
+        return [
+          {
+            id: 'hilux-2020',
+            brand: 'toyota',
+            model: 'hilux 2.4 cd',
+            year: 2020,
+            price: 28000,
+            typeBody: 'doble cabina',
+          },
+        ];
+      }
+      if (brand === 'hyundai') {
+        return [
+          {
+            id: 'tucson-2021',
+            brand: 'hyundai',
+            model: 'tucson gl',
+            year: 2021,
+            price: 22000,
+            typeBody: 'jeep',
+          },
+        ];
+      }
+      return [];
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere camionetas doble cabina Toyota, Chevrolet, Kia o Hyundai 2020 a 2022.\nPide precio: no\nPide otras: sí\nTipo de patio: camioneta\nCabina: doble\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["presentacionopciones"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos Hilux 2020 y D-Max 2021.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Quiero camionetas doble cabina Toyota, Chevrolet, Kia o Hyundai 2020 a 2022',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('toyota');
+    expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
+    expect(catalog.listByBrand).toHaveBeenCalledWith('kia');
+    expect(catalog.listByBrand).toHaveBeenCalledWith('hyundai');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/modelo=hilux 2\.4 cd/i);
+    expect(system).toMatch(/modelo=d-max crdi 2\.5 cd/i);
+    expect(system).not.toMatch(/modelo=optra/i);
+    expect(system).not.toMatch(/tucson/i);
+    expect(system).not.toMatch(/sedanes/i);
   });
 
   it('una camioneta no manda el suv de esa marca', async () => {

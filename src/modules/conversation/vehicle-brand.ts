@@ -395,6 +395,36 @@ export function detectYearInText(text: string): number | null {
   return year >= 1990 && year <= 2035 ? year : null;
 }
 
+function isVehicleYear(year: number): boolean {
+  return year >= 1990 && year <= 2035;
+}
+
+/**
+ * “2020 a 2022” / “2020-2022” / “2021 o 2022”.
+ * No junta “Peugeot 2008 2022”: ahí el 2008 es el modelo.
+ */
+export function detectYearSpan(
+  text: string,
+): { min: number; max: number } | null {
+  const folded = foldAccents(text);
+  const span = folded.match(
+    /\b((?:19|20)\d{2})\s*(?:a(?:l)?|hasta|-|–|o|u)\s*((?:19|20)\d{2})\b/,
+  );
+  const entre = folded.match(
+    /\bentre\s+((?:19|20)\d{2})\s+y\s+((?:19|20)\d{2})\b/,
+  );
+  const pair = span ?? entre;
+  if (!pair) {
+    return null;
+  }
+  const a = Number(pair[1]);
+  const b = Number(pair[2]);
+  if (!isVehicleYear(a) || !isVehicleYear(b) || a === b) {
+    return null;
+  }
+  return { min: Math.min(a, b), max: Math.max(a, b) };
+}
+
 const TRIMS: { name: string; pattern: RegExp }[] = [
   { name: 'premier', pattern: /\bpremie?re?\b/gi },
   { name: 'hiride', pattern: /\bhi[\s-]?ride\b|\bhigh[\s-]?ride\b/gi },

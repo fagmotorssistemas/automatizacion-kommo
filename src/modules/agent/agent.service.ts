@@ -68,6 +68,7 @@ import {
   askedModelPhrase,
   detectTrimInText,
   detectYearInText,
+  detectYearSpan,
   isDriveFamily,
   modelHasTrim,
   modelPhraseMatchesCar,
@@ -191,6 +192,7 @@ import {
 } from '../conversation/large-passenger';
 import {
   carsFromYearOnward,
+  carsInYearSpan,
   carsShownInHistory,
   formatRevisionMarca,
   formatMissingNamedModel,
@@ -319,13 +321,18 @@ function matchUnitFacts(
   colorAsk: string | null,
   trimAsk: string | null,
   yearOnward = false,
+  yearMax: number | null = null,
 ): StockCar[] {
   return cars.filter((car) => {
     if (yearAsk) {
       if (car.year == null) {
         return false;
       }
-      if (yearOnward ? car.year < yearAsk : car.year !== yearAsk) {
+      if (yearMax != null) {
+        if (car.year < yearAsk || car.year > yearMax) {
+          return false;
+        }
+      } else if (yearOnward ? car.year < yearAsk : car.year !== yearAsk) {
         return false;
       }
     }
@@ -1728,7 +1735,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     let listed = targetBrand
       ? await this.catalog.listByBrand(targetBrand)
       : await this.catalog.listAvailableExcept('_');
-    if (tresFilas && brandsNow.length > 1) {
+    if (brandsNow.length > 1 && (!asked || tresFilas)) {
       const merged: StockCar[] = [];
       const seen = new Set<string>();
       for (const item of brandsNow) {
@@ -2058,6 +2065,18 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
         asked.year ??
         lastYearInUserTexts(priorUserTexts, lexicon)
       : (yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon));
+    const yearSpan =
+      detectYearSpan(customerText) || detectYearSpan(solicitud);
+    const searchingNewPatio =
+      !asked &&
+      (Boolean(askedCab) ||
+        brandsNow.length > 1 ||
+        Boolean(namesBrandNow && switchedBrand) ||
+        Boolean(
+          kindAhora &&
+            detectVehicleKind(customerText) === kindAhora &&
+            reference?.family,
+        ));
     const threadBudget = cashBudget;
     const threadText = shownThreadText(history, resumen);
     const alreadyOffered = carsShownInHistory(history, listed, resumen);
@@ -2079,13 +2098,28 @@ El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro col
 PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }
-    if ((yearAsk || colorAsk || trimAsk) && !wantsClosest) {
+    const skipShownYearAsSameModel =
+      searchingNewPatio && Boolean(yearAsk) && !colorAsk && !trimAsk;
+    if (
+      (yearAsk || colorAsk || trimAsk) &&
+      !wantsClosest &&
+      !skipShownYearAsSameModel
+    ) {
       const offered = asked
         ? alreadyOffered.filter((car) =>
             textMentionsModel(car.model, asked.family),
           )
         : alreadyOffered;
-      const fromOffer = yearAsk
+      const fromOffer = yearSpan
+        ? matchUnitFacts(
+            offered,
+            yearSpan.min,
+            colorAsk,
+            trimAsk,
+            false,
+            yearSpan.max,
+          )
+        : yearAsk
         ? pickShownByYear(
             matchUnitFacts(offered, null, colorAsk, trimAsk),
             threadText,
@@ -2131,7 +2165,14 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           const inFamily = listed.filter((car) =>
             textMentionsModel(car.model, threadFamily),
           );
-          const picked = matchUnitFacts(inFamily, yearAsk, colorAsk, null);
+          const picked = matchUnitFacts(
+            inFamily,
+            yearSpan?.min ?? yearAsk,
+            colorAsk,
+            null,
+            yearOnward && !yearSpan,
+            yearSpan?.max ?? null,
+          );
           if (picked.length === 1) {
             return this.namedModelFound(picked, includePrice, false, false, yearAsk);
           }
@@ -2161,7 +2202,14 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
             };
           }
         }
-        const byFacts = matchUnitFacts(listed, yearAsk, colorAsk, trimAsk);
+        const byFacts = matchUnitFacts(
+          listed,
+          yearSpan?.min ?? yearAsk,
+          colorAsk,
+          trimAsk,
+          yearOnward && !yearSpan,
+          yearSpan?.max ?? null,
+        );
         if (byFacts.length === 1) {
           return this.namedModelFound(byFacts, includePrice, false, false, yearAsk);
         }
@@ -2561,11 +2609,36 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         ? pickCabDriveOffer(byKind, askedCab, askedDrive)
         : { cars: byKind, hint: '' };
     if ((askedCab || askedDrive) && !asked) {
-      const offerCars = preferCurrentYears(
-        cabDriveOffer.cars,
-        yearFromThread,
-        yearOnward,
-      );
+      const offerCars = yearSpan
+        ? carsInYearSpan(
+            cabDriveOffer.cars,
+            yearSpan.min,
+            yearSpan.max,
+          )
+        : preferCurrentYears(
+            cabDriveOffer.cars,
+            yearFromThread,
+            yearOnward,
+          );
+      if (offerCars.length === 0 && yearSpan) {
+        const sameType = preferCurrentYears(cabDriveOffer.cars);
+        const brandsLabel = brandsNow.join(', ') || targetBrand || 'esas marcas';
+        const missing = formatMissingNamedModel(
+          brandsLabel,
+          yearSpan.min,
+          sameType,
+          includePrice,
+          false,
+          kindForAsk,
+        );
+        return {
+          ...missing,
+          text: `No hay ${kindForAsk ?? 'unidad'}${askedCab === 'cd' ? ' doble cabina' : ''} de ${brandsLabel} ${yearSpan.min} a ${yearSpan.max} en patio. PRIMERO dilo. DESPUÉS, si hay de abajo, ofrece ESA solo si es el mismo tipo. PROHIBIDO cambiar de tipo (camioneta no es SUV, sedán no es hatch).
+${missing.text}`,
+          switchedModel: true,
+          vehicleKind: kindForAsk,
+        };
+      }
       if (offerCars.length === 0) {
         return {
           text: cabDriveOffer.hint,
@@ -2586,12 +2659,38 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     const byDrive = askedDrive
       ? byKind.filter((car) => unitDrive(car) === askedDrive)
       : byKind;
-    const cars =
+    let cars =
       cabDriveOffer.cars.length > 0 && (askedCab || askedDrive)
         ? cabDriveOffer.cars
         : byDrive.length > 0
           ? byDrive
           : byKind;
+    if (yearSpan) {
+      const inSpan = carsInYearSpan(cars, yearSpan.min, yearSpan.max);
+      if (inSpan.length > 0) {
+        cars = inSpan;
+      } else if (kindForAsk && cars.length > 0) {
+        const brandsLabel =
+          brandsNow.join(', ') || targetBrand || 'esas marcas';
+        const missing = formatMissingNamedModel(
+          brandsLabel,
+          yearSpan.min,
+          preferCurrentYears(cars),
+          includePrice,
+          false,
+          kindForAsk,
+        );
+        return {
+          ...missing,
+          text: `No hay ${kindForAsk} de ${brandsLabel} ${yearSpan.min} a ${yearSpan.max} en patio. PRIMERO dilo. DESPUÉS, si hay de abajo, ofrece ESA solo si es el mismo tipo. PROHIBIDO cambiar de tipo (camioneta no es SUV, sedán no es hatch).
+${missing.text}`,
+          switchedModel: true,
+          vehicleKind: kindForAsk,
+        };
+      } else {
+        cars = inSpan;
+      }
+    }
     const missedDrive =
       cabDriveOffer.hint ||
       (askedDrive && byDrive.length === 0 && byKind.length > 0
@@ -2947,9 +3046,13 @@ ${named.text}`,
     cars: StockCar[],
     year: number | null | undefined,
     onward: boolean,
+    yearMax: number | null = null,
   ): StockCar[] {
     if (year == null) {
       return cars;
+    }
+    if (yearMax != null) {
+      return carsInYearSpan(cars, year, yearMax);
     }
     return onward
       ? carsFromYearOnward(cars, year)
