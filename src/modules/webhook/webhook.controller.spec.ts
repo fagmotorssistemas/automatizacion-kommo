@@ -8,6 +8,7 @@ import { InboxService } from '../inbox/inbox.service';
 import { MediaService } from '../media/media.service';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
+import { VacanteService } from '../vacante/vacante.service';
 import { DEFAULT_ASSIGNEE } from '../handoff/seller-map';
 import { kommoWabaTextBody } from './fixtures/kommo-waba-text.body';
 import { WebhookController } from './webhook.controller';
@@ -51,6 +52,10 @@ describe('WebhookController', () => {
             recordStoppedMessage: jest.fn(),
             consumeHandoffTurns: jest.fn().mockResolvedValue([]),
           },
+        },
+        {
+          provide: VacanteService,
+          useValue: { intercept: jest.fn().mockResolvedValue('pass') },
         },
         {
           provide: MediaService,

@@ -149,4 +149,32 @@ export class CrmService {
       return false;
     }
   }
+
+  async listUsers(): Promise<Array<{ id: number; name: string }>> {
+    try {
+      return await this.kommo.listUsers();
+    } catch {
+      return [];
+    }
+  }
+
+  async markVacanteLead(
+    leadId: string,
+    tagName: string,
+    responsibleUserId: number | null,
+  ): Promise<boolean> {
+    if (!leadId || !tagName) {
+      return false;
+    }
+
+    try {
+      return await this.kommo.markVacanteLead(
+        leadId,
+        tagName,
+        responsibleUserId,
+      );
+    } catch {
+      return false;
+    }
+  }
 }

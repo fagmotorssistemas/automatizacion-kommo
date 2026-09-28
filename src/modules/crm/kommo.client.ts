@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { KOMMO_CONTACT_FIELD, KOMMO_CUSTOM_FIELD } from './kommo.constants';
 import { KOMMO_CONFIG, type KommoConfig } from './kommo.config';
+import { readLeadTags, vacanteLeadBody } from './vacante-lead-body';
 
 @Injectable()
 export class KommoClient {
@@ -141,6 +142,36 @@ export class KommoClient {
     );
   }
 
+  async listUsers(): Promise<Array<{ id: number; name: string }>> {
+    const raw = await this.get('/api/v4/users?limit=250', 'usuarios');
+    return this.embeddedUsers(raw);
+  }
+
+  /** Etiqueta de vacante y, si hay id, responsable. Conserva las etiquetas ya leídas. */
+  async markVacanteLead(
+    leadId: string,
+    tagName: string,
+    responsibleUserId: number | null,
+  ): Promise<boolean> {
+    const numericId = Number(leadId);
+    if (!Number.isFinite(numericId) || numericId <= 0 || !tagName) {
+      return false;
+    }
+
+    const raw = await this.getLead(leadId);
+    const body = vacanteLeadBody({
+      leadId: numericId,
+      tagName,
+      responsibleUserId,
+      tags: readLeadTags(raw),
+    });
+    if (!body.responsible_user_id && !body._embedded) {
+      return false;
+    }
+
+    return this.patch('/api/v4/leads', [body], `vacante lead ${leadId}`);
+  }
+
   private async get(path: string, label: string): Promise<unknown | null> {
     const { baseUrl, token } = this.kommoConfig;
 
@@ -252,6 +283,29 @@ export class KommoClient {
     }
 
     return this.parseBody(await response.text());
+  }
+
+  private embeddedUsers(
+    raw: unknown,
+  ): Array<{ id: number; name: string }> {
+    if (raw === null || typeof raw !== 'object') {
+      return [];
+    }
+
+    const embedded = (raw as { _embedded?: Record<string, unknown> })._embedded;
+    const list = embedded?.users;
+    if (!Array.isArray(list)) {
+      return [];
+    }
+
+    return list
+      .map((item) => {
+        const row = item as { id?: unknown; name?: unknown };
+        const id = Number(row.id);
+        const name = typeof row.name === 'string' ? row.name.trim() : '';
+        return Number.isFinite(id) && id > 0 && name ? { id, name } : null;
+      })
+      .filter((item): item is { id: number; name: string } => item !== null);
   }
 
   private embeddedIds(

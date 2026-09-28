@@ -11,6 +11,7 @@ import { MediaService } from '../media/media.service';
 import { InboxService } from '../inbox/inbox.service';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
+import { VacanteService } from '../vacante/vacante.service';
 import {
   isCustomerInbound,
   isSellerOutgoing,
@@ -28,7 +29,7 @@ export type WebhookHandleResult =
       phone: string | null;
       kind: MessageKind;
       text: string;
-      debounce: 'scheduled' | 'skipped';
+      debounce: 'scheduled' | 'skipped' | 'vacante';
     }
   | {
       accepted: false;
@@ -55,6 +56,7 @@ export class WebhookService {
     private readonly mediaService: MediaService,
     private readonly persistence: PersistenceService,
     private readonly runLog: RunLogService,
+    private readonly vacante: VacanteService,
   ) {}
 
   async handleKommo(body: unknown): Promise<WebhookHandleResult> {
@@ -152,6 +154,39 @@ export class WebhookService {
         error: 'Redis no pudo reclamar el messageId',
       });
       return { accepted: false, reason: 'inbox_unavailable' };
+    }
+
+    const vacante = await this.vacante.intercept({
+      leadId: parsed.data.leadId,
+      contactId,
+      text: parsed.data.text,
+      inbound,
+    });
+    if (vacante !== 'pass') {
+      const kind = classifyMessageKind({
+        attachmentType: parsed.data.attachmentType,
+        messageType: parsed.data.messageType,
+      });
+      await this.runLog.record({
+        ...ctx,
+        step: 'vacante',
+        status: vacante === 'held' ? 'error' : 'ok',
+        reason: vacante,
+        detail: { texto: parsed.data.text.slice(0, 500) },
+      });
+      this.logger.log(
+        `Vacante leadId=${parsed.data.leadId} decision=${vacante}`,
+      );
+      return {
+        accepted: true,
+        messageId: parsed.data.messageId,
+        leadId: parsed.data.leadId,
+        route: routeByOrigin(parsed.data.origin),
+        phone: null,
+        kind,
+        text: parsed.data.text,
+        debounce: 'vacante',
+      };
     }
 
     const route = routeByOrigin(parsed.data.origin);

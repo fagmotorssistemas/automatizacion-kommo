@@ -3,6 +3,7 @@ import { HandoffService } from '../handoff/handoff.service';
 import { InboxService } from '../inbox/inbox.service';
 import { MediaService } from '../media/media.service';
 import { PersistenceService } from '../persistence/persistence.service';
+import { VacanteService } from '../vacante/vacante.service';
 import { DEFAULT_ASSIGNEE } from '../handoff/seller-map';
 import { kommoWabaPictureBody } from './fixtures/kommo-waba-picture.body';
 import { kommoWabaTextBody } from './fixtures/kommo-waba-text.body';
@@ -19,6 +20,7 @@ describe('WebhookService', () => {
     consumeHandoffTurns: jest.fn(),
   };
   const runLog = { record: jest.fn() };
+  const vacante = { intercept: jest.fn() };
   const service = new WebhookService(
     inbox as unknown as InboxService,
     crm as unknown as CrmService,
@@ -26,6 +28,7 @@ describe('WebhookService', () => {
     media as unknown as MediaService,
     persistence as unknown as PersistenceService,
     runLog as never,
+    vacante as unknown as VacanteService,
   );
 
   beforeEach(() => {
@@ -44,6 +47,8 @@ describe('WebhookService', () => {
     handoff.assigneeFromKommoLead.mockReset();
     handoff.assigneeFromKommoLead.mockReturnValue(DEFAULT_ASSIGNEE);
     media.toCustomerText.mockReset();
+    vacante.intercept.mockReset();
+    vacante.intercept.mockResolvedValue('pass');
     media.toCustomerText.mockImplementation(
       async (input: { kind: string; text: string }) => {
         if (input.kind === 'voice') {
@@ -263,6 +268,44 @@ describe('WebhookService', () => {
       debounce: 'scheduled',
     });
     expect(persistence.consumeHandoffTurns).toHaveBeenCalledWith('59458509');
+  });
+
+  it('la vacante de asesor no entra a ventas ni transcribe', async () => {
+    vacante.intercept.mockResolvedValue('opened');
+
+    await expect(
+      service.handleKommo({
+        ...kommoWabaTextBody,
+        'message[add][0][text]':
+          'Hola. Me interesa el puesto de asesor comercial.',
+      }),
+    ).resolves.toMatchObject({
+      accepted: true,
+      leadId: '41807269',
+      debounce: 'vacante',
+      text: 'Hola. Me interesa el puesto de asesor comercial.',
+    });
+    expect(vacante.intercept).toHaveBeenCalledWith({
+      leadId: '41807269',
+      contactId: '59458509',
+      text: 'Hola. Me interesa el puesto de asesor comercial.',
+      inbound: true,
+    });
+    expect(media.toCustomerText).not.toHaveBeenCalled();
+    expect(inbox.scheduleDebounce).not.toHaveBeenCalled();
+    expect(crm.inspectLead).not.toHaveBeenCalled();
+    expect(persistence.consumeHandoffTurns).not.toHaveBeenCalled();
+  });
+
+  it('un lead de vacante ya registrado no sigue el proceso', async () => {
+    vacante.intercept.mockResolvedValue('silent');
+
+    await expect(service.handleKommo(kommoWabaTextBody)).resolves.toMatchObject({
+      accepted: true,
+      debounce: 'vacante',
+    });
+    expect(media.toCustomerText).not.toHaveBeenCalled();
+    expect(inbox.scheduleDebounce).not.toHaveBeenCalled();
   });
 
   it('responde ignored si Kommo manda otro evento', async () => {

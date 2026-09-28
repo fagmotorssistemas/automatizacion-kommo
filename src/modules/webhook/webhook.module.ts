@@ -5,6 +5,7 @@ import { InboxModule } from '../inbox/inbox.module';
 import { MediaModule } from '../media/media.module';
 import { PersistenceModule } from '../persistence/persistence.module';
 import { RunLogModule } from '../runs/run-log.module';
+import { VacanteModule } from '../vacante/vacante.module';
 import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
 
@@ -16,6 +17,7 @@ import { WebhookService } from './webhook.service';
     MediaModule,
     PersistenceModule,
     RunLogModule,
+    VacanteModule,
   ],
   controllers: [WebhookController],
   providers: [WebhookService],

@@ -110,6 +110,7 @@ import {
   shouldSayNegotiateInPerson,
 } from '../conversation/negotiate-in-person';
 import { ungateLocationReply } from '../conversation/location-without-entrada';
+import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
 import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
 import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
 import {
@@ -1381,6 +1382,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         if (parsed.meta.vehiculo && !parsed.meta.vehiculo.inventory_id) {
           parsed.meta.vehiculo = null;
         }
+      }
+      const withoutHoliday = stripInventedHoliday(parsed.mensaje);
+      if (withoutHoliday !== parsed.mensaje) {
+        this.logger.warn(
+          `Se quitó feriado inventado contactId=${input.contactId}`,
+        );
+        parsed.mensaje = withoutHoliday;
       }
     }
 

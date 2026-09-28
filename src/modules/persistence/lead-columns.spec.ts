@@ -9,6 +9,8 @@ describe('lead-columns', () => {
     expect(LEAD_COLUMNS).toContain('nombre_cedula');
     expect(LEAD_COLUMNS).toContain('origen');
   });
+
+  it('detecta el error real de production', () => {
     expect(
       isMissingLeadIdentityColumn(
         'column leads.nombre_cedula does not exist',
