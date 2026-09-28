@@ -648,7 +648,10 @@ describe('AgentService', () => {
         system: expect.stringContaining('15000'),
       }),
     );
-    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.reply.meta.vehiculo).toEqual({
+      inventory_id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      precio: 22990,
+    });
   });
 
   it('si nos vende su carro no ofrece uno parecido del inventario', async () => {

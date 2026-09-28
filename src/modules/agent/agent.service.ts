@@ -796,8 +796,6 @@ export class AgentService {
     } else if (selling && !buying) {
       revision = { text: '', holdVehicle: true, sendId: null };
     } else if (stayOnShown && interested) {
-      const skipVehicle =
-        isMoneyNotVisit(input.customerText) && !askedPrice && !askedCredit;
       revision = {
         text: `EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS (${interested.brand} ${interested.model}).
 inventory_id=${interested.inventoryId}
@@ -805,8 +803,8 @@ Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ES
 ${fichaAlreadyGiven ? 'La ficha YA se presentó. PROHIBIDO volver a abrir con “tenemos disponible” ni repetir color, caja, tracción o placa. Responde solo lo que pregunta ahora.' : ''}
 No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
 No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
-        holdVehicle: skipVehicle,
-        sendId: skipVehicle ? null : interested.inventoryId,
+        holdVehicle: false,
+        sendId: interested.inventoryId,
         unitPrice:
           interested.price && interested.price > 0
             ? Math.round(interested.price)
@@ -1327,8 +1325,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
     } else if (
-      revision.holdVehicle ||
-      (isMoneyNotVisit(input.customerText) && !askedCredit)
+      !stayOnShown &&
+      (revision.holdVehicle ||
+        (isMoneyNotVisit(input.customerText) && !askedCredit))
     ) {
       parsed.meta.vehiculo = null;
       parsed.img_prefix = '';
