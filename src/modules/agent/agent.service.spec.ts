@@ -52,6 +52,7 @@ describe('AgentService', () => {
     saveLeadCedula: jest.fn(),
     loadVehicleSpecs: jest.fn(),
     saveVehicleSpecs: jest.fn(),
+    saveChosenInterestedCar: jest.fn(),
   };
   const service = new AgentService(
     openai as never,
@@ -125,6 +126,8 @@ describe('AgentService', () => {
     persistence.loadVehicleSpecs.mockReset();
     persistence.loadVehicleSpecs.mockResolvedValue([]);
     persistence.saveVehicleSpecs.mockReset();
+    persistence.saveChosenInterestedCar.mockReset();
+    persistence.saveChosenInterestedCar.mockResolvedValue(undefined);
     catalog.fetchAgentPrompts.mockResolvedValue([
       { name: 'rol', content: 'sé cordial' },
     ]);
@@ -1677,6 +1680,59 @@ describe('AgentService', () => {
     expect(result?.alreadyShownInThread).toBe(true);
   });
 
+  it('fotos/km de la Sportage blanca ya mostrada no la vuelve a presentar', async () => {
+    const listado =
+      'Buenos días, estimado. Tenemos disponibles cinco Kia Sportage SUV: 2024 plomo, manual, con 79,187 km, precio $29,200; 2019 negro, manual, con 103,736 km, precio $22,200; 2019 rojo, manual, con 91,096 km, precio $22,900; 2019 plateado, automática, con 113,170 km, precio $22,900; y 2019 blanco, manual, con kilometraje aún no cargado, precio $22,990. ¿Cuál le interesa para enviarle fotos y detalles?';
+    const fichaBlanca =
+      'Estimado, tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual año 2019 color blanco, con el kilometraje aún no cargado, transmisión manual. La placa es P0 Por ahora no tengo fotos de este vehículo para enviarle. Si desea, le doy más detalles o coordinamos una visita.';
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sp-blanco',
+      brand: 'kia',
+      model: 'sportage sl ac 2.0 5p 4x2',
+      year: 2019,
+      price: 22990,
+      typeBody: 'jeep',
+      color: 'blanco',
+      transmission: 'manual',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'assistant', content: listado },
+      { role: 'user', content: 'Me puede mandar información del color blanco porfavor' },
+      { role: 'assistant', content: fichaBlanca },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide fotos del interior, el kilometraje y todos los detalles de la Sportage blanca ya mostrada.\nPide precio: no\nPide otras: no\nPide ubicación: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El kilometraje de esa blanca aún no está cargado en patio. Por ahora no tengo fotos para enviarle.',
+        meta: { vehiculo: { inventory_id: 'sp-blanco' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76217',
+      customerText:
+        'Me podría enviar fotos del interior\nEl kilometraje\nTodo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).toMatch(/ficha YA se presentó/i);
+    expect(system).toMatch(/Contesta AHORA lo que pregunta/i);
+    expect(system).toMatch(/no “tenemos disponible”/i);
+    expect(system).not.toMatch(/PRIMERA PRESENTACIÓN\. PROHIBIDO decir el precio/i);
+    expect(system).not.toMatch(/color=blanco/i);
+    expect(system).not.toMatch(/caja=manual/i);
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.alreadyShownInThread).toBe(true);
+    expect(result?.reply.mensaje).not.toMatch(/tenemos disponible/i);
+    expect(persistence.saveChosenInterestedCar).not.toHaveBeenCalled();
+  });
+
   it('precio y ciudad: sale el valor y no el mecánico', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
@@ -2790,9 +2846,10 @@ describe('AgentService', () => {
     expect(system).toMatch(/más cercanas/i);
     expect(system).toMatch(/hilux sr 2\.7 cd 4x4 tm/i);
     expect(system).not.toMatch(/No hay Hilux/i);
-    expect(result?.reply.meta.vehiculo).toEqual({
+    expect(result?.reply.meta.vehiculo).toMatchObject({
       inventory_id: 'hilux-2023',
     });
+    expect(persistence.saveChosenInterestedCar).not.toHaveBeenCalled();
   });
 
   it('Hilux suelta el SUV anterior y no ofrece un Prado', async () => {
@@ -3503,6 +3560,54 @@ Falta vehículo: sí`,
     expect(system).toMatch(/7 pasajeros, 3 filas/i);
     expect(system).toMatch(/PUERTAS, no filas/i);
     expect(system).not.toMatch(/REVISIÓN DEL PEDIDO/i);
+  });
+
+  it('si ya mostró el C 300 no puede decir que no está', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'c300-2024',
+      brand: 'mercedes-benz',
+      model: 'c 300 amg line ac 2.0 4p 4x2 automatico',
+      year: 2024,
+      price: 61990,
+      typeBody: 'sedan',
+      color: 'blanco',
+      mileage: 25842,
+    });
+    catalog.listByBrand.mockResolvedValue([]);
+    catalog.listAvailableExcept.mockResolvedValue([]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, el Mercedes Benz C 300 AMG Line AC 2.0 4p 4x2 automático 2024 blanco, con 25,842 km, está en excelente estado. Su $61,990.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si todavía tienen el Mercedes C 300 AMG Line 2024.\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, esa es la unidad que le mostré. ¿Le ayudo con el crédito o prefiere venir a verla?',
+        meta: { vehiculo: { inventory_id: 'c300-2024' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'tienen el mercedes c 300 2024?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).toContain('inventory_id=c300-2024');
+    expect(system).not.toMatch(/No hay .{0,40} en patio/i);
+    expect(system).not.toMatch(/Ese modelo no está en patio/i);
+    expect(system).not.toMatch(/PRIMERO dilo claro: no tenemos/i);
+    expect(catalog.searchByQuery).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).not.toMatch(/no tenemos disponible/i);
   });
 
   it('si el hilo sigue y pregunta un dato de ficha, investiga esa unidad', async () => {
@@ -4795,6 +4900,93 @@ Falta vehículo: sí`,
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('cabina simple pero 4x4 lista solo las que cumplen las dos, no la LUV c/d', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020-cs',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+      year: 2020,
+      price: 21900,
+      typeBody: 'cabina simple',
+      color: 'blanco',
+      mileage: 93787,
+    });
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'dmax-2020-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+      },
+      {
+        id: 'f150-cs-4x4',
+        brand: 'ford',
+        model: 'f150 rc ac 3.7 cs 4x4',
+        year: 2014,
+        price: 18990,
+        typeBody: 'cabina simple',
+        color: 'verde',
+      },
+      {
+        id: 'ram-cs',
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 61798,
+      },
+      {
+        id: 'luv-cd',
+        brand: 'chevrolet',
+        model: 'luv d-max c/d v6 4x4 tm',
+        year: 2006,
+        price: 8900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+      },
+    ]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un d-max crdi 2.5 cs 4x2 tm diesel 2020 color blanco, con 93,787 km, transmisión manual. La placa es P6 Aquí tiene también las fotos del vehículo.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere cabina simple 4x4.\nPide otras: sí\nTipo de patio: camioneta\nCabina: simple\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'En cabina simple 4x4 tenemos una F150 2014. ¿Le interesa esa?',
+        meta: { vehiculo: { inventory_id: 'f150-cs-4x4' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76231',
+      customerText: 'Tal vez dispone en cabina simple pero 4x4?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/CABINA\/TRACCIÓN/);
+    expect(system).toMatch(/cumplen las DOS/i);
+    expect(system).toMatch(/f150 rc ac 3\.7 cs 4x4/i);
+    expect(system).not.toMatch(/luv d-max c\/d/i);
+    expect(system).not.toMatch(/ram 700 slt/i);
+    expect(system).toMatch(/CAMBIO DE MODELO/i);
+    expect(result?.reply.mensaje).not.toMatch(/luv d-max c\/d/i);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('f150-cs-4x4');
+  });
+
   it('A75368 Dimax de una sola cabina manda solo la cs y no lista las dobles', async () => {
     const patio = [
       {
@@ -5616,6 +5808,91 @@ Falta vehículo: sí`,
     expect(system).not.toMatch(/No hay 2008 2008/i);
     expect(system).not.toMatch(/No hay 3008n 2008/i);
     expect(system).not.toMatch(/no tenemos Peugeot 3008n 2008/i);
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      '1',
+      'p2008-2022',
+    );
+  });
+
+  it('si nombra un carro nuevo y hay esa unidad, esa queda como hilo ya', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-1',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Kia Sportage R GTI 2019 plateado.',
+      },
+    ]);
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'p2008-2022',
+        brand: 'peugeot',
+        model: '2008 fin',
+        year: 2022,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 95848,
+        transmission: 'manual',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+      },
+      {
+        id: 'p2008-2022',
+        brand: 'peugeot',
+        model: '2008 fin',
+        year: 2022,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 95848,
+        transmission: 'manual',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere un Peugeot 2008.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos el Peugeot 2008 FIN 2022 plomo, manual, 95848 km.',
+        meta: { vehiculo: { inventory_id: 'p2008-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'A76231',
+      customerText: 'tiene un peugeot 2008',
+    });
+
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'A76231',
+      'p2008-2022',
+    );
+    expect(persistence.saveChosenInterestedCar).not.toHaveBeenCalledWith(
+      'A76231',
+      'sportage-1',
+    );
   });
 
   it('hyundai y 10: primero no hay i10, no lo vende como Kona ni vuelve al Sportage', async () => {
@@ -6501,13 +6778,96 @@ Falta vehículo: sí`,
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('inventory_id=dmax-2022');
-    expect(system).toMatch(/ELIGIÓ esta unidad/i);
-    expect(system).toMatch(/Ya hay ficha|no busques de nuevo/i);
+    expect(system).toMatch(/hay que mandarla|ELIGIÓ esta unidad/i);
     expect(system).not.toMatch(/PRIMERO dilo claro: no tenemos/i);
     expect(system).not.toMatch(/No hay Dmax 2022/i);
     expect(system).not.toMatch(/dmax-2023|luv-2006/);
-    expect(system).toMatch(/PROHIBIDO pedir entrada/i);
     expect(result?.reply.mensaje).not.toMatch(/no tenemos/i);
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      '1',
+      'dmax-2022',
+    );
+  });
+
+  it('si elige la 2006 de la lista, esa queda como hilo aunque el papel sea otra', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2020',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+      year: 2020,
+      price: 21900,
+      typeBody: 'cabina simple',
+      color: 'blanco',
+      mileage: 93787,
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Tienen D-max 4x4?' },
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Chevrolet D-Max 4x4 manual 2022 color vino con 87687 km, y una Chevrolet Luv D-Max 4x4 manual 2006 color blanco con el kilometraje todavía no cargado.',
+      },
+    ]);
+    const patio = [
+      {
+        id: 'dmax-2020',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 93787,
+      },
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 26900,
+        typeBody: 'camioneta',
+        color: 'vino',
+        mileage: 87687,
+      },
+      {
+        id: 'luv-2006',
+        brand: 'chevrolet',
+        model: 'luv d-max 4x4 tm',
+        year: 2006,
+        price: 8900,
+        typeBody: 'camioneta',
+        color: 'blanco',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(patio);
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente elige la D-Max 2006 de las que le mostraron.\nPide precio: no\nPide crédito: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, la Chevrolet Luv D-Max 4x4 2006 color blanco tiene el kilometraje todavía no cargado.',
+        meta: { vehiculo: { inventory_id: 'luv-2006' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76231',
+      customerText: 'Me Interésa la dmax 2006 4x4',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'A76231',
+      'luv-2006',
+    );
+    expect(system).toContain('inventory_id=luv-2006');
+    expect(system).not.toMatch(/inventory_id=dmax-2020/);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('luv-2006');
   });
 
   it('si ya dijo D-max CRDI 2023 no lista otras ni una Luv', async () => {

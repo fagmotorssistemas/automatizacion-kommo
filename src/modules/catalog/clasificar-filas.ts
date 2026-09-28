@@ -551,9 +551,9 @@ function uniqueCars(cars: StockCar[]): StockCar[] {
 }
 
 /**
- * Si pidió cs y 4x4: las que son cs (aunque otra tracción) y las que son 4x4
- * (aunque otra cabina). Las que no son ni lo uno ni lo otro no entran.
- * Un eje sin token en el modelo no se afirma.
+ * Pidió las dos (simple y 4x4): primero las que cumplen las DOS.
+ * Si no hay, plan B: simple (otra tracción) y 4x4 (otra cabina), cada una con su dato.
+ * Las que no son ni lo uno ni lo otro no entran.
  */
 export function pickCabDriveOffer(
   cars: StockCar[],
@@ -569,37 +569,75 @@ export function pickCabDriveOffer(
   const driveHit = askedDrive
     ? cars.filter((car) => parsedDrive(car) === askedDrive)
     : [];
-  const picked = askedCab && askedDrive
-    ? uniqueCars([
-        ...cars.filter(
-          (car) =>
-            unitCab(car) === askedCab && parsedDrive(car) === askedDrive,
-        ),
-        ...cabHit.filter((car) => parsedDrive(car) !== askedDrive),
-        ...driveHit.filter((car) => unitCab(car) !== askedCab),
-      ])
-    : askedCab
-      ? cabHit
-      : driveHit;
-  return { cars: picked, hint: formatCabDriveHint(askedCab, askedDrive, picked) };
+  if (askedCab && askedDrive) {
+    const exact = cars.filter(
+      (car) =>
+        unitCab(car) === askedCab && parsedDrive(car) === askedDrive,
+    );
+    if (exact.length > 0) {
+      return {
+        cars: uniqueCars(exact),
+        hint: formatCabDriveHint(askedCab, askedDrive, exact, 'exact'),
+      };
+    }
+    const fallback = uniqueCars([
+      ...cabHit.filter((car) => parsedDrive(car) !== askedDrive),
+      ...driveHit.filter((car) => unitCab(car) !== askedCab),
+    ]);
+    return {
+      cars: fallback,
+      hint: formatCabDriveHint(askedCab, askedDrive, fallback, 'fallback'),
+    };
+  }
+  const picked = askedCab ? cabHit : driveHit;
+  return {
+    cars: picked,
+    hint: formatCabDriveHint(askedCab, askedDrive, picked),
+  };
 }
 
 export function formatCabDriveHint(
   askedCab: CabCode | null,
   askedDrive: DriveCode | null,
   cars: StockCar[],
+  mode: 'exact' | 'fallback' | 'single' = 'single',
 ): string {
   const lines = [
     'CABINA/TRACCIÓN (cs/cd y 4x2/4x4 se leen del modelo). Si el nombre no lo trae, no lo inventes.',
   ];
-  if (askedCab && askedDrive) {
+  if (askedCab && askedDrive && mode === 'exact') {
     lines.push(`Pidió ${cabLabel(askedCab)} y ${askedDrive}.`);
     lines.push(
-      `Si cumple ${cabLabel(askedCab)} pero otra tracción: ofrécela y di la tracción real.`,
+      'Hay unidades que cumplen las DOS. Lista SOLO esas. PROHIBIDO meter otra cabina u otra tracción.',
     );
     lines.push(
-      `Si cumple ${askedDrive} pero otra cabina: ofrécela y di la cabina real.`,
+      `PROHIBIDO un título "${cabLabel(askedCab)} ${askedDrive}" para una que no sea las dos.`,
     );
+  } else if (askedCab && askedDrive && mode === 'fallback') {
+    const cabOnly = cars.filter((car) => unitCab(car) === askedCab);
+    const driveOnly = cars.filter(
+      (car) =>
+        parsedDrive(car) === askedDrive && unitCab(car) !== askedCab,
+    );
+    lines.push(`Pidió ${cabLabel(askedCab)} y ${askedDrive}.`);
+    lines.push(
+      `NO hay ninguna que cumpla las dos. PRIMERO dilo. PROHIBIDO un listado titulado "${cabLabel(askedCab)} ${askedDrive}".`,
+    );
+    if (cabOnly.length > 0) {
+      lines.push(
+        `Grupo ${cabLabel(askedCab)} (otra tracción; di la tracción real): ${cabOnly.map((car) => car.model).join('; ')}.`,
+      );
+    }
+    if (driveOnly.length > 0) {
+      lines.push(
+        `Grupo ${askedDrive} (otra cabina; di la cabina real): ${driveOnly.map((car) => car.model).join('; ')}.`,
+      );
+    }
+    lines.push(
+      `PROHIBIDO listar una que no sea ni ${askedCab} ni ${askedDrive}.`,
+    );
+  } else if (askedCab && askedDrive) {
+    lines.push(`Pidió ${cabLabel(askedCab)} y ${askedDrive}.`);
     lines.push(
       `PROHIBIDO listar una que no sea ni ${askedCab} ni ${askedDrive}.`,
     );

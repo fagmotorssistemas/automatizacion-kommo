@@ -24,6 +24,7 @@ import { buildChatHistoryRows } from './chat-history';
 import { chatRowToMemoryMessage } from './parse-chat-history';
 import { MemoryMessage } from '../conversation/conversation.service';
 import { RESUMEN_HISTORY_MAX } from '../conversation/build-resumen-input';
+import { buildVehicleUid } from '../intelligence/vehicle-uid';
 
 export type SyncInboundLeadResult = {
   lead: EnsureLeadResult;
@@ -551,6 +552,37 @@ export class PersistenceService {
     } catch (error) {
       this.logger.error(
         `interested_cars falló lead=${row.leadId}: ${error instanceof Error ? error.message : error}`,
+      );
+    }
+  }
+
+  /** Unidad exacta (listado o modelo nuevo): esa pasa a ser la del hilo ahora. */
+  async saveChosenInterestedCar(
+    contactId: string,
+    inventoryId: string,
+  ): Promise<void> {
+    if (!this.supabase || !contactId || !inventoryId) {
+      return;
+    }
+
+    try {
+      const lead = await this.supabase.findLeadByContactId(contactId);
+      if (!lead) {
+        return;
+      }
+      const vehicleUid = buildVehicleUid(lead.id, inventoryId);
+      if (!vehicleUid) {
+        return;
+      }
+      await this.saveInterestedCar({
+        leadId: lead.id,
+        inventoryId,
+        vehicleUid,
+      });
+    } catch (error) {
+      this.logger.error(
+        `interested_cars elección falló contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
   }

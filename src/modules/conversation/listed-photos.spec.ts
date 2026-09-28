@@ -3,6 +3,7 @@ import {
   asksPricesOfListedUnits,
   historyHasUnitList,
   lastListedUnits,
+  lastOfferIsUnitList,
   lastSingleShownUnit,
   looksLikeUnitList,
   pickListedUnit,
@@ -405,5 +406,36 @@ describe('listed photos', () => {
         explorers,
       )?.id,
     ).toBe('exp-2018');
+  });
+
+  it('una ficha de Sportage blanco no es listado; el de cinco sí', () => {
+    const blanca =
+      'Estimado, tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual año 2019 color blanco, con el kilometraje aún no cargado, transmisión manual. La placa es P0 Por ahora no tengo fotos de este vehículo para enviarle. Si desea, le doy más detalles o coordinamos una visita.';
+    const cinco =
+      'Buenos días, estimado. Tenemos disponibles cinco Kia Sportage SUV: 2024 plomo, manual, con 79,187 km, precio $29,200; 2019 negro, manual, con 103,736 km, precio $22,200; 2019 rojo, manual, con 91,096 km, precio $22,900; 2019 plateado, automática, con 113,170 km, precio $22,900; y 2019 blanco, manual, con kilometraje aún no cargado, precio $22,990. ¿Cuál le interesa para enviarle fotos y detalles?';
+    const patio: StockCar[] = [
+      ...sportages,
+      {
+        id: 'sp-blanco',
+        brand: 'kia',
+        model: 'sportage sl ac 2.0 5p 4x2',
+        year: 2019,
+        price: 22990,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+    ];
+    expect(lastOfferIsUnitList(blanca)).toBe(false);
+    expect(lastOfferIsUnitList(cinco)).toBe(true);
+    expect(
+      lastSingleShownUnit(
+        [
+          { role: 'assistant', content: cinco },
+          { role: 'assistant', content: blanca },
+        ],
+        patio,
+      )?.id,
+    ).toBe('sp-blanco');
   });
 });

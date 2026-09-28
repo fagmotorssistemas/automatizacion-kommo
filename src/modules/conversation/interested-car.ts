@@ -1,5 +1,6 @@
 import {
   detectAskedCab,
+  detectAskedDrive,
   modelFamily,
   normalizeModelText,
   textMentionsModel,
@@ -33,6 +34,7 @@ import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import {
   resumenAsksForOtherColor,
   resumenCabina,
+  resumenHasPendingDoubt,
   resumenPideOtras,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
@@ -52,7 +54,7 @@ export type ShownCarContext = {
 };
 
 /** El nombre pedido (T1, Getours T1) es la misma línea que ya está en patio. */
-function askedMatchesShownModel(askedFamily: string, carModel: string): boolean {
+export function askedMatchesShownModel(askedFamily: string, carModel: string): boolean {
   const family = normalizeModelText(askedFamily);
   if (!family) {
     return false;
@@ -70,6 +72,23 @@ function askedMatchesShownModel(askedFamily: string, carModel: string): boolean 
     shown.length >= 4 &&
     (shown.includes(family) || family.includes(shown))
   );
+}
+
+/** Misma línea del hilo. Null = no nombró modelo (sigue en esa). Otro año sí es otra. */
+export function sameShownUnitAsk(
+  asked: { family: string; year?: number | null } | null,
+  car: { model: string; year?: number | null },
+): boolean {
+  if (!asked) {
+    return true;
+  }
+  if (!askedMatchesShownModel(asked.family, car.model)) {
+    return false;
+  }
+  if (asked.year && car.year && asked.year !== car.year) {
+    return false;
+  }
+  return true;
 }
 
 function namedOtherUnit(
@@ -154,6 +173,13 @@ export function vehicleLabelFitsCar(
   );
 }
 
+/** “No era 4x4?” pregunta por ESTA; no está pidiendo otra 4x4. */
+function textAsksAboutShownDrive(text: string): boolean {
+  return /no era\b|\bes\s*4\s*x|\btiene\s*4\s*x|tracci[oó]n|\bvs\s*4\s*x/i.test(
+    text,
+  );
+}
+
 /** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
 export function leftShownCar(input: ShownCarContext): boolean {
   const car = input.car;
@@ -191,7 +217,13 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return true;
   }
   if (input.pedido && !vehicleLabelFitsCar(input.pedido, car, lexicon)) {
-    return true;
+    const asked = detectNamedModelAsk(input.pedido, lexicon);
+    if (
+      !sameShownUnitAsk(asked, car) ||
+      askedOtherUnitFacts(input.pedido, car, lexicon)
+    ) {
+      return true;
+    }
   }
   if (askedOtherUnitFacts(input.text, car, lexicon)) {
     return true;
@@ -228,6 +260,19 @@ export function leftShownCar(input: ShownCarContext): boolean {
     resumenCabina(input.resumen ?? '') ?? detectAskedCab(input.text);
   const shownCab = unitCab(car);
   if (askedCab && shownCab && askedCab !== shownCab) {
+    return true;
+  }
+  const askedDrive = detectAskedDrive(
+    `${input.text}\n${input.resumen ?? ''}`,
+  );
+  const shownDrive = unitDrive(car);
+  if (
+    askedDrive &&
+    (shownDrive === '4x2' || shownDrive === '4x4') &&
+    askedDrive !== shownDrive &&
+    !resumenHasPendingDoubt(input.resumen ?? '') &&
+    !textAsksAboutShownDrive(input.text)
+  ) {
     return true;
   }
   const spaceText = `${input.text}\n${input.resumen ?? ''}`;
@@ -303,7 +348,7 @@ export function formatInterestedCar(
     skipMileageCare?: boolean;
     slimAfterFicha?: boolean;
     creditFollowUp?: boolean;
-    afterFicha?: 'price' | 'location' | 'doubt' | 'both';
+    afterFicha?: 'price' | 'location' | 'doubt' | 'both' | 'facts';
   },
 ): string {
   const year = car.year ? ` ${car.year}` : '';
@@ -316,14 +361,16 @@ export function formatInterestedCar(
       ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
       : '';
   if (options?.slimAfterFicha) {
+    const after = options?.afterFicha;
     const km =
       car.mileage && car.mileage > 0
-        ? `\nkm=${Math.round(car.mileage)} (para justificar el valor, no para repetir la ficha)`
-        : '';
+        ? `\nkm=${Math.round(car.mileage)} (para contestar el km o justificar, no para repetir la ficha)`
+        : after === 'facts'
+          ? '\nkm=aún no cargado (NO digas 0 km; si pregunta el kilometraje, dilo: todavía no está en patio)'
+          : '';
     const priceNote = hasLoadedPrice(car.price)
       ? ''
       : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
-    const after = options?.afterFicha;
     const close = options?.creditFollowUp
       ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
       : after === 'location'
@@ -332,6 +379,8 @@ export function formatInterestedCar(
       ? 'YA vio esta unidad. Contesta la duda de ESA. PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
       : after === 'both'
       ? 'YA vio esta unidad. Di el $ de inventario y, en la misma respuesta, dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
+      : after === 'facts'
+      ? 'YA vio esta unidad. Contesta AHORA lo que pregunta (fotos, km, un detalle). PROHIBIDO volver a presentarla: no “tenemos disponible”, no ficha completa (color, caja, tracción, placa). Si pregunta el km y no está cargado, dilo así. No prometas fotos que no se van a enviar.'
       : hasLoadedPrice(car.price)
       ? 'YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.'
       : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';

@@ -124,6 +124,7 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     saveLeadCedula: jest.fn(),
     loadVehicleSpecs: jest.fn(),
     saveVehicleSpecs: jest.fn(),
+    saveChosenInterestedCar: jest.fn(),
   };
   const service = new AgentService(
     openai as never,
@@ -197,6 +198,8 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     persistence.loadVehicleSpecs.mockReset();
     persistence.loadVehicleSpecs.mockResolvedValue([]);
     persistence.saveVehicleSpecs.mockReset();
+    persistence.saveChosenInterestedCar.mockReset();
+    persistence.saveChosenInterestedCar.mockResolvedValue(undefined);
     catalog.fetchAgentPrompts.mockResolvedValue([
       { name: 'rol', content: 'sé cordial' },
     ]);

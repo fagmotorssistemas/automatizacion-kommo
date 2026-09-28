@@ -4,7 +4,7 @@ export const NO_PHOTOS_CUSTOMER_NOTICE =
 
 /** Frases en las que el modelo dice que ya mandó fotos. */
 const PHOTO_CLAIM =
-  /aqu[ií]\s+(?:tiene|est[aá]n|van)|tiene tambi[eé]n las fotos|le env[ií]o las fotos|adjunto las fotos|mando las fotos|fotos del veh[ií]culo/i;
+  /aqu[ií]\s+(?:tiene|est[aá]n|van)|tiene tambi[eé]n las fotos|le env[ií]o(?:\s+\S+){0,4}\s+las fotos|adjunto(?:\s+\S+){0,3}\s+las fotos|mando(?:\s+\S+){0,3}\s+las fotos|fotos del (?:interior|exterior|veh[ií]culo)/i;
 
 function withoutPhotoClaims(mensaje: string): string {
   const kept = mensaje

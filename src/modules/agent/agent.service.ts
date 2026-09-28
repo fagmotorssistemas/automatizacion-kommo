@@ -288,6 +288,7 @@ type BrandReview = {
   switchedModel?: boolean;
   vehicleKind?: VehicleKind | null;
   photoQueue?: PhotoQueueItem[];
+  choseFromShown?: boolean;
 };
 
 /** "La 2018" no es un Peugeot 2008: el año dicho no es esa familia. */
@@ -710,66 +711,69 @@ export class AgentService {
       resumen,
       input.customerText,
     );
-    let revision =
-      pideHorario
-        ? {
-            text: formatHoursAskHint(),
-            holdVehicle: true,
-            sendId: null,
-          }
-        : asientosRevision
-          ? asientosRevision
-        : selling && !buying
-        ? { text: '', holdVehicle: true, sendId: null }
-        : stayOnShown && interested
-          ? {
-              text: `EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS (${interested.brand} ${interested.model}).
+    let revision: BrandReview;
+    if (pideHorario) {
+      revision = {
+        text: formatHoursAskHint(),
+        holdVehicle: true,
+        sendId: null,
+      };
+    } else if (asientosRevision) {
+      revision = asientosRevision;
+    } else if (selling && !buying) {
+      revision = { text: '', holdVehicle: true, sendId: null };
+    } else if (stayOnShown && interested) {
+      const skipVehicle =
+        isMoneyNotVisit(input.customerText) && !askedPrice && !askedCredit;
+      revision = {
+        text: `EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS (${interested.brand} ${interested.model}).
 inventory_id=${interested.inventoryId}
 Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ESTA unidad.
+${fichaAlreadyGiven ? 'La ficha YA se presentó. PROHIBIDO volver a abrir con “tenemos disponible” ni repetir color, caja, tracción o placa. Responde solo lo que pregunta ahora.' : ''}
 No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
 No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
-              holdVehicle:
-                isMoneyNotVisit(input.customerText) &&
-                !askedPrice &&
-                !askedCredit,
-              sendId:
-                isMoneyNotVisit(input.customerText) &&
-                !askedPrice &&
-                !askedCredit
-                  ? null
-                  : interested.inventoryId,
-              unitPrice:
-                interested.price && interested.price > 0
-                  ? Math.round(interested.price)
-                  : null,
+        holdVehicle: skipVehicle,
+        sendId: skipVehicle ? null : interested.inventoryId,
+        unitPrice:
+          interested.price && interested.price > 0
+            ? Math.round(interested.price)
+            : null,
+      };
+    } else {
+      revision = await this.reviewBrand(
+        history,
+        input.customerText,
+        selling ? detectBrand(input.customerText, lexicon) : brand,
+        concreteAsk,
+        askedPrice,
+        vehicleKind,
+        detectGearbox(input.customerText, lexicon) ??
+          (askedPrice && fichaAlreadyGiven ? null : gearbox),
+        interested
+          ? {
+              price: interested.price,
+              family: modelFamily(interested.model),
+              color: interested.color ?? null,
+              inventoryId: interested.inventoryId,
+              brand: interested.brand ?? null,
             }
-          : await this.reviewBrand(
-              history,
-              input.customerText,
-              selling ? detectBrand(input.customerText, lexicon) : brand,
-              concreteAsk,
-              askedPrice,
-              vehicleKind,
-              detectGearbox(input.customerText, lexicon) ??
-                (askedPrice && fichaAlreadyGiven ? null : gearbox),
-              interested
-                ? {
-                    price: interested.price,
-                    family: modelFamily(interested.model),
-                    color: interested.color ?? null,
-                    inventoryId: interested.inventoryId,
-                    brand: interested.brand ?? null,
-                  }
-                : null,
-              lexicon,
-              spaceAsk,
-              askedOtherColor,
-              resumen,
-              cajaCompra,
-              cashBudget,
-              pedido,
-              tresFilas,
-            );
+          : null,
+        lexicon,
+        spaceAsk,
+        askedOtherColor,
+        resumen,
+        cajaCompra,
+        cashBudget,
+        pedido,
+        tresFilas,
+      );
+    }
+    if (revision.choseFromShown && revision.sendId) {
+      await this.persistence.saveChosenInterestedCar(
+        input.contactId,
+        revision.sendId,
+      );
+    }
     if (closing) {
       revision = {
         text: DESPEDIDA_AMABLE,
@@ -875,9 +879,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               slimAfterFicha:
                 justifyPriceAfterFicha ||
                 financingFollowUp ||
-                (stayOnShown &&
-                  fichaAlreadyGiven &&
-                  (askedLocation || hasShownDoubt)),
+                (stayOnShown && fichaAlreadyGiven),
               creditFollowUp: financingFollowUp,
               afterFicha:
                 askedPrice && askedLocation
@@ -886,7 +888,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                     ? 'location'
                     : hasShownDoubt && !askedPrice
                       ? 'doubt'
-                      : 'price',
+                      : askedPrice
+                        ? 'price'
+                        : 'facts',
             },
           )
         : '';
@@ -1822,31 +1826,32 @@ vehiculo null.`,
       if (cashBudget && pool.length === 0) {
         listedPool = [];
       } else {
-      const picked = pickListedUnit(
-        pool.length > 0 ? pool : listedPool,
-        customerText,
-        lexicon,
-        { cab: askedCab },
-      );
-      if (picked && (!cashBudget || carFitsBudget(picked, cashBudget))) {
+        const picked = pickListedUnit(
+          pool.length > 0 ? pool : listedPool,
+          customerText,
+          lexicon,
+          { cab: askedCab },
+        );
+        if (picked && (!cashBudget || carFitsBudget(picked, cashBudget))) {
+          return {
+            ...formatNamedUnits([picked], includePrice),
+            switchedModel: true,
+            vehicleKind: kindFromTypeBody(picked.typeBody),
+            choseFromShown: true,
+          };
+        }
+        if (cashBudget && pool.length > 0) {
+          listedPool = pool;
+        }
+        if (wantsPhotosOfListed(customerText)) {
+          return formatListedPhotoQueue(listedPool);
+        }
         return {
-          ...formatNamedUnits([picked], includePrice),
+          text: `Ya le nombró ${listedPool.length} unidades. PROHIBIDO volver a listarlas. UNA línea: ¿cuál quiere ver? vehiculo null.`,
+          holdVehicle: true,
+          sendId: null,
           switchedModel: true,
-          vehicleKind: kindFromTypeBody(picked.typeBody),
         };
-      }
-      if (cashBudget && pool.length > 0) {
-        listedPool = pool;
-      }
-      if (wantsPhotosOfListed(customerText)) {
-        return formatListedPhotoQueue(listedPool);
-      }
-      return {
-        text: `Ya le nombró ${listedPool.length} unidades. PROHIBIDO volver a listarlas. UNA línea: ¿cuál quiere ver? vehiculo null.`,
-        holdVehicle: true,
-        sendId: null,
-        switchedModel: true,
-      };
       }
     }
     if (spaceAsk && !asked && !tresFilas) {
@@ -2062,6 +2067,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
 El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay ficha: no busques de nuevo ni la presentes como otra. PROHIBIDO decir que no hay, que no tenemos o “lo más cercano”. Prohibido pedir entrada, plazo o cuota si el hilo no lo pidió. Prohibido meter otra línea.`,
           switchedModel: true,
           vehicleKind: kindOfNamedUnits(known),
+          choseFromShown: true,
         };
       }
       if (known.length > 1) {
@@ -2187,6 +2193,7 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
 El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido decir que no está o "lo más cercano".`,
           switchedModel: false,
           vehicleKind: kindOfNamedUnits(boxed),
+          choseFromShown: boxed.length === 1,
         };
       }
     }
@@ -2935,6 +2942,7 @@ ${named.text}`,
 ${rule}`,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(shown),
+      choseFromShown: !closest && Boolean(named.sendId),
     };
   }
 

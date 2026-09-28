@@ -378,7 +378,51 @@ describe('clasificar filas', () => {
     expect(offer.cars.map((car) => car.id)).toEqual(['ram-cs', 'tunland']);
     expect(offer.hint).toMatch(/cabina simple/i);
     expect(offer.hint).toMatch(/4x4/);
+    expect(offer.hint).toMatch(/NO hay ninguna que cumpla las dos/i);
     expect(offer.hint).toMatch(/PROHIBIDO listar/);
+    expect(offer.hint).not.toMatch(/Hay unidades que cumplen las DOS/i);
+  });
+
+  it('si hay simple 4x4 no mete la doble 4x4 ni la simple 4x2', () => {
+    const patio: StockCar[] = [
+      {
+        id: 'f150-cs-4x4',
+        brand: 'ford',
+        model: 'f150 rc ac 3.7 cs 4x4',
+        year: 2014,
+        price: 18990,
+        typeBody: 'cabina simple',
+      },
+      {
+        id: 'ram-cs',
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+      },
+      {
+        id: 'luv-cd',
+        brand: 'chevrolet',
+        model: 'luv d-max c/d v6 4x4 tm',
+        year: 2006,
+        price: 8900,
+        typeBody: 'camioneta',
+      },
+      {
+        id: 'dmax-cs-4x2',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+      },
+    ];
+    const offer = pickCabDriveOffer(patio, 'cs', '4x4');
+    expect(offer.cars.map((car) => car.id)).toEqual(['f150-cs-4x4']);
+    expect(offer.hint).toMatch(/cumplen las DOS/i);
+    expect(offer.hint).not.toMatch(/luv d-max c\/d/i);
+    expect(offer.hint).not.toMatch(/ram 700/i);
   });
 
   it('sin otra del mismo tipo no invita a la concesionaria', () => {

@@ -7,6 +7,15 @@ describe('appendNoPhotosNotice', () => {
     expect(appendNoPhotosNotice(once)).toBe(once);
   });
 
+  it('quita “le envío también las fotos del interior” y deja un solo aviso', () => {
+    const text = appendNoPhotosNotice(
+      'Estimado, tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual año 2019 color blanco, con el kilometraje aún no cargado y transmisión manual. A continuación, le envío también las fotos del interior del vehículo. Por ahora no tengo fotos de este vehículo para enviarle. Si desea, le doy más detalles o coordinamos una visita.',
+    );
+    expect(text).not.toMatch(/le env[ií]o también las fotos/i);
+    expect(text).not.toMatch(/fotos del interior/i);
+    expect(text.match(/no tengo fotos de este vehículo/gi)).toHaveLength(1);
+  });
+
   it('quita el "aquí tiene las fotos" si no hay fotos', () => {
     const text = appendNoPhotosNotice(
       'Estimado, tenemos disponible un Ford ranger XLT 2026 color plomo, con 0 km, transmisión automática y diesel. La placa es P8. Aquí tiene también las fotos del vehículo.',

@@ -85,8 +85,8 @@ Si el número ES el modelo en patio (está en inventario), no lo trates como añ
 
 CAMIONETAS
 - cs/cd y 4x2/4x4 se leen del modelo. No inventes cabina ni tracción si el nombre no lo trae.
-- Si pidió cabina simple (cs) y hay una cs con otra tracción: ofrécela y di la tracción real.
-- Si pidió 4x4 y hay una 4x4 con otra cabina: ofrécela y di la cabina real.
+- Si pidió cabina y tracción (simple y 4x4): lista SOLO las que cumplen las DOS, si hay.
+- Si no hay ninguna que sea las dos: PRIMERO dilo. DESPUÉS, si ofreces otras, dos grupos con el dato real (simple que no es 4x4; 4x4 que no es esa cabina). PROHIBIDO un listado titulado como si todas fueran las dos.
 - PROHIBIDO listar una que no cumpla ni la cabina ni la tracción que pidió.
 - "tiene camionetas" / "camioneta usada" / solo el tipo, sin marca ni modelo ni cs/cd/4x4 → UNA pregunta de marca. PROHIBIDO elegir una unidad y mandarla.
 - "camioneta doble cabina" / "cabina simple" / 4x4 o con marca/modelo → busca con ese filtro.

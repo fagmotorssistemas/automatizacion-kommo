@@ -1,4 +1,5 @@
 import { PersistenceService } from './persistence.service';
+import { buildVehicleUid } from '../intelligence/vehicle-uid';
 
 describe('PersistenceService', () => {
   const supabase = {
@@ -176,6 +177,42 @@ describe('PersistenceService', () => {
       inventoryId: 'inv-1',
       vehicleUid: 'abc',
     });
+
+    expect(supabase.insertInterestedCar).not.toHaveBeenCalled();
+  });
+
+  it('si eligió una unidad mostrada, la guarda con el id de inventario', async () => {
+    supabase.findLeadByContactId.mockResolvedValue({
+      id: 'lead-row-1',
+      contactId: 'A76231',
+      leadIdKommo: '41807269',
+      name: 'Jorge',
+      phone: '+593999000111',
+      source: 'waba',
+      assignedTo: null,
+      mensajesEnviados: [],
+      behaviorSignals: {},
+    });
+    supabase.hasInterestedCar.mockResolvedValue(false);
+    supabase.insertInterestedCar.mockResolvedValue(undefined);
+
+    await service.saveChosenInterestedCar('A76231', 'luv-2006');
+
+    expect(supabase.hasInterestedCar).toHaveBeenCalledWith(
+      'lead-row-1',
+      'luv-2006',
+    );
+    expect(supabase.insertInterestedCar).toHaveBeenCalledWith({
+      leadId: 'lead-row-1',
+      inventoryId: 'luv-2006',
+      vehicleUid: buildVehicleUid('lead-row-1', 'luv-2006'),
+    });
+  });
+
+  it('no guarda la elección si aún no hay lead', async () => {
+    supabase.findLeadByContactId.mockResolvedValue(null);
+
+    await service.saveChosenInterestedCar('A76231', 'luv-2006');
 
     expect(supabase.insertInterestedCar).not.toHaveBeenCalled();
   });

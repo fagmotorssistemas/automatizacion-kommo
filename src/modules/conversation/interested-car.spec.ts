@@ -4,6 +4,7 @@ import {
   historyPresentedFicha,
   leftShownCar,
   refersToInterestedCar,
+  sameShownUnitAsk,
   vehicleLabelFitsCar,
 } from './interested-car';
 import { TEST_LEXICON } from './test-lexicon';
@@ -285,6 +286,34 @@ describe('vehículo de interés', () => {
     );
   });
 
+  it('4x4 suelta la cabina simple 4x2 que ya mostramos', () => {
+    const dmaxCs = {
+      inventoryId: 'dmax-2020-cs',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+      year: 2020,
+      price: 21900,
+      typeBody: 'cabina simple',
+    };
+    expect(
+      followsShownCar({
+        text: 'Tal vez dispone en cabina simple pero 4x4?',
+        car: dmaxCs,
+      }),
+    ).toBe(false);
+    expect(
+      followsShownCar({
+        text: 'No era 4x4?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente confirma si la unidad es 4x4.\nTiene duda: sí\nPide otras: no',
+        car: dmaxCs,
+      }),
+    ).toBe(true);
+    expect(followsShownCar({ text: 'cuántos km tiene?', car: dmaxCs })).toBe(
+      true,
+    );
+  });
+
   it('la simulación sigue con el Explorer', () => {
     expect(
       refersToInterestedCar(
@@ -523,6 +552,16 @@ describe('vehículo de interés', () => {
         afterFicha: 'doubt',
       }),
     ).toMatch(/Contesta la duda de ESA/i);
+    const facts = formatInterestedCar(
+      { ...explorer, color: 'blanco', transmission: 'manual', mileage: null },
+      false,
+      { slimAfterFicha: true, afterFicha: 'facts' },
+    );
+    expect(facts).toMatch(/Contesta AHORA lo que pregunta/i);
+    expect(facts).toMatch(/no “tenemos disponible”/i);
+    expect(facts).toMatch(/km=aún no cargado/i);
+    expect(facts).not.toContain('color=blanco');
+    expect(facts).not.toContain('caja=manual');
   });
 
   it('si pide furgoneta suelta el carro chico', () => {
@@ -536,6 +575,43 @@ describe('vehículo de interés', () => {
       followsShownCar({
         text: 'tiene cámara de reversa?',
         car: picanto,
+      }),
+    ).toBe(true);
+  });
+
+  it('repetir la misma ficha (marca + AMG + año) sigue siendo esa unidad', () => {
+    const c300 = {
+      inventoryId: 'c300-1',
+      brand: 'mercedes-benz',
+      model: 'c 300 amg line ac 2.0 4p 4x2 automatico',
+      year: 2024,
+      price: 61990,
+      color: 'blanco',
+    };
+    expect(
+      sameShownUnitAsk(
+        { family: 'c 300', year: 2024 },
+        { model: c300.model, year: 2024 },
+      ),
+    ).toBe(true);
+    expect(
+      sameShownUnitAsk(
+        { family: 'c 300', year: 2025 },
+        { model: c300.model, year: 2024 },
+      ),
+    ).toBe(false);
+    expect(
+      leftShownCar({
+        text: 'todavía lo tienen?',
+        pedido: 'Mercedes C 300 AMG Line 2024',
+        car: c300,
+      }),
+    ).toBe(false);
+    expect(
+      followsShownCar({
+        text: 'todavía lo tienen?',
+        pedido: 'Mercedes C 300 AMG Line 2024',
+        car: c300,
       }),
     ).toBe(true);
   });
