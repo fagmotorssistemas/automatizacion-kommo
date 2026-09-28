@@ -48,10 +48,12 @@ import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.p
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
 import {
+  asksAnyBrand,
   detectVehicleKind,
   formatPedidoVigente,
   formatSoloTipoPedido,
   kindFromTypeBody,
+  lastOfferedOtherOptions,
   matchesVehicleKind,
   parseVehicleKind,
   resolveVehicleKind,
@@ -82,6 +84,7 @@ import {
   formatGearboxAlternatives,
   formatGearboxPedido,
   formatOtherBrandGearboxList,
+  formatPatioKindList,
   gearboxOf,
   Gearbox,
   pickDiverseByBrand,
@@ -116,7 +119,7 @@ import { ensureCashDeliveryConfirm } from '../conversation/cash-delivery';
 import { DESPEDIDA_AMABLE, salesFollowHint } from '../conversation/polite-thanks';
 import {
   askedOutsideListed,
-  asksPricesOfListedUnits,
+  askedOtherBrandThanListed,
   formatListedPhotoQueue,
   historyHasUnitList,
   lastListedUnits,
@@ -142,6 +145,7 @@ import {
   resumenFaltaVehiculo,
   vehicleQueSigue,
   resumenPideHorario,
+  resumenStaysOnShownUnit,
   resumenAsientos,
   resumenTresFilas,
   resumenTipoPatio,
@@ -164,7 +168,6 @@ import {
   resumenIsPriceObjection,
   textAsksForCredit,
   textAsksForImmediateDelivery,
-  textAsksForListedPrice,
   textAsksForOtherColor,
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
@@ -177,6 +180,7 @@ import {
   followsShownCar,
   formatInterestedCar,
   historyPresentedFicha,
+  askedMatchesShownModel,
   refersToInterestedCar,
   vehicleLabelFitsCar,
 } from '../conversation/interested-car';
@@ -419,7 +423,10 @@ function facebookOpenerVehicle(
   return null;
 }
 
-/** Palabra que puede ser un modelo (rio, seltos), no "ok" ni "precio". */
+/**
+ * Palabras gramaticales: no se tratan como nombre de modelo.
+ * Si el cliente pide el valor u otra cosa, lo decide el resumen, no esta lista.
+ */
 function mightNameModel(text: string): boolean {
   return text.split(/[^\p{L}0-9]+/u).some((word) => {
     const token = word
@@ -515,7 +522,9 @@ export class AgentService {
       resumenFaltaVehiculo(resumen) &&
       !adVehicle &&
       !pedido &&
-      !brandSaidNow
+      !brandSaidNow &&
+      !detectVehicleKind(input.customerText) &&
+      !asksAnyBrand(input.customerText)
     ) {
       return this.replyAskWhichCar(input.contactId, input.customerText, {
         wantsPrice: resumenAsksForListedPrice(resumen),
@@ -576,9 +585,7 @@ export class AgentService {
         await this.conversation.saveConcreteAsk(input.contactId, cleaned);
       }
     }
-    const askedListedPrice = textAsksForListedPrice(input.customerText);
-    const mentionsPrice =
-      resumenAsksForListedPrice(resumen) || askedListedPrice;
+    const mentionsPrice = resumenAsksForListedPrice(resumen);
     const firstTouchBareOk =
       isBareConfirmation(input.customerText) &&
       !historyPresentedFicha(history, interested?.model);
@@ -587,7 +594,6 @@ export class AgentService {
       resumenAsksForImmediateDelivery(resumen);
     const confirmingCashOrDelivery =
       historyHasListedPrice(history) &&
-      !askedListedPrice &&
       (resumenPrefiereContado(resumen) || asksDeliveryNow);
     const askedPrice =
       resumenPideNegociar(resumen) ||
@@ -651,7 +657,7 @@ export class AgentService {
     const stayFollowUp =
       (askedPrice || askedLocation || hasShownDoubt) &&
       !lastAssistantListed &&
-      !resumenPideOtras(resumen) &&
+      (!resumenPideOtras(resumen) || askedPrice) &&
       !otherBrandNow;
     if (stayFollowUp) {
       const shown = lastSingleShownUnit(
@@ -679,33 +685,72 @@ export class AgentService {
       interested?.model,
       resumen,
     );
+    const acceptedOtherOffer =
+      (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
+      lastOfferedOtherOptions(lastOfferText);
     let stayOnShown = lastAssistantListed
       ? false
-      : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
-          !resumenPideOtras(resumen) &&
-          !resumenTopeContado(resumen)
-        ? true
-        : followsShownCar({
-            text: input.customerText,
-            resumen,
-            history,
-            car: interested,
-            lexicon,
-            pedido,
-          });
+      : acceptedOtherOffer
+        ? false
+        : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
+            !resumenPideOtras(resumen) &&
+            !resumenTopeContado(resumen)
+          ? true
+          : followsShownCar({
+              text: input.customerText,
+              resumen,
+              history,
+              car: interested,
+              lexicon,
+              pedido,
+            });
     const boxNow = detectGearbox(input.customerText, lexicon);
     const shownBox = interested ? gearboxOf(interested) : null;
     if (
       stayFollowUp &&
       interested &&
-      fichaAlreadyGiven &&
+      (fichaAlreadyGiven || askedPrice) &&
       !askedOtherColor &&
       !(boxNow && shownBox && boxNow !== shownBox) &&
-      !detectNamedModelAsk(input.customerText, lexicon) &&
       !otherBrandNow &&
-      !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon))
+      !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon)) &&
+      (resumenStaysOnShownUnit(resumen) ||
+        !detectNamedModelAsk(input.customerText, lexicon))
     ) {
       stayOnShown = true;
+    }
+    if (
+      lastAssistantListed &&
+      interested &&
+      !resumenPideOtras(resumen) &&
+      !askedOtherColor &&
+      !otherBrandNow
+    ) {
+      const yearNow = detectYearInText(input.customerText);
+      const colorNow = detectColorInText(input.customerText);
+      const namedNow = detectNamedModelAsk(input.customerText, lexicon);
+      const namedOther = namedNow
+        ? !askedMatchesShownModel(namedNow.family, interested.model)
+        : false;
+      const yearOk = yearNow == null || interested.year === yearNow;
+      const colorOk =
+        !colorNow ||
+        Boolean(interested.color && colorMatches(interested.color, colorNow));
+      if (
+        !namedOther &&
+        yearOk &&
+        colorOk &&
+        (askedPrice || yearNow != null || Boolean(colorNow)) &&
+        textMentionsModel(lastOfferText, interested.model)
+      ) {
+        stayOnShown = true;
+      }
+    }
+    if (acceptedOtherOffer || asksAnyBrand(input.customerText)) {
+      stayOnShown = false;
+    }
+    if (boxNow && shownBox && boxNow !== shownBox) {
+      stayOnShown = false;
     }
     const priceObjection =
       resumenIsPriceObjection(resumen) ||
@@ -768,14 +813,25 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
             : null,
       };
     } else {
+      const anyBrandThread =
+        asksAnyBrand(input.customerText) ||
+        acceptedOtherOffer ||
+        history.some(
+          (item) => item.role === 'user' && asksAnyBrand(item.content),
+        );
       revision = await this.reviewBrand(
         history,
         input.customerText,
-        selling ? detectBrand(input.customerText, lexicon) : brand,
+        selling || anyBrandThread
+          ? detectBrand(input.customerText, lexicon)
+          : brand,
         concreteAsk,
         askedPrice,
         vehicleKind,
         detectGearbox(input.customerText, lexicon) ??
+          (acceptedOtherOffer
+            ? detectGearbox(lastOfferText, lexicon)
+            : null) ??
           (askedPrice && fichaAlreadyGiven ? null : gearbox),
         interested
           ? {
@@ -835,8 +891,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           (name) => name === 'objeciones' || name === 'presupuestocliente',
         ));
     const askingKmOnly =
-      /\bkm\b|kilometr/i.test(input.customerText) &&
-      !textAsksForListedPrice(input.customerText);
+      /\bkm\b|kilometr/i.test(input.customerText) && !askedPrice;
     const justifyPriceAfterFicha =
       stayOnShown &&
       Boolean(interested) &&
@@ -903,7 +958,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
                 objectionOnShown ||
                 justifyPriceAfterFicha ||
                 financingFollowUp ||
-                textAsksForListedPrice(input.customerText),
+                askedPrice,
               slimAfterFicha:
                 justifyPriceAfterFicha ||
                 financingFollowUp ||
@@ -974,13 +1029,16 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         fichaAlreadyGiven ||
         historyHasListedPrice(history));
     const listedPriceKnown = revision.unitPrice !== undefined;
+    const sameShownUnit =
+      !revision.sendId ||
+      revision.sendId === interested?.inventoryId;
     const unitPrice =
       revision.unitPrice && revision.unitPrice > 0
         ? Math.round(revision.unitPrice)
         : interested?.price &&
             interested.price > 0 &&
-            !revision.holdVehicle &&
-            (!revision.sendId || revision.sendId === interested.inventoryId)
+            sameShownUnit &&
+            (stayOnShown || Boolean(revision.sendId))
           ? Math.round(interested.price)
           : null;
     const askedThisUnitPrice =
@@ -1161,6 +1219,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
               detectBrand(input.customerText, lexicon) ||
                 detectNamedModelAsk(input.customerText, lexicon)?.brand ||
                 (cajaCompra === 'no' ? null : brand),
+              asksAnyBrand(input.customerText) ||
+                acceptedOtherOffer ||
+                history.some(
+                  (item) => item.role === 'user' && asksAnyBrand(item.content),
+                ) ||
+                (revision.holdVehicle && /inventory_id=/.test(revision.text)),
             ),
             formatGearboxPedido(
               revision.switchedModel && !saidBoxNow ? null : gearbox,
@@ -1519,7 +1583,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
   ): Promise<VehicleKind | null> {
     const remembered = await this.conversation.loadVehicleKind(contactId);
     const dropOldKind = tipoPatio === 'no';
-    const kind = resolveVehicleKind({
+    let kind = resolveVehicleKind({
       history,
       customerText,
       remembered,
@@ -1527,6 +1591,22 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       resumenKind: tipoPatio && tipoPatio !== 'no' ? tipoPatio : null,
       dropOldKind,
     });
+    if (!kind) {
+      const similarText = [
+        customerText,
+        ...[...history].reverse().map((item) => item.content),
+      ].find((text) => /\b(?:similar|parecid\w*)\b/i.test(text));
+      if (similarText) {
+        const lexicon = await this.catalog.getLexicon();
+        const named = detectNamedModelAsk(similarText, lexicon);
+        if (named) {
+          const stock = named.brand
+            ? await this.catalog.listByBrand(named.brand)
+            : await this.catalog.listAvailableExcept('_');
+          kind = kindFromStockFamily(stock, named.family);
+        }
+      }
+    }
     if (kind) {
       await this.conversation.saveVehicleKind(contactId, kind);
     } else if (dropOldKind) {
@@ -1616,10 +1696,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     tresFilas = false,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
-    const listedFollowUp = lastOfferIsUnitList(lastOfferAssistantText(history));
-    const fromText = detectNamedModelAsk(customerText, lexicon);
+    const lastAsst = lastOfferAssistantText(history);
+    const listedFollowUp = lastOfferIsUnitList(lastAsst);
+    const staysOnShown = resumenStaysOnShownUnit(resumen);
+    const brandSaidInTurn = detectBrand(customerText, lexicon);
+    const namesBrandNow = Boolean(brandSaidInTurn);
+    const fromText = staysOnShown
+      ? null
+      : detectNamedModelAsk(customerText, lexicon);
     const fromSolicitud =
-      cajaCompra === 'no'
+      cajaCompra === 'no' || (namesBrandNow && !fromText)
         ? null
         : detectNamedModelAsk(solicitudSinBanderas(resumen), lexicon);
     const named =
@@ -1644,16 +1730,54 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras = resumenPideOtras(resumen);
     const cashBudgetEarly = asked ? null : cashBudget;
-    const wantsListedPrices = asksPricesOfListedUnits(
-      customerText,
-      lastOfferAssistantText(history),
-    );
+    const wantsListedPrices = includePrice && listedFollowUp;
     const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);
-    const targetBrand = asked?.brand || brand;
+    const targetBrand = asked?.brand || brandSaidInTurn || brand;
     const cabDriveText = `${solicitudSinBanderas(resumen)}\n${concreteAsk ?? ''}\n${customerText}`;
     const askedCab = resumenCabina(resumen) ?? detectAskedCab(cabDriveText);
     const askedDriveEarly = detectAskedDrive(cabDriveText);
+    const anyBrandPedido =
+      asksAnyBrand(customerText) ||
+      history.some(
+        (item) => item.role === 'user' && asksAnyBrand(item.content),
+      );
+    const acceptedOther =
+      lastOfferedOtherOptions(lastAsst) &&
+      (isThreadAck(customerText) || pideOtras);
+    const tipoAhoraEarly = resumenTipoPatio(resumen);
+    const kindAhoraEarly =
+      tipoAhoraEarly && tipoAhoraEarly !== 'no'
+        ? tipoAhoraEarly
+        : detectVehicleKind(customerText);
+    const kindForPatio =
+      kindAhoraEarly ||
+      (anyBrandPedido || acceptedOther ? vehicleKind : null);
+    const listAnyOfKind =
+      !asked &&
+      !listedFollowUp &&
+      !wantsListedPrices &&
+      !spaceAsk &&
+      !askedOtherColor &&
+      !askedCab &&
+      !tresFilas &&
+      !resumenAsientos(resumen) &&
+      Boolean(kindForPatio) &&
+      (anyBrandPedido || acceptedOther);
+    if (listAnyOfKind && kindForPatio) {
+      const box =
+        gearbox ??
+        (acceptedOther ? detectGearbox(lastAsst, lexicon) : null);
+      return this.reviewAnyKindPatio({
+        kind: kindForPatio,
+        gearbox: box,
+        includePrice,
+        exceptId:
+          box || acceptedOther || pideOtras
+            ? (reference?.inventoryId ?? null)
+            : null,
+      });
+    }
     if (
       !targetBrand &&
       !asked &&
@@ -1673,7 +1797,6 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       return empty;
     }
 
-    const namesBrandNow = Boolean(detectBrand(customerText, lexicon));
     const shownBrandNow = reference?.brand?.trim().toLowerCase() ?? '';
     const switchedBrand = Boolean(
       targetBrand &&
@@ -1693,7 +1816,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !asked &&
       !maybeAsk &&
       !namesBrandNow &&
-      !mightNameModel(customerText) &&
+      !(mightNameModel(customerText) && !staysOnShown) &&
       !listedFollowUp
     ) {
       return empty;
@@ -1764,42 +1887,46 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           : listed.filter((car) => modelPhraseMatchesCar(phrase, car.model));
       pedidoPinned = strict.length > 0;
       if (hits.length === 0) {
-        if (listedFollowUp && wantsPhotosOfListed(customerText)) {
-          const pool = lastListedUnits(
-            history,
-            await this.catalog.listAvailableExcept('_'),
-          );
-          if (
-            pool.length >= 2 &&
-            !askedOutsideListed(asked?.family, pool)
-          ) {
-            return formatListedPhotoQueue(pool);
-          }
-        }
-        return {
-          text: `PEDIDO: ${pedido}
+        if (!listedFollowUp) {
+          return {
+            text: `PEDIDO: ${pedido}
 Ese modelo no está en patio. Di primero que no lo tenemos, con el nombre que pidió.
 PROHIBIDO presentarlo como otra línea parecida de la misma marca.
 vehiculo null.`,
-          holdVehicle: true,
-          sendId: null,
-          switchedModel: true,
-        };
+            holdVehicle: true,
+            sendId: null,
+            switchedModel: true,
+          };
+        }
+      } else {
+        listed = hits;
       }
-      listed = hits;
     }
+    const offerCars = lastListedUnits(
+      history,
+      await this.catalog.listAvailableExcept('_'),
+    );
+    const rememberedBrand = brand?.trim().toLowerCase() ?? '';
+    const leftListedBrand =
+      askedOtherBrandThanListed(brandSaidInTurn, offerCars) ||
+      (Boolean(brandSaidInTurn) &&
+        Boolean(shownBrandNow) &&
+        brandSaidInTurn !== shownBrandNow) ||
+      (Boolean(brandSaidInTurn) &&
+        Boolean(rememberedBrand) &&
+        brandSaidInTurn !== rememberedBrand);
     if (
       targetBrand &&
       namesBrandNow &&
       !asked &&
-      !listedFollowUp &&
+      !(listedFollowUp && !leftListedBrand) &&
       !gearbox &&
       !askedCab &&
       !askedDriveEarly &&
       !spaceAsk &&
       !yearPick &&
       !colorPick &&
-      (!pideOtras || switchedBrand) &&
+      (!pideOtras || switchedBrand || leftListedBrand) &&
       !cashBudgetEarly &&
       !isConcreteAsk(customerText) &&
       !detectVehicleKind(customerText) &&
@@ -1845,7 +1972,11 @@ vehiculo null.`,
       [...history].reverse().find((item) => item.role === 'assistant')
         ?.content ?? '';
     let listedPool = lastListedUnits(history, listed);
-    if (listedPool.length < 2 && looksLikeUnitList(lastAssistantText)) {
+    if (
+      listedPool.length < 2 &&
+      looksLikeUnitList(lastAssistantText) &&
+      !leftListedBrand
+    ) {
       listedPool = lastListedUnits(
         history,
         await this.catalog.listAvailableExcept('_'),
@@ -1853,7 +1984,8 @@ vehiculo null.`,
     }
     if (
       listedPool.length >= 2 &&
-      !askedOutsideListed(asked?.family, listedPool)
+      !askedOutsideListed(asked?.family, listedPool) &&
+      !askedOtherBrandThanListed(brandSaidInTurn, listedPool)
     ) {
       const pool = cashBudget
         ? listedPool.filter((car) => carFitsBudget(car, cashBudget))
@@ -1861,6 +1993,9 @@ vehiculo null.`,
       if (cashBudget && pool.length === 0) {
         listedPool = [];
       } else {
+        if (wantsPhotosOfListed(customerText)) {
+          return formatListedPhotoQueue(pool.length > 0 ? pool : listedPool);
+        }
         const picked = pickListedUnit(
           pool.length > 0 ? pool : listedPool,
           customerText,
@@ -1868,8 +2003,11 @@ vehiculo null.`,
           { cab: askedCab },
         );
         if (picked && (!cashBudget || carFitsBudget(picked, cashBudget))) {
+          const named = formatNamedUnits([picked], includePrice);
           return {
-            ...formatNamedUnits([picked], includePrice),
+            ...named,
+            text: `${named.text}
+El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay ficha: no busques de nuevo ni la presentes como otra. PROHIBIDO decir que no hay, que no tenemos o “lo más cercano”. Prohibido pedir entrada, plazo o cuota si el hilo no lo pidió. Prohibido meter otra línea.`,
             switchedModel: true,
             vehicleKind: kindFromTypeBody(picked.typeBody),
             choseFromShown: true,
@@ -1877,9 +2015,6 @@ vehiculo null.`,
         }
         if (cashBudget && pool.length > 0) {
           listedPool = pool;
-        }
-        if (wantsPhotosOfListed(customerText)) {
-          return formatListedPhotoQueue(listedPool);
         }
         return {
           text: `Ya le nombró ${listedPool.length} unidades. PROHIBIDO volver a listarlas. UNA línea: ¿cuál quiere ver? vehiculo null.`,
@@ -2190,7 +2325,7 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
             const missingYear = formatMissingNamedModel(
               threadFamily,
               yearAsk,
-              carsNearYear(inFamily, yearAsk),
+              inFamily,
               includePrice,
             );
             return {
@@ -2365,7 +2500,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           const missingYear = formatMissingNamedModel(
             family || 'unidad',
             yearFromThread,
-            carsNearYear(offer, yearFromThread),
+            offer,
             includePrice,
           );
           return {
@@ -2516,12 +2651,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     const asksNow =
       isConcreteAsk(customerText) ||
       (Boolean(concreteAsk) && namesBrandNow && !askingOther) ||
+      (namesBrandNow && leftListedBrand) ||
       (tresFilas &&
         (brandsNow.length > 0 || Boolean(targetBrand) || anyTresFilasBrand));
     if (!asksNow && !namesBrandNow) {
       return empty;
     }
-    if (askingOther && !asksNow) {
+    if (askingOther && !asksNow && !leftListedBrand) {
       return {
         text: '',
         holdVehicle: false,
@@ -2806,6 +2942,44 @@ ${missing.text}`,
       sendId: vehicleToSend(review, namedId),
       switchedModel: Boolean(kindForAsk && kindForAsk !== vehicleKind),
       vehicleKind: kindForAsk,
+    };
+  }
+
+  /** Tipo sin marca (cualquiera / auto): listar patio de ese grupo, no clavar una unidad. */
+  private async reviewAnyKindPatio(input: {
+    kind: VehicleKind;
+    gearbox: Gearbox | null;
+    includePrice: boolean;
+    exceptId?: string | null;
+  }): Promise<BrandReview> {
+    const patio = (await this.catalog.listAvailableExcept('_')).filter(
+      (car) => car.id !== input.exceptId,
+    );
+    const group = bodyGroupOf(input.kind);
+    let cars = pickDiverseByBrand(patio, input.gearbox, group, 3);
+    if (cars.length < 3 && group === 'chico') {
+      for (const extra of pickDiverseByBrand(
+        patio,
+        input.gearbox,
+        'suv',
+        3,
+      )) {
+        if (!cars.some((row) => row.id === extra.id)) {
+          cars.push(extra);
+        }
+        if (cars.length >= 3) {
+          break;
+        }
+      }
+    }
+    return {
+      ...formatPatioKindList({
+        cars,
+        includePrice: input.includePrice,
+        gearbox: input.gearbox,
+      }),
+      switchedModel: true,
+      vehicleKind: input.kind,
     };
   }
 

@@ -1,5 +1,6 @@
 import {
   askedOutsideListed,
+  askedOtherBrandThanListed,
   asksPricesOfListedUnits,
   historyHasUnitList,
   lastListedUnits,
@@ -265,6 +266,7 @@ describe('listed photos', () => {
     );
     expect(wantsPhotosOfListed('de todas')).toBe(true);
     expect(wantsPhotosOfListed('mándeme las fotos')).toBe(true);
+    expect(wantsPhotosOfListed('Me puede mandar fotos de estos')).toBe(true);
     expect(wantsPhotosOfListed('Sí, por favor')).toBe(false);
     expect(wantsPhotosOfListed('mándeme')).toBe(false);
     expect(wantsPhotosOfListed('no gracias')).toBe(false);
@@ -322,6 +324,94 @@ describe('listed photos', () => {
         cab: 'cs',
       })?.id,
     ).toBe('dmax-2020-cs');
+    expect(
+      pickListedUnit(dmaxes, 'La plateada 2023 qué valor tiene?', TEST_LEXICON)
+        ?.id,
+    ).toBe('dmax-2023-cd');
+  });
+
+  it('el listado de dos D-max con ficha y fotos sigue siendo esas dos', () => {
+    const dmaxes: StockCar[] = [
+      {
+        id: 'dmax-2023-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+        mileage: 77613,
+        transmission: 'manual',
+      },
+      {
+        id: 'dmax-2022-cd',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'vino',
+        mileage: 87687,
+        transmission: 'manual',
+      },
+    ];
+    const offer =
+      'Estimado, tenemos disponible un Chevrolet d-max crdi 2.5 cd 4x2 manual diesel 2023 color plateado, con 77613 km. La placa es P6 Aquí tiene también las fotos del vehículo. También contamos con un Chevrolet d-max crdi 2.5 cd 4x4 manual diesel 2022 color vino, con 87687 km. La placa es P4, ambos son camionetas doble cabina.';
+    expect(lastOfferIsUnitList(offer)).toBe(true);
+    expect(
+      lastListedUnits(
+        [
+          { role: 'assistant', content: offer },
+          { role: 'assistant', content: 'SalesBot (chevrolet_plateado_2023)' },
+          { role: 'assistant', content: 'Descargar' },
+        ],
+        dmaxes,
+      ).map((car) => car.id),
+    ).toEqual(['dmax-2023-cd', 'dmax-2022-cd']);
+    expect(
+      pickListedUnit(
+        dmaxes,
+        'La plateada 2023 qué valor tiene?',
+        TEST_LEXICON,
+      )?.id,
+    ).toBe('dmax-2023-cd');
+  });
+
+  it('dos X70 Plus 2025 plateadas: la manual / Plus II es esa, no vuelve a preguntar', () => {
+    const x70s: StockCar[] = [
+      {
+        id: 'x70-ii-tm',
+        brand: 'jetour',
+        model: 'x70 plus ii ac 1.5 4x2 tm',
+        year: 2025,
+        price: 22800,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 20871,
+        transmission: 'manual',
+      },
+      {
+        id: 'x70-6dct',
+        brand: 'jetour',
+        model: 'x70 plus 6dct ac 1.5 5p 4x2 ta',
+        year: 2025,
+        price: 23900,
+        typeBody: 'jeep',
+        color: 'plateado',
+        transmission: 'automática',
+      },
+    ];
+    const offer =
+      'Tenemos disponible un Jetour X70 Plus II AC 1.5 4x2 manual 2025 color plateado, con 20871 km y También está el Jetour X70 Plus 6DCT AC 1.5 5p 4x2 automática 2025 color plateado, con kilometraje aún no cargado y ¿Cuál de estas unidades le interesa más?';
+    expect(lastOfferIsUnitList(offer)).toBe(true);
+    expect(
+      lastListedUnits([{ role: 'assistant', content: offer }], x70s).map(
+        (car) => car.id,
+      ),
+    ).toEqual(['x70-ii-tm', 'x70-6dct']);
+    expect(
+      pickListedUnit(x70s, 'X70 plus ll 1.5 4x2 manual', TEST_LEXICON)?.id,
+    ).toBe('x70-ii-tm');
   });
 
   it('el enunciado es corto', () => {
@@ -362,6 +452,12 @@ describe('listed photos', () => {
   it('un Tucson no es del listado de Sportage', () => {
     expect(askedOutsideListed('tucson', sportages)).toBe(true);
     expect(askedOutsideListed('sportage', sportages)).toBe(false);
+  });
+
+  it('Jetour no es del listado de Kia', () => {
+    expect(askedOtherBrandThanListed('jetour', sportages)).toBe(true);
+    expect(askedOtherBrandThanListed('kia', sportages)).toBe(false);
+    expect(askedOtherBrandThanListed(null, sportages)).toBe(false);
   });
 
   it('precio de una ficha no es precio de un listado', () => {

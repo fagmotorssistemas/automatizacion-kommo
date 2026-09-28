@@ -46,6 +46,16 @@ export function isDriveFamily(family: string): boolean {
   return /^(?:4x[24]|x[24]|4wd|awd)$/i.test(family.trim());
 }
 
+/** “no las Sportage” / “no el Tucson”: ese modelo no es el pedido. */
+function mentionIsRejected(text: string, index: number): boolean {
+  const before = foldAccents(text)
+    .slice(Math.max(0, index - 28), index)
+    .toLowerCase();
+  return /\bno\s+(?:(?:quiero|eran?|fue|tiene)\s+)?(?:las?|los?|el|una?)\s*$/i.test(
+    before,
+  );
+}
+
 function lastModelHit(
   text: string,
   lexicon: VehicleLexicon,
@@ -58,6 +68,9 @@ function lastModelHit(
       continue;
     }
     if (looksLikeMoneyAmount(text, hit.index, hit.name)) {
+      continue;
+    }
+    if (mentionIsRejected(text, hit.index)) {
       continue;
     }
     const row = { brand: hit.brand, family, index: hit.index };
@@ -295,6 +308,14 @@ function familyAfterLastBrand(
     if (isFactToken(token)) {
       continue;
     }
+    const prefix = tail.slice(0, match.index ?? 0);
+    if (
+      /\bno\s+(?:(?:quiero|eran?|fue|tiene)\s+)?(?:las?|los?|el|una?)\s*$/i.test(
+        prefix,
+      )
+    ) {
+      continue;
+    }
     const family = modelFamily(token);
     const knownName = known.has(token)
       ? token
@@ -307,6 +328,12 @@ function familyAfterLastBrand(
         family: knownName,
         index: brand.index + brand.name.length + (match.index ?? 0),
       };
+    }
+    const ofAnotherBrand = lexicon.models.some(
+      (row) => row.brand !== brand.name && row.family === family,
+    );
+    if (ofAnotherBrand) {
+      continue;
     }
     if (family.length >= 4 || /^\d{3}$/.test(family)) {
       const next = tokenAfter(tail, (match.index ?? 0) + match[0].length);

@@ -464,6 +464,16 @@ describe('vehículo de interés', () => {
         lexicon: TEST_LEXICON,
       }),
     ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'Costo',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Peugeot 2008 2022\nSOLICITUD ACTUAL:\nCliente quiere el precio del Peugeot 2008 2022.\nPide precio: sí\nPide otras: no',
+        history: [{ role: 'assistant', content: ficha }],
+        car: peugeot2008,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
   });
 
   it('2000 de entrada no es otro año del carro', () => {

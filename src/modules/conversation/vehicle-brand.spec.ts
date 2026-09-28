@@ -75,6 +75,9 @@ describe('marca y tres filas', () => {
 
   it('marca o modelo mal escrito se reconoce igual', () => {
     expect(detectBrand('El jeptour Blanco 2023', TEST_LEXICON)).toBe('jetour');
+    expect(detectBrand('Estaba interesada en el jeptour', TEST_LEXICON)).toBe(
+      'jetour',
+    );
     expect(detectBrand('Chebrolec', TEST_LEXICON)).toBe('chevrolet');
     expect(detectBrand('Hilus Manuel', TEST_LEXICON)).toBe('toyota');
     expect(detectBrand('Ayúdeme con fotos', TEST_LEXICON)).toBeNull();
@@ -208,6 +211,24 @@ describe('marca y tres filas', () => {
       'jetour',
     );
     expect(detectBrand('El jeptour Blanco 2023', TEST_LEXICON)).toBe('jetour');
+    expect(detectBrand('Estaba interesada en el jeptour', TEST_LEXICON)).toBe(
+      'jetour',
+    );
+    expect(
+      detectNamedModelAsk(
+        'Cliente quiere Jetour, no las Sportage.',
+        TEST_LEXICON,
+      ),
+    ).toBeNull();
+    expect(
+      detectBrand('Cliente quiere Jetour, no las Sportage.', TEST_LEXICON),
+    ).toBe('jetour');
+    expect(
+      detectNamedModelAsk(
+        'No las Sportage, quiero el Tucson',
+        TEST_LEXICON,
+      ),
+    ).toEqual({ brand: 'hyundai', family: 'tucson', year: null });
   });
 
   it('Sportage manda sobre un Hyundai suelto en el mismo mensaje', () => {

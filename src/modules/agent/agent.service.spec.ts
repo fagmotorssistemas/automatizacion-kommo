@@ -1082,6 +1082,324 @@ describe('AgentService', () => {
     expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|VEHÍCULO DE INTERÉS/i);
   });
 
+  it('4Runner 2010 no hay: ofrece el 2004 y esa queda como hilo con precio de patio', async () => {
+    const runner = {
+      id: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    };
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Hola. Me interesa el Toyota 4runner',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Para poder ayudarle con el precio del Toyota 4runner y enviarle las fotos, ¿me confirma el año que está buscando por favor?',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([runner]);
+    catalog.listAvailableExcept.mockResolvedValue([runner]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Toyota 4runner 2010.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Toyota 4runner 2010, pero sí un Toyota 4runner 2004 rojo.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A66406',
+      customerText: '2010 podría ser',
+    });
+
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'A66406',
+      'runner-2004',
+    );
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: 'runner-2004',
+        precio: 21400,
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2010/i);
+    expect(system).toMatch(/no hay|no tenemos/i);
+    expect(system).toContain('runner-2004');
+  });
+
+  it('Costo del 4Runner ya mostrado dice el $ de patio, no que no está cargado', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Toyota 4 runner 2004 color rojo, con 701839 km, transmisión automática.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide el costo del 4runner mostrado.\nPide precio: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra","manejocaro"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El precio del Toyota 4runner 2004. un valor respaldado por el buen estado del vehículo y los documentos en regla.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A66406',
+      customerText: 'Costo',
+    });
+
+    expect(catalog.listByBrand).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/21,?400/);
+    expect(result?.reply.mensaje).not.toMatch(/aún no está cargado/i);
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: 'runner-2004',
+        precio: 21400,
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/HILO SIGUE|YA MOSTRAMOS|YA SE DIO LA FICHA/i);
+    expect(system).toContain('$21400');
+    expect(system).not.toMatch(/PIDIÓ EL PRECIO pero en patio está 0/i);
+  });
+
+  it('A72546 la plateada 2023 del listado dice el $ de patio, no que no está', async () => {
+    const plateada = {
+      id: 'dmax-2023-cd',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+      color: 'plateado',
+      mileage: 77613,
+      transmission: 'manual',
+    };
+    const vino = {
+      id: 'dmax-2022-cd',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+      color: 'vino',
+      mileage: 87687,
+      transmission: 'manual',
+    };
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: plateada.id,
+      brand: plateada.brand,
+      model: plateada.model,
+      year: plateada.year,
+      price: plateada.price,
+      typeBody: plateada.typeBody,
+      color: plateada.color,
+      mileage: plateada.mileage,
+      transmission: plateada.transmission,
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    catalog.listByBrand.mockResolvedValue([plateada, vino]);
+    catalog.listAvailableExcept.mockResolvedValue([plateada, vino]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Chevrolet d-max crdi 2.5 cd 4x2 manual diesel 2023 color plateado, con 77613 km. La placa es P6 Aquí tiene también las fotos del vehículo. También contamos con un Chevrolet d-max crdi 2.5 cd 4x4 manual diesel 2022 color vino, con 87687 km. La placa es P4, ambos son camionetas doble cabina.',
+      },
+      { role: 'assistant', content: 'SalesBot (chevrolet_plateado_2023)' },
+      { role: 'assistant', content: 'Descargar' },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la D-max plateada 2023 ya mostrada.\nPide precio: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Chevrolet D-max 2023 plateado. un valor respaldado por su estado y documentos.',
+        meta: { vehiculo: { inventory_id: plateada.id } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A72546',
+      customerText: 'La plateada 2023 qué valor tiene?',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/28,?990/);
+    expect(result?.reply.mensaje).not.toMatch(/aún no está cargado/i);
+    expect(result?.reply.mensaje).not.toMatch(/no tenemos/i);
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: plateada.id,
+        precio: 28990,
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('$28990');
+    expect(system).not.toMatch(/No hay .*2023 en patio/i);
+  });
+
+  it('A72546 sin unidad guardada elige la plateada 2023 del listado y cotiza', async () => {
+    const plateada = {
+      id: 'dmax-2023-cd',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'camioneta',
+      color: 'plateado',
+      mileage: 77613,
+      transmission: 'manual',
+    };
+    const vino = {
+      id: 'dmax-2022-cd',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2022,
+      price: 32990,
+      typeBody: 'camioneta',
+      color: 'vino',
+      mileage: 87687,
+      transmission: 'manual',
+    };
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    catalog.listByBrand.mockResolvedValue([plateada, vino]);
+    catalog.listAvailableExcept.mockResolvedValue([plateada, vino]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Chevrolet d-max crdi 2.5 cd 4x2 manual diesel 2023 color plateado, con 77613 km. La placa es P6 Aquí tiene también las fotos del vehículo. También contamos con un Chevrolet d-max crdi 2.5 cd 4x4 manual diesel 2022 color vino, con 87687 km. La placa es P4, ambos son camionetas doble cabina.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'Vehículo: Dmax plateada 2023\nSOLICITUD ACTUAL:\nCliente quiere el precio de la plateada 2023.\nPide precio: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El D-max 2023 plateado está en patio.',
+        meta: { vehiculo: { inventory_id: plateada.id } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A72546b',
+      customerText: 'La plateada 2023 qué valor tiene?',
+    });
+
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'A72546b',
+      plateada.id,
+    );
+    expect(result?.reply.mensaje).toMatch(/28,?990/);
+    expect(result?.reply.mensaje).not.toMatch(/aún no está cargado/i);
+    expect(result?.reply.mensaje).not.toMatch(/no tenemos/i);
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: plateada.id,
+        precio: 28990,
+      }),
+    );
+  });
+
+  it('A76278 elige la X70 Plus II manual del listado, no vuelve a preguntar cuál', async () => {
+    const manual = {
+      id: 'x70-ii-tm',
+      brand: 'jetour',
+      model: 'x70 plus ii ac 1.5 4x2 tm',
+      year: 2025,
+      price: 22800,
+      typeBody: 'jeep',
+      color: 'plateado',
+      mileage: 20871,
+      transmission: 'manual',
+    };
+    const auto = {
+      id: 'x70-6dct',
+      brand: 'jetour',
+      model: 'x70 plus 6dct ac 1.5 5p 4x2 ta',
+      year: 2025,
+      price: 23900,
+      typeBody: 'jeep',
+      color: 'plateado',
+      transmission: 'automática',
+    };
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.loadVehicleBrand.mockResolvedValue('jetour');
+    catalog.listByBrand.mockResolvedValue([manual, auto]);
+    catalog.listAvailableExcept.mockResolvedValue([manual, auto]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos disponible un Jetour X70 Plus II AC 1.5 4x2 manual 2025 color plateado, con 20871 km y También está el Jetour X70 Plus 6DCT AC 1.5 5p 4x2 automática 2025 color plateado, con kilometraje aún no cargado y ¿Cuál de estas unidades le interesa más?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente elige la X70 Plus II 1.5 4x2 manual.\nPide precio: no\nPide otras: no\nCaja de compra: manual',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, tenemos disponible un Jetour X70 Plus II AC 1.5 4x2 manual 2025 color plateado, con 20871 km.',
+        meta: { vehiculo: { inventory_id: manual.id } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76278',
+      customerText: 'X70 plus ll 1.5 4x2 manual',
+    });
+
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'A76278',
+      manual.id,
+    );
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe(manual.id);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('x70-ii-tm');
+    expect(system).toMatch(/hay que mandarla|ELIGIÓ esta unidad/i);
+    expect(system).not.toContain('x70-6dct');
+    expect(system).not.toMatch(/cuál quiere ver|cuál le interesa/i);
+  });
+
   it('después del T1 no dice que no hay T1 ni salta al X70', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 't1-2026',
@@ -4081,6 +4399,380 @@ Falta vehículo: sí`,
       'sp-rojo',
     ]);
     expect(result?.photoQueue?.[1].label).toBe('Sportage 2019 rojo');
+  });
+
+  it('A65562 jeptour sale del listado de Sportage y busca Jetour', async () => {
+    const sportages = [
+      {
+        id: 'sp-2024',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29200,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 79187,
+        transmission: 'manual',
+      },
+      {
+        id: 'sp-plata',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 ta',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 113170,
+        transmission: 'automática',
+      },
+      {
+        id: 'sp-rojo',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'rojo',
+        mileage: 91096,
+        transmission: 'manual',
+      },
+    ];
+    const jetours = [
+      {
+        id: 't1-2026',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 28900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'x70-2023',
+        brand: 'jetour',
+        model: 'x70 ii ac 1.5 5p 4x2 tm',
+        year: 2023,
+        price: 18900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue([...sportages, ...jetours]);
+    catalog.listByBrand.mockImplementation(async (marca: string) =>
+      marca === 'jetour' ? jetours : sportages,
+    );
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Tenemos Kia Sportage 2024 plomo manual 4x2 con 79,187 km, Kia Sportage 2019 plateado automática 4x2 con 113,170 km y Kia Sportage 2019 rojo manual 4x2 con 91,096 km, todos seminuevos en buen estado. ¿Le interesa alguno en particular?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Jetour, no las Sportage.\nPide otras: sí\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En Jetour tenemos T1 y X70. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A65562',
+      customerText: 'Estaba interesada en el jeptour',
+    });
+
+    expect(catalog.listByBrand.mock.calls.map((call) => call[0])).toEqual([
+      'jetour',
+    ]);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/MARCA VIGENTE: jetour/i);
+    expect(system).not.toMatch(/cuál quiere ver/i);
+    expect(system).not.toMatch(/opciones de Kia/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('A76271 fotos de estos manda las del listado, no solo la Ram', async () => {
+    const patio = [
+      {
+        id: 'ram-700',
+        brand: 'ram',
+        model: '700 slt ac 1.4 cs 4x2',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+        mileage: 61798,
+        transmission: 'manual',
+      },
+      {
+        id: 'tiggo-2',
+        brand: 'chery',
+        model: 'tiggo 2 pro a1x ac 1.5 5p 4x2 tm',
+        year: 2025,
+        price: 17990,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 27200,
+        transmission: 'manual',
+      },
+      {
+        id: 'c3',
+        brand: 'citroen',
+        model: 'c3 shine ac 1.6 5p 4x2 tm diesel',
+        year: 2020,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+        mileage: 114988,
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Le presento estas opciones disponibles con transmisión manual: ram 700 slt ac 1.4 cs 4x2 blanco 2023 con 61,798 km, tiggo 2 pro a1x ac 1.5 5p 4x2 negro 2025 con 27,200 km, c3 shine ac 1.6 5p 4x2 diesel blanco 2020 con 114,988 km. ¿Cuál le interesa?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide fotos de las unidades listadas.\nPide precio: no\nCabina: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+
+    const result = await service.handleTurn({
+      contactId: 'A76271',
+      customerText: 'Me puede mandar fotos de estos',
+    });
+
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/una por una/i);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+    expect(result?.photoQueue?.map((item) => item.inventoryId)).toEqual([
+      'ram-700',
+      'tiggo-2',
+      'c3',
+    ]);
+  });
+
+  it('A76271 cualquiera auto lista varios chicos, no un solo Picanto', async () => {
+    const patio = [
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+        transmission: 'automatica',
+      },
+      {
+        id: 'ram-700',
+        brand: 'ram',
+        model: '700 slt ac 1.4 cs 4x2',
+        year: 2023,
+        price: 18990,
+        typeBody: 'cabina simple',
+        transmission: 'manual',
+      },
+      {
+        id: 'tiggo-2',
+        brand: 'chery',
+        model: 'tiggo 2 pro a1x ac 1.5 5p 4x2 tm',
+        year: 2025,
+        price: 17990,
+        typeBody: 'jeep',
+        transmission: 'manual',
+      },
+      {
+        id: 'c3',
+        brand: 'citroen',
+        model: 'c3 shine ac 1.6 5p 4x2 tm diesel',
+        year: 2020,
+        price: 12990,
+        typeBody: 'hatchback',
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nQuiere un auto, cualquiera.\nTipo de patio: hatchback\nPide otras: sí\nPide precio: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Le muestro estas opciones de auto.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76271',
+      customerText: 'Cualquiera pero q sea auto',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/inventory_id=c3/);
+    expect(system).toMatch(/inventory_id=picanto/);
+    expect(system).not.toMatch(/inventory_id=ram-700/);
+    expect(system).not.toMatch(/SOLO TIPO/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('A76271 claro tras ofrecer otras marcas no se queda en el Picanto TA', async () => {
+    const patio = [
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+        transmission: 'automatica',
+      },
+      {
+        id: 'c3',
+        brand: 'citroen',
+        model: 'c3 shine ac 1.6 5p 4x2 tm diesel',
+        year: 2020,
+        price: 12990,
+        typeBody: 'hatchback',
+        transmission: 'manual',
+      },
+      {
+        id: 'tiggo-2',
+        brand: 'chery',
+        model: 'tiggo 2 pro a1x ac 1.5 5p 4x2 tm',
+        year: 2025,
+        price: 17990,
+        typeBody: 'jeep',
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleKind.mockResolvedValue('hatchback');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'sedan',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Cualquiera pero q sea auto' },
+      {
+        role: 'assistant',
+        content:
+          'Solo tenemos el Kia Picanto LX AC 1.2 blanco 2023 con transmisión automática. Si desea un sedán manual similar, puedo ayudarle a ver otras marcas que cumplan ese requisito. ¿Le interesa?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nAcepta ver otras marcas en manual.\nTipo de patio: hatchback\nPide otras: sí\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En manual le muestro estas opciones.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76271',
+      customerText: 'Claro',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/EL HILO SIGUE/);
+    expect(system).toMatch(/inventory_id=c3/);
+    expect(system).not.toMatch(/inventory_id=picanto/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('A76271 manual mismo lista hatch/sedán TM, no niega el patio', async () => {
+    const patio = [
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+        transmission: 'automatica',
+      },
+      {
+        id: 'c3',
+        brand: 'citroen',
+        model: 'c3 shine ac 1.6 5p 4x2 tm diesel',
+        year: 2020,
+        price: 12990,
+        typeBody: 'hatchback',
+        transmission: 'manual',
+      },
+      {
+        id: 'tiggo-2',
+        brand: 'chery',
+        model: 'tiggo 2 pro a1x ac 1.5 5p 4x2 tm',
+        year: 2025,
+        price: 17990,
+        typeBody: 'jeep',
+        transmission: 'manual',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.loadVehicleKind.mockResolvedValue('hatchback');
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'sedan',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Cualquiera pero q sea auto' },
+      {
+        role: 'assistant',
+        content: 'Le puedo mostrar un Kia Picanto automático.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nQuiere el auto en manual.\nTipo de patio: hatchback\nCaja de compra: manual\nPide otras: sí\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En manual está el C3 y el Tiggo 2.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76271',
+      customerText: 'Manual mismo porfabor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/inventory_id=c3/);
+    expect(system).toMatch(/inventory_id=tiggo-2/);
+    expect(system).not.toMatch(/No hay manual de ese tipo/i);
+    expect(system).not.toMatch(/EL HILO SIGUE/);
+    expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
   it('tiene fotos tras un párrafo 2.0 manda esas unidades y no niega el patio', async () => {

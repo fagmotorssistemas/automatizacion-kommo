@@ -204,18 +204,21 @@ export function pickGearboxAlternatives(input: {
   return { cars: [], widenedToSuv: false, sameModel: false };
 }
 
-/** Hasta 3 unidades de la caja pedida, priorizando marcas distintas. */
+/** Hasta 3 unidades, priorizando marcas distintas. Sin caja: cualquier transmisión del tipo. */
 export function pickDiverseByBrand(
   cars: StockCar[],
-  gearbox: Gearbox,
+  gearbox: Gearbox | null,
   group: BodyGroup | null,
   limit = 3,
 ): StockCar[] {
   const matching = cars.filter((car) => {
-    if (gearboxOf(car) !== gearbox) {
+    if (gearbox && gearboxOf(car) !== gearbox) {
       return false;
     }
     if (group && carBodyGroup(car.typeBody) !== group) {
+      return false;
+    }
+    if (!group && carBodyGroup(car.typeBody) === 'camioneta') {
       return false;
     }
     return true;
@@ -266,6 +269,38 @@ export function formatOtherBrandGearboxList(input: {
     text: `De ${brand} no hay ${label}. PRIMERO dilo. DESPUÉS nombra estas ${label} del mismo tipo (marcas distintas) para que elija. vehiculo null.
 ${lines.join('\n')}
 No mandes una sola unidad. No te quedes en una línea china si hay otras. Prohibido ofrecer la caja ${other}.`,
+    holdVehicle: true,
+    sendId: null,
+  };
+}
+
+export function formatPatioKindList(input: {
+  cars: StockCar[];
+  includePrice: boolean;
+  gearbox: Gearbox | null;
+}): { text: string; holdVehicle: boolean; sendId: string | null } {
+  const box = input.gearbox ? ` ${gearboxLabel(input.gearbox)}` : '';
+  if (input.cars.length === 0) {
+    return {
+      text: `No hay${box} de ese tipo en patio. Dilo y pregunta qué otro tipo o caja quiere. vehiculo null.`,
+      holdVehicle: true,
+      sendId: null,
+    };
+  }
+  const lines = input.cars.map((car) => carLabel(car, input.includePrice));
+  if (input.cars.length === 1) {
+    return {
+      text: `Hay una unidad${box} de ese tipo y hay que mandarla: ${lines[0]}.
+En meta.vehiculo.inventory_id pon exactamente "${input.cars[0].id}".
+Prohibido decir que es el único del patio si el cliente no pidió marca.`,
+      holdVehicle: false,
+      sendId: input.cars[0].id,
+    };
+  }
+  return {
+    text: `Nombra ESTAS unidades${box} de patio del tipo pedido (marcas distintas) para que elija. No elijas una. vehiculo null.
+${lines.join('\n')}
+Prohibido decir que no hay si hay líneas abajo. Prohibido mezclar camioneta/pickup. Prohibido clavar un solo automático si pidió cualquiera o la otra caja.`,
     holdVehicle: true,
     sendId: null,
   };

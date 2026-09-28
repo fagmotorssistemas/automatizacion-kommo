@@ -52,7 +52,7 @@ Cliente quiere ...
 REGLA DE PRECIO (OBLIGATORIA):
 Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
 En la primera presentación (Hola me interesa X, o “sí/ok” al saludo para ver esa unidad), Pide precio: no. Todavía no preguntó el valor.
-Si pregunta el valor de la unidad de la que hablan, SOLICITUD ACTUAL debe decir que quiere el precio. No lo conviertas en cuota, visita, entrada ni km. Objeción de precio: no.
+Si el sentido es cuánto sale ESA unidad (el valor de contado), Pide precio: sí y Pide otras: no. SOLICITUD ACTUAL: Cliente quiere el precio de ESA unidad. Lo decide el sentido, no una palabra fija: da igual cómo lo diga. Esa frase NO es un modelo ni un cambio de vehículo. No lo conviertas en cuota, visita, entrada, km ni en un carro. Objeción de precio: no.
 Si objeta el valor de una unidad YA mostrada (caro, alto, mucho), SOLICITUD: objeta el precio de ESA unidad. No lo conviertas en “quiere el precio” ni en ficha. Pide precio: no. Objeción de precio: sí. Pide negociar: no.
 Si pregunta si hay descuento, rebaja o si el precio es negociable, o ofrece un monto más bajo, Pide negociar: sí. Pide precio: no. Objeción de precio: sí. SOLICITUD: quiere saber si se puede negociar; si también pide ubicación o visita, dilo en la misma solicitud.
 Si SOLO pregunta cuántos km tiene, dilo así; no pongas precio.
@@ -146,9 +146,14 @@ Es despedida: sí|no
 REGLA DE TIPO DE PATIO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback), o ya no sigue el tipo de antes?
 - Tipo de patio: suv|camioneta|sedan|hatchback si AHORA quiere ese tipo (lo dijo o el carro que pide es de ese tipo).
+- Tipo de patio: hatchback si pide un carro/auto pequeño, compacto, o uno similar a un ciudad (Picanto y similares). Eso NO es camioneta. Cabina: no.
+- Tipo de patio: hatchback si dice que quiere auto/carro y NO camioneta, o “cualquiera pero que sea auto/carro”.
+- Si pidió un tipo y no le importa la marca (cualquier, la que haya, cuáles hay): SOLICITUD: listar de patio de ESE tipo. Pide otras: sí. Falta vehículo: no. No pidas marca.
+- Si el turno anterior ofreció otras marcas u otra caja y ahora acepta verlas (claro, sí, dale): Pide otras: sí. No es la unidad automática ya mostrada.
 - Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
 - Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
 - Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.
+- Si el turno anterior listó unidades de una marca y AHORA nombra otra (aunque mal escrita): Pide otras: sí. SOLICITUD: esa marca nueva. No sigas el listado anterior.
 
 REGLA DE ASIENTOS (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide una cantidad de plazas / espacio para gente?

@@ -143,6 +143,44 @@ describe('caja', () => {
     expect(listed.text).toContain('No mandes una sola unidad');
   });
 
+  it('sin tipo de patio, las manuales no meten camioneta entre autos', () => {
+    const ram: StockCar = {
+      id: 'ram-700',
+      brand: 'ram',
+      model: '700 slt ac 1.4 cs 4x2',
+      year: 2023,
+      price: 18990,
+      typeBody: 'cabina simple',
+      transmission: 'manual',
+    };
+    const tiggo: StockCar = {
+      id: 'tiggo-2',
+      brand: 'chery',
+      model: 'tiggo 2 pro a1x ac 1.5 5p 4x2 tm',
+      year: 2025,
+      price: 17990,
+      typeBody: 'jeep',
+      transmission: 'manual',
+    };
+    const c3: StockCar = {
+      id: 'c3',
+      brand: 'citroen',
+      model: 'c3 shine ac 1.6 5p 4x2 tm',
+      year: 2020,
+      price: 12990,
+      typeBody: 'hatchback',
+      transmission: 'manual',
+    };
+    expect(
+      pickDiverseByBrand([ram, tiggo, c3], 'manual', null).map((car) => car.id),
+    ).toEqual(['tiggo-2', 'c3']);
+    expect(
+      pickDiverseByBrand([picanto, ram, tiggo, c3], null, 'chico').map(
+        (car) => car.id,
+      ),
+    ).toEqual(['picanto', 'c3']);
+  });
+
   it('si no hay ese modelo manual, ofrece otro chico de precio parecido', () => {
     const pick = pickGearboxAlternatives({
       cars: [picanto, fiat, sportage],

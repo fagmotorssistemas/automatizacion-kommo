@@ -18,7 +18,8 @@ const DETECTORS: { kind: VehicleKind; pattern: RegExp }[] = [
   },
   {
     kind: 'hatchback',
-    pattern: /\b(?:hatchbacks?|hatckbacks?)\b/gi,
+    pattern:
+      /\b(?:hatchbacks?|hatckbacks?|compactos?|(?:carro|auto)s?\s+peque[nñ]\w*|(?:peque[nñ]\w*|chiquit\w*)\s+(?:carro|auto)s?)\b/gi,
   },
 ];
 
@@ -76,6 +77,46 @@ function foldWord(word: string): string {
     .replace(/[^a-z]/g, '');
 }
 
+function rejectsCamioneta(text: string): boolean {
+  return /\bno\s+(?:una?\s+|la\s+)?(?:camionet|pick[\s-]?up)/i.test(text);
+}
+
+/** No le importa la marca: listar el tipo de patio, no preguntar marca ni clavar una unidad. */
+export function asksAnyBrand(text: string): boolean {
+  const n = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return (
+    /\bcualquier(?:a)?\b/.test(n) ||
+    /\bla que haya\b/.test(n) ||
+    /\bno(?:\s+\w+){0,3}\s+importa(?:\s+la)?\s+marca\b/.test(n) ||
+    /\bcuales hay\b/.test(n)
+  );
+}
+
+/** El bot ofreció ver otras marcas o la otra caja; un “claro” no es seguir la unidad mostrada. */
+export function lastOfferedOtherOptions(text: string): boolean {
+  return /otras marcas|otra marca|otras opciones|seguir buscando|distinta transmisi[oó]n|si desea un sed[aá]n|si prefiere manual/i.test(
+    text,
+  );
+}
+
+function asksForSmallCar(text: string): boolean {
+  const wantsCarNotTruck =
+    asksAnyBrand(text) &&
+    /\b(?:auto|carro)s?\b/i.test(text) &&
+    !/\b(?:camionet|pick[\s-]?up|suvs?|jeeps?)\b/i.test(text);
+  return (
+    /\b(?:carro|auto)s?\s+peque[nñ]/i.test(text) ||
+    /\b(?:peque[nñ]\w*|chiquit\w*|compactos?)\s+(?:carro|auto)s?\b/i.test(text) ||
+    /\bsea\s+(?:un[ao]?\s+)?(?:auto|carro)s?\b/i.test(text) ||
+    (/\b(?:un|una|el)\s+autos?\b/i.test(text) && rejectsCamioneta(text)) ||
+    (/\b(?:un|una|el)\s+carros?\b/i.test(text) && rejectsCamioneta(text)) ||
+    wantsCarNotTruck
+  );
+}
+
 /**
  * Camioneta, camionetita y la misma palabra mal escrita.
  * Las consonantes tienen que seguir c/k + m + n + t, como en cmioneta o camioenta.
@@ -109,9 +150,21 @@ export function detectVehicleKind(text: string): VehicleKind | null {
     if (!looksLikeCamioneta(word[0])) {
       continue;
     }
+    const before = text.slice(Math.max(0, word.index - 12), word.index);
+    if (/\bno\s+(?:una?\s+|la\s+)?$/i.test(before)) {
+      continue;
+    }
     if (!winner || word.index >= winner.index) {
       winner = { kind: 'camioneta', index: word.index };
     }
+  }
+
+  if (winner?.kind === 'camioneta' && rejectsCamioneta(text)) {
+    winner = asksForSmallCar(text)
+      ? { kind: 'hatchback', index: 0 }
+      : null;
+  } else if (!winner && asksForSmallCar(text)) {
+    winner = { kind: 'hatchback', index: 0 };
   }
 
   return winner?.kind ?? null;
@@ -181,8 +234,9 @@ En buscarvehiuclo pasa siempre tipo="${kind}".`;
 export function formatSoloTipoPedido(
   kind: VehicleKind | null,
   brand: string | null,
+  anyBrand = false,
 ): string {
-  if (!kind || brand) {
+  if (!kind || brand || anyBrand) {
     return '';
   }
   return `SOLO TIPO: pidió ${LABELS[kind]}, no una marca ni un modelo. Pregunta qué marca o línea quiere. PROHIBIDO elegir una unidad y mandarla.`;

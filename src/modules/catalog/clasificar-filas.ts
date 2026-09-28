@@ -451,6 +451,7 @@ export function formatNamedUnits(
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice: number | null;
+  choseFromShown?: boolean;
 } {
   if (cars.length === 1) {
     const car = cars[0];
@@ -468,6 +469,7 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".${
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
+      choseFromShown: true,
     };
   }
 
@@ -812,6 +814,7 @@ export function formatMissingNamedModel(
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice: number | null;
+  choseFromShown?: boolean;
 } {
   const same = alternatives.filter((car) =>
     sameAskedUnit(car, family, year, onward),
@@ -840,6 +843,7 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
+      choseFromShown: true,
     };
   }
   if (close.length > 1) {

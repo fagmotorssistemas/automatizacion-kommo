@@ -5,6 +5,7 @@ import {
   modelFamily,
   prettyFamily,
   textMentionsModel,
+  normalizeModelText,
   type CabCode,
   type StockCar,
   unitCab,
@@ -19,7 +20,7 @@ import {
   detectYearInText,
   modelHasTrim,
 } from './vehicle-brand';
-import { detectGearbox } from './gearbox';
+import { detectGearbox, gearboxOf } from './gearbox';
 import type { VehicleLexicon } from './fuzzy-vehicle-name';
 
 export type PhotoQueueItem = {
@@ -113,7 +114,7 @@ function proseUnitItems(text: string): string[] {
   const body = colon >= 0 ? head.slice(colon + 1) : head;
   const yearInPrefix = /\b(?:19|20)\d{2}\b/.test(prefix);
   return body
-    .split(/,(?!\d)\s+|\s+y\s+|\.\s+/)
+    .split(/,(?!\d)(?!\s*con\b)\s+|\s+y\s+|\.\s+/)
     .map((chunk) => chunk.trim())
     .filter(Boolean)
     .filter((chunk) => {
@@ -155,6 +156,47 @@ function itemHasKm(item: string, mileage: number | null | undefined): boolean {
   return item.includes(km) || item.replace(/[.,\s]/g, '').includes(km);
 }
 
+function listedVersionHits(text: string, cars: StockCar[]): StockCar[] {
+  const n = normalizeModelText(text);
+  if (/\b6dct\b/.test(n)) {
+    const dct = cars.filter((car) =>
+      /\b6dct\b/.test(normalizeModelText(car.model)),
+    );
+    if (dct.length > 0) {
+      return dct;
+    }
+  }
+  if (/\b(?:ii|ll)\b/.test(n)) {
+    const ii = cars.filter((car) =>
+      /\bii\b/.test(normalizeModelText(car.model)),
+    );
+    if (ii.length > 0) {
+      return ii;
+    }
+  }
+  return cars;
+}
+
+function uniqueListedHit(item: string, pool: StockCar[]): StockCar | null {
+  if (pool.length === 1) {
+    return pool[0];
+  }
+  const box = detectGearbox(item);
+  let next = pool;
+  if (box) {
+    const boxed = next.filter((car) => gearboxOf(car) === box);
+    if (boxed.length > 0) {
+      next = boxed;
+    }
+  }
+  next = listedVersionHits(item, next);
+  if (next.length === 1) {
+    return next[0];
+  }
+  const byKm = next.filter((car) => itemHasKm(item, car.mileage));
+  return byKm.length === 1 ? byKm[0] : null;
+}
+
 /** Una viñeta del listado: solo esa unidad, no otra del mismo modelo en patio. */
 function matchListedItem(item: string, cars: StockCar[]): StockCar | null {
   const mentioned = cars.filter((car) => textMentionsModel(item, car.model));
@@ -183,12 +225,7 @@ function matchListedItem(item: string, cars: StockCar[]): StockCar | null {
     const kmHit = itemHasKm(item, car.mileage);
     return (yearHit && (colorHit || kmHit)) || kmHit;
   });
-  const pool = tight.length > 0 ? tight : hits;
-  if (pool.length === 1) {
-    return pool[0];
-  }
-  const byKm = pool.filter((car) => itemHasKm(item, car.mileage));
-  return byKm.length === 1 ? byKm[0] : null;
+  return uniqueListedHit(item, tight.length > 0 ? tight : hits);
 }
 
 /** Solo las que el bot enumeró (1) 2) 3)). Nunca otra del patio. */
@@ -260,6 +297,18 @@ export function askedOutsideListed(
   );
 }
 
+/** Pidió otra marca: el listado anterior ya no manda. */
+export function askedOtherBrandThanListed(
+  brand: string | null | undefined,
+  listed: StockCar[],
+): boolean {
+  if (!brand || listed.length === 0) {
+    return false;
+  }
+  const wanted = brand.trim().toLowerCase();
+  return listed.every((car) => car.brand.trim().toLowerCase() !== wanted);
+}
+
 /** Sportage 2019 rojo — para el WhatsApp, no la ficha. */
 export function shortUnitLabel(car: StockCar): string {
   const year = car.year ? ` ${car.year}` : '';
@@ -268,7 +317,7 @@ export function shortUnitLabel(car: StockCar): string {
 }
 
 export function asksForAllListed(text: string): boolean {
-  return /\b(?:tod[ao]s?(?:itas?)?|las\s+(?:dos|tres|cuatro|cinco|\d+)|de\s+tod)\b/i.test(
+  return /\b(?:tod[ao]s?(?:itas?)?|las\s+(?:dos|tres|cuatro|cinco|\d+)|de\s+tod|est[oa]s)\b/i.test(
     text,
   );
 }
@@ -304,9 +353,12 @@ export function pickListedUnit(
   const cab = detectAskedCab(text) ?? known?.cab ?? null;
   const drive = detectAskedDrive(text);
   if (!year && !color && !trim && !box && !cab && !drive) {
-    return null;
+    const onlyVersion = listedVersionHits(text, cars);
+    return onlyVersion.length === 1 ? onlyVersion[0] : null;
   }
-  const hits = cars.filter((car) => {
+  const hits = listedVersionHits(
+    text,
+    cars.filter((car) => {
     if (year != null && car.year !== year) {
       return false;
     }
@@ -326,7 +378,8 @@ export function pickListedUnit(
       return false;
     }
     return true;
-  });
+  }),
+  );
   return hits.length === 1 ? hits[0] : null;
 }
 

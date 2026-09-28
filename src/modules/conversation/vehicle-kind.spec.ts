@@ -3,6 +3,7 @@ import {
   formatPedidoVigente,
   formatSoloTipoPedido,
   kindFromTypeBody,
+  lastOfferedOtherOptions,
   matchesVehicleKind,
   resolveVehicleKind,
 } from './vehicle-kind';
@@ -21,6 +22,14 @@ describe('vehicle kind', () => {
     expect(detectVehicleKind('la camionetta')).toBe('camioneta');
     expect(detectVehicleKind('una cmaioneta')).toBe('camioneta');
     expect(detectVehicleKind('el camionero llegó')).toBeNull();
+  });
+
+  it('auto no camioneta y carro pequeño son hatch, no pickup', () => {
+    expect(detectVehicleKind('Nsesito un auto no camioneta')).toBe('hatchback');
+    expect(detectVehicleKind('Necesito un auto no camioneta')).toBe('hatchback');
+    expect(detectVehicleKind('busco un carro pequeño')).toBe('hatchback');
+    expect(detectVehicleKind('Cualquiera pero q sea auto')).toBe('hatchback');
+    expect(detectVehicleKind('cualquier auto')).toBe('hatchback');
   });
 
   it('doble cabina y cabina simple son camioneta', () => {
@@ -164,6 +173,18 @@ describe('vehicle kind', () => {
     expect(formatSoloTipoPedido('camioneta', null)).toMatch(/SOLO TIPO/i);
     expect(formatSoloTipoPedido('camioneta', null)).toMatch(/PROHIBIDO elegir/i);
     expect(formatSoloTipoPedido('camioneta', 'mitsubishi')).toBe('');
+    expect(formatSoloTipoPedido('hatchback', null, true)).toBe('');
     expect(formatSoloTipoPedido(null, null)).toBe('');
+  });
+
+  it('claro tras ofrecer otras marcas no es seguir la unidad', () => {
+    expect(
+      lastOfferedOtherOptions(
+        'Si desea un sedán manual similar, puedo ayudarle a ver otras marcas que cumplan ese requisito. ¿Le interesa?',
+      ),
+    ).toBe(true);
+    expect(lastOfferedOtherOptions('El Kia Picanto blanco 2023 automático')).toBe(
+      false,
+    );
   });
 });

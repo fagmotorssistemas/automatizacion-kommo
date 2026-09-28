@@ -95,29 +95,29 @@ function fold(text: string): string {
 }
 
 /**
- * El resumen ya interpretó el mensaje. Aquí se lee esa lectura,
+ * El resumen ya interpretó el mensaje. Aquí se lee esa bandera,
  * no las palabras sueltas del cliente.
  */
 export function resumenAsksForListedPrice(resumen: string): boolean {
   if (resumenIsPriceObjection(resumen) || resumenPideNegociar(resumen)) {
     return false;
   }
-  const flag = resumen.match(/pide\s+precio:\s*(s[ií]|no)(?:\s|$)/i);
-  if (flag) {
-    return /^s/i.test(flag[1]);
+  const flag = flagSiNo(resumen, 'pide\\s+precio');
+  if (flag != null) {
+    return flag;
   }
-  const solicitud = parseResumen(resumen).solicitudActual ?? resumen;
-  const n = fold(solicitud);
-  if (/\bprecio\s+menor\b/.test(n) || /\bpresupuesto\b/.test(n)) {
+  const raw = parseResumen(resumen).solicitudActual || resumen;
+  const solicitud = fold(stripResumenFlags(raw));
+  if (!solicitud) {
     return false;
   }
-  if (/\bprecio\b/.test(n)) {
-    return true;
-  }
-  if (/\b(cuota|entrada|inicial|kilometr|\bkm\b)\b/.test(n)) {
+  if (/\bprecio\s+menor\b/.test(solicitud) || /\bpresupuesto\b/.test(solicitud)) {
     return false;
   }
-  return /\bvalor(?:es)?\b/.test(n);
+  return (
+    /\b(?:quiere|pide|solicita)\b/.test(solicitud) &&
+    /\b(?:precio|valor)\b/.test(solicitud)
+  );
 }
 
 function flagSiNo(resumen: string, name: string): boolean | null {
@@ -387,6 +387,11 @@ export function resumenPideNegociar(resumen: string): boolean {
 /** Pidió otra unidad: es cambio de vehículo. Lo decide el resumen, no una frase del cliente. */
 export function resumenPideOtras(resumen: string): boolean {
   return flagSiNo(resumen, 'pide\\s+otras') === true;
+}
+
+/** El resumen dijo que sigue con la mostrada. No reinterpretes el texto del cliente. */
+export function resumenStaysOnShownUnit(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+otras') === false;
 }
 
 /** El analizador: pide info/precio/ver y no hay carro. Lo decide por sentido. */

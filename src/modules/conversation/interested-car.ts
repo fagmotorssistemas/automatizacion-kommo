@@ -32,10 +32,12 @@ import {
 } from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import {
+  resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenCabina,
   resumenHasPendingDoubt,
   resumenPideOtras,
+  resumenStaysOnShownUnit,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
@@ -187,23 +189,29 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return false;
   }
   const lexicon = input.lexicon ?? emptyLexicon();
+  const resumen = input.resumen ?? '';
   if (
     textAsksForOtherColor(input.text) ||
-    resumenAsksForOtherColor(input.resumen ?? '')
+    resumenAsksForOtherColor(resumen)
   ) {
     return true;
   }
-  if (namedOtherUnit(input.text, car, lexicon)) {
+  if (resumenPideOtras(resumen)) {
     return true;
   }
-  const budget = resumenTopeContado(input.resumen ?? '');
+  const stays = resumenStaysOnShownUnit(resumen);
+  if (!stays && namedOtherUnit(input.text, car, lexicon)) {
+    return true;
+  }
+  const budget = resumenTopeContado(resumen);
   if (budget && (!car.price || budget < car.price)) {
     return true;
   }
-  if (resumenPideOtras(input.resumen ?? '')) {
-    return true;
-  }
-  if (/\bprecios?\b/i.test(input.text) && input.history?.length) {
+  if (
+    !stays &&
+    resumenAsksForListedPrice(resumen) &&
+    input.history?.length
+  ) {
     if (!historyPresentedFicha(input.history, car.model, input.resumen)) {
       const last = [...input.history]
         .reverse()

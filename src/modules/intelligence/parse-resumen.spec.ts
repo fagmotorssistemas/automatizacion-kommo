@@ -13,6 +13,7 @@ import {
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPideOtras,
+  resumenStaysOnShownUnit,
   resumenCajaCompra,
   resumenCabina,
   resumenTopeContado,
@@ -279,6 +280,20 @@ describe('resumenPideOtras', () => {
       ),
     ).toBe(false);
     expect(resumenPideOtras('Q otras tienen porfabor')).toBe(false);
+  });
+
+  it('Pide otras: no significa que sigue en la mostrada', () => {
+    expect(
+      resumenStaysOnShownUnit(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de la unidad.\nPide precio: sí\nPide otras: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenStaysOnShownUnit(
+        'SOLICITUD ACTUAL:\nCliente quiere otras.\nPide otras: sí',
+      ),
+    ).toBe(false);
+    expect(resumenStaysOnShownUnit('Cliente dice costo')).toBe(false);
   });
 });
 
