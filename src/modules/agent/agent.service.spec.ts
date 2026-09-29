@@ -6598,6 +6598,70 @@ Falta vehículo: sí`,
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('Pide otras y el precio: no se clava en la unidad ya mostrada', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sp-2019',
+      brand: 'kia',
+      model: 'sportage r gti lx ac 2.0 ta',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'plateado',
+    });
+    const patio = [
+      {
+        id: 'sp-2019',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 ta',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+        mileage: 113170,
+        transmission: 'automática',
+      },
+      {
+        id: 'tuc-2020',
+        brand: 'hyundai',
+        model: 'tucson gl ac 2.0',
+        year: 2020,
+        price: 19900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos disponible un Kia Sportage R GTI 2019 color plateado, con 113170 km, transmisión automática y 4x2.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Kia Sportage 2019\nSOLICITUD ACTUAL:\nCliente quiere ver otras unidades SUV y conocer el precio.\nPide precio: sí\nPide otras: sí\nTipo de patio: suv\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos Tucson y otras SUV.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'otras suv y el precio',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(
+      /EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS/i,
+    );
+  });
+
   it('A76271 fotos de estos manda las del listado, no solo la Ram', async () => {
     const patio = [
       {

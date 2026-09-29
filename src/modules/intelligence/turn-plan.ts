@@ -1,6 +1,6 @@
 import type { InterestedCarSnapshot } from '../persistence/lead.types';
 import type { VehicleLexicon } from '../conversation/fuzzy-vehicle-name';
-import { leftShownCar } from '../conversation/interested-car';
+import { customerNamedAnotherShownCar } from '../conversation/interested-car';
 import { resumenBrandFitsShown } from '../conversation/named-this-turn';
 import {
   detectBrand,
@@ -224,12 +224,15 @@ export function buildTurnPlan(input: TurnPlanInput): TurnPlan {
     return plan('RESPALDO', 'El resumen no trae «Pide otras»');
   }
 
-  if (unidad && input.ultimoBotListo) {
-    return pideOtras
-      ? plan('OTRAS', 'Pide otras: sí tras un listado', {
-          otras: pedidoOtras(resumen, lexicon),
-        })
-      : plan('ELEGIR_DE_LISTA', 'Pide otras: no tras un listado');
+  const pedidoTexto = [
+    solicitudSinBanderas(resumen),
+    vehiculo ?? '',
+  ].join('\n');
+
+  if (unidad && input.ultimoBotListo && pideOtras) {
+    return plan('OTRAS', 'Pide otras: sí tras un listado', {
+      otras: pedidoOtras(resumen, lexicon),
+    });
   }
 
   if (unidad) {
@@ -238,23 +241,18 @@ export function buildTurnPlan(input: TurnPlanInput): TurnPlan {
         otras: pedidoOtras(resumen, lexicon),
       });
     }
-    if (resumenFaltaVehiculo(resumen)) {
-      return plan('PEDIR_CARRO', 'Pide otras: no pero Falta vehículo: sí');
+    if (resumenAsksForOtherColor(resumen)) {
+      return plan('OTRAS', 'Pide otro color de ESA línea', {
+        otras: pedidoOtras(resumen, lexicon),
+      });
     }
+    // Falta vehículo con unidad en hilo: el flag miente (clic / más info).
     if (!resumenBrandFitsShown(resumen, unidad.brand, lexicon)) {
       return plan('OTRAS', 'El resumen nombra otra marca que la mostrada', {
         otras: pedidoOtras(resumen, lexicon),
       });
     }
-    const seFue = leftShownCar({
-      text: '',
-      resumen,
-      history: input.history,
-      car: unidad,
-      lexicon,
-      pedido: vehiculo,
-    });
-    if (seFue) {
+    if (customerNamedAnotherShownCar(pedidoTexto, unidad, lexicon)) {
       return plan('OTRAS', 'El resumen describe otra unidad que la mostrada', {
         otras: pedidoOtras(resumen, lexicon),
       });
@@ -308,8 +306,11 @@ export function planCoincideConCaminoViejo(
     case 'RESPALDO':
       return null;
     case 'OTRAS':
-    case 'ELEGIR_DE_LISTA':
       return caminoViejo === 'REVIEW_BRAND';
+    case 'ELEGIR_DE_LISTA':
+      return (
+        caminoViejo === 'REVIEW_BRAND' || caminoViejo === 'SEGUIR_UNIDAD'
+      );
     case 'PEDIR_CARRO':
       return caminoViejo === 'PEDIR_CARRO' || caminoViejo === 'REVIEW_BRAND';
     default:

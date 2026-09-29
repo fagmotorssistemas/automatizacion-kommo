@@ -207,12 +207,15 @@ describe('buildTurnPlan', () => {
     expect(result.seguir).toEqual(['ubicacion']);
   });
 
-  it('el bot acaba de listar y no pide otras: elige de la lista', () => {
+  it('el bot acaba de listar y no pide otras: sigue en la unidad que ya eligió', () => {
     const result = plan({
       ultimoBotListo: true,
-      resumen: resumen('Cliente elige la 2018.'),
+      resumen: resumen('Cliente quiere el precio de ESA unidad.', {
+        'Pide precio': 'sí',
+      }),
     });
-    expect(result.accion).toBe('ELEGIR_DE_LISTA');
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['precio']);
   });
 
   it('el bot acaba de listar y pide otras: busca otras', () => {
@@ -313,6 +316,44 @@ describe('buildTurnPlan', () => {
     expect(result.accion).toBe('SEGUIR_UNIDAD');
     expect(result.razon).toMatch(/sigue en la unidad/i);
   });
+
+  it('Falta vehículo con unidad en hilo: sigue, el flag miente', () => {
+    const result = plan({
+      resumen: resumen(
+        'Cliente quiere más información.',
+        { 'Falta vehículo': 'sí' },
+      ),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+  });
+
+  it('tipo de patio distinto no saca de ESA si pide el precio de ESA', () => {
+    const runner: InterestedCarSnapshot = {
+      inventoryId: '4runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+    };
+    const result = buildTurnPlan({
+      lexicon: buildLexicon([{ brand: 'toyota', model: '4 runner 4x2 t/a' }]),
+      unidad: runner,
+      ultimoBotListo: false,
+      resumen: [
+        'Vehículo: Toyota 4 runner 4x2 automático 2004 color rojo',
+        'SOLICITUD ACTUAL:',
+        'Cliente quiere el precio de ESA unidad.',
+        'Pide precio: sí',
+        'Pide otras: no',
+        'Tipo de patio: camioneta',
+        'Falta vehículo: no',
+      ].join('\n'),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['precio']);
+  });
 });
 
 describe('comparación plan vs camino viejo', () => {
@@ -324,6 +365,9 @@ describe('comparación plan vs camino viejo', () => {
   it('OTRAS, ELEGIR_DE_LISTA y PEDIR_CARRO pasan por reviewBrand en el camino viejo', () => {
     expect(planCoincideConCaminoViejo('OTRAS', 'REVIEW_BRAND')).toBe(true);
     expect(planCoincideConCaminoViejo('ELEGIR_DE_LISTA', 'REVIEW_BRAND')).toBe(true);
+    expect(planCoincideConCaminoViejo('ELEGIR_DE_LISTA', 'SEGUIR_UNIDAD')).toBe(
+      true,
+    );
     expect(planCoincideConCaminoViejo('PEDIR_CARRO', 'PEDIR_CARRO')).toBe(true);
     expect(planCoincideConCaminoViejo('PEDIR_CARRO', 'REVIEW_BRAND')).toBe(true);
     expect(planCoincideConCaminoViejo('OTRAS', 'SEGUIR_UNIDAD')).toBe(false);

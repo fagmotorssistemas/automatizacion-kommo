@@ -695,7 +695,7 @@ export class AgentService {
         askedLocation ||
         resumenPideNegociar(resumen) ||
         resumenPideHorario(resumen)) &&
-      (!resumenPideOtras(resumen) || askedPrice) &&
+      !resumenPideOtras(resumen) &&
       !otherBrandNow;
     if (stayFollowUp && !pideHorario) {
       const shown = lastSingleShownUnit(
@@ -756,6 +756,7 @@ export class AgentService {
       !(boxNow && shownBox && boxNow !== shownBox) &&
       !otherBrandNow &&
       !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon)) &&
+      !resumenPideOtras(resumen) &&
       (resumenStaysOnShownUnit(resumen) ||
         !detectNamedModelAsk(nombra, lexicon))
     ) {
@@ -835,7 +836,10 @@ export class AgentService {
         input.customerText,
         interested,
         lexicon,
-      )
+      ) ||
+      (interested &&
+        !resumenBrandFitsShown(resumen, interested.brand, lexicon)) ||
+      resumenPideOtras(resumen)
     ) {
       stayOnShown = false;
     }
