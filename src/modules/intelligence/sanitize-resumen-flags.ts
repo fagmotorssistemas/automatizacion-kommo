@@ -30,6 +30,18 @@ export function textAsksForHours(text: string): boolean {
   );
 }
 
+/** Otras / alternativas, pero después. No es listado de este turno. */
+export function otrasDiferidas(text: string): boolean {
+  const n = fold(text).replace(/\bde la manana\b/g, ' ');
+  if (!n.trim()) {
+    return false;
+  }
+  const catalog = /\b(?:otras?|similar(?:es)?|alternativas?)\b/;
+  const later =
+    /\b(?:manana|mas adelante|mas tarde|otro (?:dia|momento)|luego|la otra semana|aun no|no ahora)\b/;
+  return catalog.test(n) && later.test(n);
+}
+
 function forceFlagNo(resumen: string, label: string): string {
   return resumen.replace(
     new RegExp(`(${label}):\\s*s[ií]`, 'gi'),
@@ -91,6 +103,9 @@ export function sanitizeInventedResumenFlags(
       : replaceFlag(out, 'Asientos', 'no');
   if (!textAsksForTresFilas(customerText)) {
     out = forceFlagNo(out, 'Tres filas');
+  }
+  if (otrasDiferidas(customerText)) {
+    out = forceFlagNo(out, 'Pide otras');
   }
   return out;
 }

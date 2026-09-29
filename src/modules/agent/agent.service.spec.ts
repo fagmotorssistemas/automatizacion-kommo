@@ -3319,6 +3319,21 @@ describe('AgentService', () => {
         typeBody: 'suv',
       },
     ]);
+    openai.embed.mockResolvedValue([0.2]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'chevy-vitara-2008',
+          content: 'chevrolet grand vitara 3p 2008',
+          metadata: {
+            brand: 'chevrolet',
+            model: 'grand vitara 3p tm ac sport',
+            year: 2008,
+            inventory_id: 'chevy-vitara-2008',
+          },
+        },
+      ]),
+    );
     openai.complete
       .mockResolvedValueOnce('RESUMEN')
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
@@ -3821,8 +3836,7 @@ describe('AgentService', () => {
     expect(openai.embed).toHaveBeenCalled();
     expect(catalog.searchByQuery).toHaveBeenCalledWith(
       expect.objectContaining({
-        query:
-          'Toyota Hilux cabina doble a gasolina, 4x2 año 2023 en adelante',
+        query: expect.stringMatching(/Hilux cabina doble/i),
         marca: 'toyota',
       }),
     );
@@ -4651,7 +4665,15 @@ describe('AgentService', () => {
       model: '3008n',
       year: 2022,
       typeBody: 'suv',
-      extras: [],
+      extras: [
+        {
+          id: 'p2008-x',
+          brand: 'peugeot',
+          model: '2008 fin h 12e bm6 ac 1.2 5p 4x2 tm',
+          year: 2022,
+          typeBody: 'suv',
+        },
+      ],
       expectId: true,
     },
     {
@@ -4731,6 +4753,23 @@ describe('AgentService', () => {
           : '¿Qué carro le interesa?',
         meta: { vehiculo: null },
       }),
+    );
+    openai.embed.mockResolvedValue(row.expectId ? [0.11, 0.22] : null);
+    catalog.searchByQuery.mockResolvedValue(
+      row.expectId
+        ? JSON.stringify([
+            {
+              id: row.id,
+              content: `${row.brand} ${row.model} ${row.year}`,
+              metadata: {
+                brand: row.brand,
+                model: row.model,
+                year: row.year,
+                inventory_id: row.id,
+              },
+            },
+          ])
+        : '[]',
     );
 
     const result = await service.handleTurn({
@@ -4887,6 +4926,21 @@ describe('AgentService', () => {
         respuesta_cliente: `Tenemos el ${row.name}.`,
         meta: { vehiculo: { inventory_id: row.id } },
       }),
+    );
+    openai.embed.mockResolvedValue([0.11, 0.22]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: row.id,
+          content: `${row.brand} ${row.model} ${row.year}`,
+          metadata: {
+            brand: row.brand,
+            model: row.model,
+            year: row.year,
+            inventory_id: row.id,
+          },
+        },
+      ]),
     );
 
     const result = await service.handleTurn({
@@ -5314,6 +5368,21 @@ describe('AgentService', () => {
         respuesta_cliente: `Tenemos el ${row.model}.`,
         meta: { vehiculo: null },
       }),
+    );
+    openai.embed.mockResolvedValue([0.11, 0.22]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: row.id,
+          content: `${row.brand} ${row.model} ${row.year}`,
+          metadata: {
+            brand: row.brand,
+            model: row.model,
+            year: row.year,
+            inventory_id: row.id,
+          },
+        },
+      ]),
     );
 
     const result = await service.handleTurn({
@@ -7492,6 +7561,71 @@ Pide precio: no`,
     expect(result?.photoQueue?.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('otras opciones mañana no encola fichas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'santafe-2018',
+      brand: 'hyundai',
+      model: 'santa fe gls 2.4',
+      year: 2018,
+      price: 18900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Rene, ¿le gustó el Hyundai Santa Fe 2018 que le envié o hay algo que le detiene? Si prefiere, le busco otra opción o le doy más detalles.',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'yuan-2026',
+        brand: 'byd',
+        model: 'yuan pro gs',
+        year: 2026,
+        price: 19990,
+        typeBody: 'jeep',
+        color: 'plomo',
+        transmission: 'automatica',
+        mileage: 25199,
+      },
+      {
+        id: 'sportage-2019',
+        brand: 'kia',
+        model: 'sportage sl',
+        year: 2019,
+        price: 18500,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere otras opciones.\nPide otras: sí\nTipo de patio: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'De acuerdo, mañana le muestro otras opciones.',
+        meta: { vehiculo: { inventory_id: 'santafe-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A76591',
+      customerText: 'para ver otras opciones mañana',
+    });
+
+    expect(openai.runSalesAgent).toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PERO NO AHORA/i);
+    expect(system).toMatch(/PROHIBIDO listar unidades/i);
+    expect(result?.photoQueue).toBeUndefined();
+    expect(result?.reply.mensaje).not.toMatch(/Yuan|Sportage/i);
+  });
+
   it('si ninguno cumple manda el parecido y no busca otra marca', async () => {
     conversation.loadVehicleBrand.mockResolvedValue('nissan');
     catalog.listByBrand.mockResolvedValue([
@@ -9270,6 +9404,21 @@ Pide precio: no`,
         meta: { vehiculo: { inventory_id: 'p2008-2022' } },
       }),
     );
+    openai.embed.mockResolvedValue([0.11, 0.22]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'p2008-2022',
+          content: 'peugeot 2008 fin 2022 plomo',
+          metadata: {
+            brand: 'peugeot',
+            model: '2008 fin',
+            year: 2022,
+            inventory_id: 'p2008-2022',
+          },
+        },
+      ]),
+    );
 
     await service.handleTurn({
       contactId: '1',
@@ -9285,6 +9434,127 @@ Pide precio: no`,
     expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
       '1',
       'p2008-2022',
+    );
+  });
+
+  it('A72198 Peugeot 3008 ata el id del RPC, no el 2008 del léxico', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'p2008-x',
+        brand: 'peugeot',
+        model: '2008 fin h 12e bm6 ac 1.2 5p 4x2 tm',
+        year: 2022,
+        price: 19990,
+        typeBody: 'suv',
+      },
+      {
+        id: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+        brand: 'peugeot',
+        model: '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+        year: 2022,
+        price: 22800,
+        typeBody: 'suv',
+        color: 'plata',
+      },
+    ]);
+    openai.embed.mockResolvedValue([0.3, 0.4]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+          content: 'peugeot 3008n act 2022 plata',
+          metadata: {
+            brand: 'peugeot',
+            model: '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+            year: 2022,
+            inventory_id: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+            price: 22800,
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Peugeot 3008.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos el Peugeot 3008 2022 plata.',
+        meta: {
+          vehiculo: { inventory_id: '62ebe610-3f42-4714-9939-1ab3380d1a18' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A72198',
+      customerText: 'Hola. Me interesa el Peugeot 3008',
+    });
+
+    expect(catalog.searchByQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringMatching(/Peugeot 3008/i),
+        marca: 'peugeot',
+      }),
+    );
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=62ebe610-3f42-4714-9939-1ab3380d1a18');
+    expect(system).not.toContain('inventory_id=p2008-x');
+    expect(system).not.toMatch(/Ese modelo no está en patio/i);
+  });
+
+  it('A72198 crédito del 3008 no vuelve a buscar', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+      brand: 'peugeot',
+      model: '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+      year: 2022,
+      price: 22800,
+      color: 'plata',
+      typeBody: 'suv',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Peugeot 3008n 2022 plata, $22,800.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Peugeot 3008 2022\nSOLICITUD ACTUAL:\nCliente quiere la entrada y el plazo del Peugeot 3008 2022.\nPide crédito: sí\nPide otras: no\nCaja de compra: automática',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La entrada es del 60% a 48 meses.',
+        meta: {
+          vehiculo: { inventory_id: '62ebe610-3f42-4714-9939-1ab3380d1a18' },
+        },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A72198',
+      customerText:
+        'Pueden enviarme información, este, con cuanto de entrada, para cuantos meses',
+    });
+
+    expect(catalog.searchByQuery).not.toHaveBeenCalled();
+    expect(openai.embed).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).toContain('inventory_id=62ebe610-3f42-4714-9939-1ab3380d1a18');
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({
+        inventory_id: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+      }),
     );
   });
 
@@ -9352,6 +9622,21 @@ Pide precio: no`,
           'Tenemos el Peugeot 2008 FIN 2022 plomo, manual, 95848 km.',
         meta: { vehiculo: { inventory_id: 'p2008-2022' } },
       }),
+    );
+    openai.embed.mockResolvedValue([0.11, 0.22]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'p2008-2022',
+          content: 'peugeot 2008 fin 2022',
+          metadata: {
+            brand: 'peugeot',
+            model: '2008 fin',
+            year: 2022,
+            inventory_id: 'p2008-2022',
+          },
+        },
+      ]),
     );
 
     await service.handleTurn({
@@ -10559,6 +10844,50 @@ Pide precio: no`,
     expect(result?.reply.mensaje).not.toMatch(/gestionar/i);
   });
 
+  it('A66076: el Sí a aplica no reimprime la cuota aunque el resumen arrastre entrada', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Con una entrada de $5000 y financiamiento a 5 años (60 meses), la cuota aproximada es $544.38. Este valor es referencial y usa una tasa de interés promedio del mercado; el monto final, la tasa y condiciones las define el banco o cooperativa. ¿Desea que le ayudemos a ver si aplica al crédito?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-2019',
+      brand: 'kia',
+      model: 'sportage',
+      year: 2019,
+      price: 21500,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente acepta ver si aplica con entrada de $5000 a 5 años.\nPide crédito: sí\nAcepta crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Con una entrada de $5000 y financiamiento a 5 años la cuota aproximada es $544.38. Este valor es referencial y usa una tasa de interés promedio del mercado; el monto final, la tasa y condiciones las define el banco o cooperativa. ¿Desea que le ayudemos a ver si aplica al crédito?',
+        meta: { vehiculo: { inventory_id: 'sportage-2019', precio: 21500 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Si',
+    });
+
+    const reply = result?.reply.mensaje ?? '';
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/acepta ver si aplica/i);
+    expect(system).not.toMatch(/PIDIÓ CRÉDITO \/ FINANCIAMIENTO/i);
+    expect(reply).not.toMatch(/544/);
+    expect(reply).not.toMatch(/ver si aplica/i);
+    expect(reply).toMatch(
+      /me ayuda con estos datos: su cédula, su nombre completo y de dónde es/i,
+    );
+  });
+
   it('si no quiere ver si aplica, motiva a seguir con el carro', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
@@ -10596,6 +10925,46 @@ Pide precio: no`,
     expect(system).not.toMatch(/YA SE DIJO LA CUOTA/i);
     expect(result?.reply.mensaje).toMatch(/estamos aquí para ayudarle/i);
     expect(result?.reply.mensaje).not.toMatch(/cédula/i);
+  });
+
+  it('A66076: Gracias ya no cierra y no pega visita encima', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Con una entrada de $5000 y financiamiento a 5 años la cuota aproximada es $544.38. ¿Desea que le ayudemos a ver si aplica al crédito?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'sportage-2019',
+      brand: 'kia',
+      model: 'sportage',
+      year: 2019,
+      price: 21500,
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente no quiere ver si aplica y se despide.\nAcepta crédito: no\nRechaza aplicar: sí\nEs despedida: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["cierre"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Gracias por comunicarse con nosotros, quedamos a su disposición.',
+        meta: { vehiculo: { inventory_id: 'sportage-2019' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Gracias ya no',
+    });
+
+    const reply = result?.reply.mensaje ?? '';
+    expect(reply).toMatch(/quedamos a su disposición/i);
+    expect(reply).not.toMatch(/otra que le encaje/i);
+    expect(reply).not.toMatch(/venir a verlo/i);
+    expect(reply).not.toMatch(/cédula/i);
   });
 
   it('en la cuota no pregunta si desea gestionar', async () => {

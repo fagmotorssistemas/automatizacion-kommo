@@ -69,4 +69,25 @@ describe('nombre de vehículo mal escrito', () => {
   it('el modelo escrito bien sigue valiendo', () => {
     expect(fuzzyModelHits('me interesa el optra', TEST_LEXICON).map((hit) => hit.name)).toContain('optra');
   });
+
+  it('3008 no se lee como 2008; 3008n de ficha es 3008', () => {
+    const said3008 = fuzzyModelHits(
+      'Hola. Me interesa el Peugeot 3008',
+      TEST_LEXICON,
+    ).map((hit) => hit.name);
+    expect(said3008).toContain('3008');
+    expect(said3008).not.toContain('2008');
+    const said2008 = fuzzyModelHits(
+      'Hola. Me interesa el Peugeot 2008',
+      TEST_LEXICON,
+    ).map((hit) => hit.name);
+    expect(said2008).toContain('2008');
+    expect(said2008).not.toContain('3008');
+    expect(
+      fuzzyModelHits('O si tiene un peugeot 208', TEST_LEXICON).map(
+        (hit) => hit.name,
+      ),
+    ).toEqual([]);
+  });
+
 });

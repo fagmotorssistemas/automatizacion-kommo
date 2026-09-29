@@ -331,7 +331,8 @@ describe('clasificar filas', () => {
     expect(modelFamily('f-150 lariat 5.0 4x4')).toBe('f150');
     expect(modelFamily('x70 plus ii ac 1.5')).toBe('x70');
     expect(modelFamily('2008 fin')).toBe('2008');
-    expect(modelFamily('3008n')).toBe('3008n');
+    expect(modelFamily('3008n')).toBe('3008');
+    expect(modelFamily('3008n act 16e ba6 ac 1.6 5p 4x2 ta')).toBe('3008');
     expect(modelFamily('explorer xlt')).toBe('explorer');
     expect(modelFamily('optra advance 1.8l')).toBe('optra');
     expect(modelFamily('i10 gls')).toBe('i10');
@@ -504,6 +505,21 @@ describe('clasificar filas', () => {
   it('Río con tilde pega con rio del inventario', () => {
     expect(textMentionsModel('Río ?', 'rio lx ac 1.4 4p')).toBe(true);
     expect(textMentionsModel('Kia rio', 'rio lx ac 1.4 4p')).toBe(true);
+  });
+
+  it('3008 pega con 3008n y no con 2008', () => {
+    expect(
+      textMentionsModel(
+        'Hola. Me interesa el Peugeot 3008',
+        '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+      ),
+    ).toBe(true);
+    expect(
+      textMentionsModel(
+        'Hola. Me interesa el Peugeot 3008',
+        '2008 fin h 12e bm6 ac 1.2 5p 4x2 tm',
+      ),
+    ).toBe(false);
   });
 
   it('4runner pega con 4 runner del inventario', () => {
@@ -692,6 +708,30 @@ describe('clasificar filas', () => {
     expect(text).toContain('tracción=4x2');
     expect(text).toContain('puertas=4');
     expect(text).not.toMatch(/caja=4x2/i);
+  });
+
+  it('Santa Fe 2018 sin ta ni transmission llega al robot como caja sin dato', () => {
+    const santa: StockCar = {
+      id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      price: 22990,
+      typeBody: 'jeep',
+      color: 'azul',
+      mileage: 124923,
+      transmission: null,
+      plateShort: 'P7',
+    };
+    expect(unitCaja(santa)).toBeNull();
+    const text = describeUnit(santa, false);
+    expect(text).toContain('modelo=santa fe dm 7pas ac 2.4 5p 4x2');
+    expect(text).toContain('año=2018');
+    expect(text).toContain('caja=sin dato');
+    expect(text).toContain('puertas=5');
+    expect(text).toContain('tracción=4x2');
+    expect(text).toContain('km=124923');
+    expect(text).toMatch(/si es sin dato, no hables de transmisión/);
   });
 
   it('la lista del bot se recorta a las unidades que nombró, no a toda la línea', () => {

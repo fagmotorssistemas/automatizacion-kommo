@@ -201,13 +201,17 @@ import {
   textAsksForOtherColor,
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
-import { sanitizeInventedResumenFlags } from '../intelligence/sanitize-resumen-flags';
+import {
+  otrasDiferidas,
+  sanitizeInventedResumenFlags,
+} from '../intelligence/sanitize-resumen-flags';
 import {
   ensureListedPrice,
   historySaidMileageCare,
   stripRepeatedMileageCare,
 } from '../catalog/mileage';
 import {
+  askedMatchesShownModel,
   decideStayOnShown,
   formatInterestedCar,
   historyPresentedFicha,
@@ -251,6 +255,7 @@ import {
   unitDrive,
   shownThreadText,
   StockCar,
+  normalizeModelText,
   textMentionsModel,
   userNamedModel,
 } from '../catalog/clasificar-filas';
@@ -282,6 +287,7 @@ import {
   stripGestionarOffer,
   stripPrematureApplyAsk,
   stripPrematureIdentityAsk,
+  stripRepeatedCuotaOnAccept,
 } from '../conversation/financing-data';
 import {
   carsForReview,
@@ -638,10 +644,7 @@ export class AgentService {
       confirmingCashOrDelivery
         ? false
         : mentionsPrice;
-    const financingInputsNow = gaveFinancingInputs(
-      input.customerText,
-      resumen,
-    );
+    const financingInputsNow = gaveFinancingInputs(input.customerText);
     const aceptaVerSiAplica =
       resumenAceptaCredito(resumen) &&
       (historyAskedIfApplies(history) || historyHasShownCuota(history)) &&
@@ -1479,6 +1482,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       if (!replyShowsCuota(parsed.mensaje) && !parsed.meta.cuotaMostrada) {
         parsed.mensaje = stripPrematureApplyAsk(parsed.mensaje);
       }
+      if (aceptaVerSiAplica) {
+        parsed.mensaje = stripRepeatedCuotaOnAccept(parsed.mensaje);
+      }
       const showedCuotaNow =
         parsed.meta.cuotaMostrada || replyShowsCuota(parsed.mensaje);
       if (
@@ -1497,6 +1503,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           hasCedula,
           reply: parsed.mensaje,
           showedCuotaNow,
+          financingInputsNow,
         })
       ) {
         parsed.mensaje = appendFinancingDataAsk(parsed.mensaje);
@@ -1506,6 +1513,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           rechazaAplicar: resumenRechazaAplicar(resumen),
           hasCedula,
           reply: parsed.mensaje,
+          closing: closing || thanksHint === DESPEDIDA_AMABLE,
         })
       ) {
         parsed.mensaje = appendFinancingDecline(parsed.mensaje);
@@ -1912,7 +1920,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ? { ...named, year: yearSaidNow ?? named.year }
       : null;
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
-    const pideOtras = resumenPideOtras(resumen);
+    const pideOtras =
+      resumenPideOtras(resumen) && !otrasDiferidas(customerText);
     const cashBudgetEarly =
       asked || staysOnShown || !resumenPidePresupuesto(resumen)
         ? null
@@ -2076,7 +2085,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           : listed.filter((car) => modelPhraseMatchesCar(phrase, car.model));
       pedidoPinned = strict.length > 0;
       if (hits.length === 0) {
-        if (!listedFollowUp) {
+        if (!listedFollowUp && !asked) {
           const names = nombresSeparados(pedido ?? '');
           if (names.length >= 2) {
             return this.revisionPorNombres(pedido ?? '', names);
@@ -2466,6 +2475,71 @@ El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro col
 PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }
+    let namedRpcEmpty = false;
+    const refineFacts =
+      Boolean(askedCab) ||
+      Boolean(askedDriveEarly) ||
+      Boolean(yearAsk) ||
+      Boolean(colorAsk) ||
+      Boolean(trimAsk) ||
+      Boolean(yearSpan);
+    if (
+      asked &&
+      !listedFollowUp &&
+      !spaceAsk &&
+      !tresFilas &&
+      (!refineFacts || wantsClosest)
+    ) {
+      const searchQuery = [customerText, solicitud]
+        .filter((part) => part.trim())
+        .join('\n');
+      const ranked = this.filterByAskedYear(
+        await this.lookupNamedByEmbedding(
+          searchQuery || customerText,
+          '',
+          targetBrand || asked.brand || '',
+          listed,
+          includePrice,
+        ),
+        yearFromThread,
+        yearOnward,
+      );
+      if (ranked[0]) {
+        return this.namedModelFound(
+          [ranked[0]],
+          includePrice,
+          true,
+          wantsClosest,
+          yearFromThread,
+          yearOnward,
+        );
+      }
+      if (!refineFacts) {
+        const queryTokens = normalizeModelText(searchQuery || customerText)
+          .split(/[^a-z0-9]+/)
+          .filter((token) => token.length >= 3);
+        const fromListed = this.filterByAskedYear(
+          listed.filter((car) =>
+            queryTokens.some((token) =>
+              askedMatchesShownModel(token, car.model),
+            ),
+          ),
+          yearFromThread,
+          yearOnward,
+        );
+        if (fromListed[0]) {
+          return this.namedModelFound(
+            fromListed,
+            includePrice,
+            true,
+            wantsClosest,
+            yearFromThread,
+            yearOnward,
+          );
+        }
+      }
+      namedRpcEmpty = true;
+    }
     const skipShownYearAsSameModel =
       searchingNewPatio && Boolean(yearAsk) && !colorAsk && !trimAsk;
     if (
@@ -2631,17 +2705,19 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
     }
     const saidBox = detectGearbox(customerText, lexicon);
     if (wantsClosest && asked && !tresFilas) {
-      const fromEmbed = this.filterByAskedYear(
-        await this.lookupNamedByEmbedding(
-          customerText,
-          asked.family,
-          asked.brand || targetBrand || '',
-          listed,
-          includePrice,
-        ),
-        yearFromThread,
-        yearOnward,
-      );
+      const fromEmbed = namedRpcEmpty
+        ? []
+        : this.filterByAskedYear(
+            await this.lookupNamedByEmbedding(
+              customerText,
+              asked.family,
+              asked.brand || targetBrand || '',
+              listed,
+              includePrice,
+            ),
+            yearFromThread,
+            yearOnward,
+          );
       if (fromEmbed.length > 0) {
         return this.namedModelFound(
           fromEmbed,
@@ -2802,18 +2878,20 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     }
     if (asked && !tresFilas) {
       if (yearSpan) {
-        const fromEmbed = this.filterByAskedYear(
-          await this.lookupNamedByEmbedding(
-            customerText,
-            asked.family,
-            asked.brand,
-            listed,
-            includePrice,
-          ),
-          yearSpan.min,
-          false,
-          yearSpan.max,
-        );
+        const fromEmbed = namedRpcEmpty
+          ? []
+          : this.filterByAskedYear(
+              await this.lookupNamedByEmbedding(
+                customerText,
+                asked.family,
+                asked.brand,
+                listed,
+                includePrice,
+              ),
+              yearSpan.min,
+              false,
+              yearSpan.max,
+            );
         if (fromEmbed.length > 0) {
           return this.namedModelFound(
             fromEmbed,
@@ -2833,17 +2911,19 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         );
       }
       const floorYear = yearFromThread;
-      const fromEmbed = this.filterByAskedYear(
-        await this.lookupNamedByEmbedding(
-          customerText,
-          asked.family,
-          asked.brand,
-          listed,
-          includePrice,
-        ),
-        floorYear,
-        yearOnward,
-      );
+      const fromEmbed = namedRpcEmpty
+        ? []
+        : this.filterByAskedYear(
+            await this.lookupNamedByEmbedding(
+              customerText,
+              asked.family,
+              asked.brand,
+              listed,
+              includePrice,
+            ),
+            floorYear,
+            yearOnward,
+          );
       if (fromEmbed.length > 0) {
         return this.namedModelFound(
           fromEmbed,
@@ -3750,16 +3830,14 @@ ${rule}`,
       marca: brand,
       includePrice,
     });
-    const hits = carsFromMatchJson(raw).filter(
-      (car) =>
-        textMentionsModel(car.model, family) ||
-        modelFamily(car.model) === family,
-    );
+    const hits = carsFromMatchJson(raw);
     if (hits.length === 0) {
-      this.logger.log(`Embedding no halló ${family} (marca=${brand})`);
+      this.logger.log(`Embedding no halló unidad (marca=${brand})`);
       return [];
     }
-    this.logger.log(`Embedding halló ${family}: ${hits.map((car) => car.id).join(',')}`);
+    this.logger.log(
+      `Embedding halló: ${hits.map((car) => car.id).join(',')}`,
+    );
     const listedById = new Map(listed.map((car) => [car.id, car]));
     return hits.map((car) => listedById.get(car.id) ?? car);
   }

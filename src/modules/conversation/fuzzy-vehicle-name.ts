@@ -163,6 +163,11 @@ function sameSkeleton(a: string, b: string): boolean {
   return left.length >= 3 && left === right;
 }
 
+/** 2008 / 3008 / 3008n: un número de modelo no se acerca a otro. */
+function isNumericModelToken(value: string): boolean {
+  return /^\d{3,4}[a-z]?$/i.test(value);
+}
+
 function closeEnough(
   token: string,
   key: string,
@@ -172,6 +177,13 @@ function closeEnough(
     return true;
   }
   if (FUZZY_STOP.has(token)) {
+    return false;
+  }
+  if (
+    mode === 'model' &&
+    isNumericModelToken(token) &&
+    isNumericModelToken(key)
+  ) {
     return false;
   }
   const left = soften(token);

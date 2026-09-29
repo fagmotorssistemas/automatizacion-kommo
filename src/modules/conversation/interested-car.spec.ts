@@ -1,5 +1,6 @@
 import {
   customerNamedAnotherShownCar,
+  decideStayOnShown,
   followsShownCar,
   formatInterestedCar,
   historyPresentedFicha,
@@ -314,6 +315,17 @@ describe('vehículo de interés', () => {
     ).toBe(true);
   });
 
+  it('otras mañana no suelta la mostrada', () => {
+    expect(
+      leftShownCar({
+        text: 'para ver otras opciones mañana',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere ver otras.\nPide otras: sí',
+        car: sportage,
+      }),
+    ).toBe(false);
+  });
+
   it('otro año o otra caja no es la misma unidad', () => {
     expect(
       followsShownCar({
@@ -480,6 +492,39 @@ describe('vehículo de interés', () => {
     });
     expect(text).toMatch(/aún no cargado/i);
     expect(text).not.toMatch(/^km=0$/m);
+  });
+
+  it('crédito del 3008 no suelta por el léxico 2008', () => {
+    const peugeot3008n = {
+      inventoryId: '62ebe610-3f42-4714-9939-1ab3380d1a18',
+      brand: 'peugeot',
+      model: '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+      year: 2022,
+      price: 22800,
+      color: 'plata',
+      typeBody: 'suv',
+    };
+    expect(
+      leftShownCar({
+        text: 'Pueden enviarme información, este, con cuanto de entrada, para cuantos meses',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Peugeot 3008 2022\nSOLICITUD ACTUAL:\nCliente quiere la entrada y el plazo del Peugeot 3008 2022.\nPide crédito: sí\nPide otras: no\nCaja de compra: automática',
+        car: peugeot3008n,
+        lexicon: TEST_LEXICON,
+        pedido: 'Peugeot 3008 2022',
+      }),
+    ).toBe(false);
+    expect(
+      decideStayOnShown({
+        text: 'Pueden enviarme información, este, con cuanto de entrada, para cuantos meses',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Peugeot 3008 2022\nSOLICITUD ACTUAL:\nCliente quiere la entrada y el plazo del Peugeot 3008 2022.\nPide crédito: sí\nPide otras: no\nCaja de compra: automática',
+        car: peugeot3008n,
+        lexicon: TEST_LEXICON,
+        pedido: 'Peugeot 3008 2022',
+        lastListed: true,
+      }),
+    ).toBe(true);
   });
 
   it('Peugeot 2008 no suelta la unidad 2022 de ese modelo', () => {

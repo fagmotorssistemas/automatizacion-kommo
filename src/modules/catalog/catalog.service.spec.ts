@@ -57,18 +57,10 @@ describe('CatalogService.searchByQuery', () => {
     });
   });
 
-  it('si con la marca no aparece el modelo reintenta sin marca', async () => {
-    supabase.matchInventory
-      .mockResolvedValueOnce([
-        { id: 'p1', content: 'toyota prado tx', metadata: { model: 'prado tx' } },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'h1',
-          content: 'toyota hilux cd 2.4 tm',
-          metadata: { model: 'hilux cd 2.4 tm' },
-        },
-      ]);
+  it('devuelve el hit del RPC sin filtrar por familia del léxico', async () => {
+    supabase.matchInventory.mockResolvedValueOnce([
+      { id: 'p1', content: 'toyota prado tx', metadata: { model: 'prado tx' } },
+    ]);
 
     const raw = await service.searchByQuery({
       embedding: [0.2],
@@ -77,8 +69,10 @@ describe('CatalogService.searchByQuery', () => {
       marca: 'toyota',
     });
 
-    expect(JSON.parse(raw)[0].id).toBe('h1');
-    expect(supabase.matchInventory).toHaveBeenCalledTimes(2);
-    expect(supabase.matchInventory).toHaveBeenLastCalledWith([0.2], 8, {});
+    expect(JSON.parse(raw)[0].id).toBe('p1');
+    expect(supabase.matchInventory).toHaveBeenCalledTimes(1);
+    expect(supabase.matchInventory).toHaveBeenCalledWith([0.2], 8, {
+      marca: 'toyota',
+    });
   });
 });

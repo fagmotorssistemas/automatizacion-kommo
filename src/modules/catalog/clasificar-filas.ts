@@ -96,6 +96,10 @@ export function modelFamily(model: string): string {
     if (next && LINE_SUFFIX.has(next)) {
       return `${token} ${next}`;
     }
+    const sheetCode = token.match(/^(\d{3,4})[a-z]$/i);
+    if (sheetCode) {
+      return sheetCode[1];
+    }
     return token;
   }
   return parts.find((part) => /^[a-z]\d{1,3}$/i.test(part)) ?? '';

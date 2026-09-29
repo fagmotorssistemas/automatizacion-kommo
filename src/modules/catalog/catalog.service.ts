@@ -5,7 +5,6 @@ import {
 } from '../persistence/supabase.gateway';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 import { StockCar } from './clasificar-filas';
-import { detectNamedModelAsk } from '../conversation/vehicle-brand';
 import {
   buildLexicon,
   emptyLexicon,
@@ -15,7 +14,6 @@ import {
   INVENTORY_NAMED_TOP_K,
   INVENTORY_TOP_K,
   inventorySearchPlan,
-  matchRowsMentionFamily,
 } from './inventory-search-plan';
 
 export { INVENTORY_TOP_K };
@@ -158,48 +156,13 @@ export class CatalogService {
       lexicon,
     );
     const topK = plan.named ? INVENTORY_NAMED_TOP_K : INVENTORY_TOP_K;
-    const family = detectNamedModelAsk(input.query, lexicon)?.family ?? '';
-
-    const first = await this.searchInventory(
+    return this.searchInventory(
       input.embedding,
       plan.tipo,
       plan.marca,
       includePrice,
       topK,
     );
-    if (!family || matchRowsMentionFamily(first, family)) {
-      return first;
-    }
-
-    if (plan.tipo) {
-      const withoutTipo = await this.searchInventory(
-        input.embedding,
-        null,
-        plan.marca,
-        includePrice,
-        topK,
-      );
-      if (matchRowsMentionFamily(withoutTipo, family)) {
-        this.logger.log(`Embedding sin tipo encontró ${family}`);
-        return withoutTipo;
-      }
-    }
-
-    if (plan.marca) {
-      const open = await this.searchInventory(
-        input.embedding,
-        null,
-        null,
-        includePrice,
-        topK,
-      );
-      if (matchRowsMentionFamily(open, family)) {
-        this.logger.log(`Embedding sin marca encontró ${family}`);
-        return open;
-      }
-    }
-
-    return first;
   }
 
   async listAvailableExcept(brand: string): Promise<StockCar[]> {

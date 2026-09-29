@@ -82,6 +82,7 @@ Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: s�
 REGLA DE PIDE OTRAS (OBLIGATORIA):
 Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el pedido concreto (precio, ficha, ubicación, horario, la unidad que nombró).
 - Listado, sin nombrar una unidad (otra, otras, similar, alternativas, cualquier marca, un tipo): Pide otras: sí. SOLICITUD: quiere ver otras.
+- Si pide ver otras / alternativas / un listado PERO después (mañana, otro día, más adelante, luego): Pide otras: no. SOLICITUD: quiere ver otras, pero no ahora. No es catálogo de este turno. No es horario.
 - Nombra una unidad distinta (marca, modelo, año o versión): Vehículo: esa. SOLICITUD: esa unidad, con el nombre que dijo. Pide otras: no.
 - Precio, km, ficha, visita, ubicación, crédito, un detalle o las plazas de la mostrada: Pide otras: no. No pongas otro carro en Vehículo ni en la SOLICITUD.
 - Rechazar el crédito, la visita o un dato de la misma unidad: Pide otras: no.

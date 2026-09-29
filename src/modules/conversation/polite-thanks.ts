@@ -1,3 +1,5 @@
+import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
+
 const HARD_FAREWELL =
   /\b(?:no me interesa|ya no(?:\s+me\s+interesa)?|ya compr[eé]|no me contacten|no lo contacten|chao|adi[oó]s|d[eé]jeme)\b/i;
 
@@ -88,13 +90,16 @@ export const PAUSA_SIGUE = `EL CLIENTE AÚN NO QUIERE VISITA NI MÁS INFO AHORA 
 Confirma que sigue el interés en ESA unidad. Una línea. PROHIBIDO listar otras marcas o líneas. PROHIBIDO preguntar qué Chevrolet/Kia le interesa. PROHIBIDO soltar el catálogo. PROHIBIDO pegar la dirección si no la pidió.
 PROHIBIDO preguntar otra vez financiamiento o visita en este turno.`;
 
+export const OTRAS_LUEGO = `EL CLIENTE QUIERE VER OTRAS OPCIONES, PERO NO AHORA (mañana / otro día). NO ES DESPEDIDA.
+Una línea: lo vemos entonces. PROHIBIDO listar unidades. PROHIBIDO fichas. PROHIBIDO preguntar financiamiento o visita en este turno.`;
+
 export const DESPEDIDA_AMABLE = `EL CLIENTE CIERRA. La visita o el siguiente paso YA se dijeron.
 Una línea amable. PROHIBIDO repetir la fecha, la visita, el carro o "quedamos atentos".`;
 
 /**
  * Una sola lectura, en este orden:
  * 1) duda  2) despedida dura  3) no a la última oferta
- * 4) pausa  5) cortesía  6) nada
+ * 4) otras después  5) pausa  6) cortesía  7) nada
  */
 export function salesFollowHint(input: {
   customerText: string;
@@ -112,6 +117,9 @@ export function salesFollowHint(input: {
   const lastWasCta = lastAskIsFinancingOrVisit(input.lastAssistant ?? '');
   if (isSoftNo(input.customerText)) {
     return lastWasCta ? NO_REPETIR_CTA : '';
+  }
+  if (otrasDiferidas(input.customerText)) {
+    return OTRAS_LUEGO;
   }
   if (isPauseLater(input.customerText)) {
     return PAUSA_SIGUE;

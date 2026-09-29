@@ -1,4 +1,5 @@
 import {
+  otrasDiferidas,
   sanitizeInventedResumenFlags,
   textAsksForHours,
   textAsksForLocation,
@@ -135,5 +136,17 @@ describe('sanitizeInventedResumenFlags', () => {
     );
     expect(out).toMatch(/Tres filas: sí/i);
     expect(out).toMatch(/Asientos: no/i);
+  });
+
+  it('otras mañana no es catálogo de este turno', () => {
+    expect(otrasDiferidas('para ver otras opciones mañana')).toBe(true);
+    expect(otrasDiferidas('Me ayudaría con otras opciones')).toBe(false);
+    expect(otrasDiferidas('atienden mañana?')).toBe(false);
+    expect(otrasDiferidas('puedo ir mañana?')).toBe(false);
+    const out = sanitizeInventedResumenFlags(
+      'SOLICITUD ACTUAL:\nCliente quiere ver otras.\nPide otras: sí',
+      'para ver otras opciones mañana',
+    );
+    expect(out).toMatch(/Pide otras: no/i);
   });
 });

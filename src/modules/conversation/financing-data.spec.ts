@@ -20,6 +20,7 @@ import {
   stripGestionarOffer,
   stripPrematureApplyAsk,
   stripPrematureIdentityAsk,
+  stripRepeatedCuotaOnAccept,
 } from './financing-data';
 
 describe('datos de financiamiento', () => {
@@ -156,6 +157,17 @@ describe('datos de financiamiento', () => {
     ).toBe(true);
     expect(appendFinancingDecline('Listo.')).toContain(FINANCING_DECLINE);
     expect(appendFinancingDataAsk('Perfecto.')).toContain(FINANCING_DATA_ASK);
+    expect(
+      shouldEncourageAfterDecline({
+        history: [
+          { role: 'assistant', content: `${cuotaMsg} ${FINANCING_APPLY_ASK}` },
+        ],
+        rechazaAplicar: true,
+        hasCedula: false,
+        closing: true,
+      }),
+    ).toBe(false);
+    expect(appendFinancingDataAsk('Perfecto.')).toContain(FINANCING_DATA_ASK);
     expect(historyAskedFinancingData([{ role: 'assistant', content: FINANCING_DATA_ASK }])).toBe(
       true,
     );
@@ -193,5 +205,16 @@ describe('datos de financiamiento', () => {
     expect(merged).not.toMatch(/^y financiamiento/i);
     expect(merged).toMatch(/cuota aproximada es \$522\.39/i);
     expect(merged).not.toMatch(/cédula/i);
+  });
+
+  it('al aceptar no deja la cuota ni la pregunta de aplica', () => {
+    const repeated =
+      'Con una entrada de $5000 y financiamiento a 5 años la cuota aproximada es $544.38. Este valor es referencial y usa una tasa de interés promedio del mercado; el monto final, la tasa y condiciones las define el banco o cooperativa. ¿Desea que le ayudemos a ver si aplica al crédito?';
+    const cleaned = stripRepeatedCuotaOnAccept(repeated);
+    expect(cleaned).not.toMatch(/544/);
+    expect(cleaned).not.toMatch(/ver si aplica/i);
+    expect(
+      stripRepeatedCuotaOnAccept('Perfecto, seguimos con el crédito.'),
+    ).toBe('Perfecto, seguimos con el crédito.');
   });
 });

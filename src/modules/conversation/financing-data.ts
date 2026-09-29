@@ -224,16 +224,30 @@ export function stripPrematureIdentityAsk(text: string): string {
     .trim();
 }
 
+function applyAskRe(): RegExp {
+  return /¿?\s*desea que (?:le ayudemos|un asesor le ayude(?:mos)?) a ver si aplica[^.?¡!\n]*[.?!]?\s*/gi;
+}
+
 /** Sin cuota en la frase, no se pregunta si aplica. */
 export function stripPrematureApplyAsk(text: string): string {
   if (replyShowsCuota(text)) {
     return text;
   }
+  return text.replace(applyAskRe(), '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Aceptó ver si aplica: no reimprimir la letra ni volver a preguntar si aplica.
+ * Solo se llama en ese turno, no en el de armar cuota.
+ */
+export function stripRepeatedCuotaOnAccept(text: string): string {
+  if (!replyShowsCuota(text) && !replyAsksIfApplies(text)) {
+    return text;
+  }
   return text
-    .replace(
-      /¿?\s*desea que (?:le ayudemos|un asesor le ayude(?:mos)?) a ver si aplica[^.?¡!\n]*[.?!]?\s*/gi,
-      '',
-    )
+    .replace(applyAskRe(), '')
+    .replace(/este valor es referencial[^.]*\.\s*/gi, '')
+    .replace(/[^.?!\n]*\bcuota\b[^.?!\n]*[.?!]?\s*/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -281,6 +295,7 @@ export function shouldAskFinancingData(input: {
   hasCedula: boolean;
   reply?: string;
   showedCuotaNow?: boolean;
+  financingInputsNow?: boolean;
 }): boolean {
   if (input.hasCedula || !input.aceptaCredito) {
     return false;
@@ -305,8 +320,10 @@ export function shouldEncourageAfterDecline(input: {
   rechazaAplicar: boolean;
   hasCedula: boolean;
   reply?: string;
+  /** Ya es cierre: no pegar visita encima de la despedida. */
+  closing?: boolean;
 }): boolean {
-  if (input.hasCedula || !input.rechazaAplicar) {
+  if (input.hasCedula || !input.rechazaAplicar || input.closing) {
     return false;
   }
   if (!historyAskedIfApplies(input.history)) {

@@ -5,6 +5,7 @@ import {
   isSoftNo,
   lastAskIsFinancingOrVisit,
   NO_REPETIR_CTA,
+  OTRAS_LUEGO,
   PAUSA_SIGUE,
   DESPEDIDA_AMABLE,
   salesFollowHint,
@@ -79,6 +80,19 @@ describe('no a la última oferta no se repite', () => {
         isCourtesy: false,
       }),
     ).toBe(PAUSA_SIGUE);
+  });
+
+  it('otras mañana no lista ni pregunta visita', () => {
+    expect(isPauseLater('para ver otras opciones mañana')).toBe(false);
+    expect(
+      salesFollowHint({
+        customerText: 'para ver otras opciones mañana',
+        lastAssistant: SELTOS_CTA,
+        hasDoubt: false,
+        isFarewell: false,
+        isCourtesy: false,
+      }),
+    ).toBe(OTRAS_LUEGO);
   });
 
   it('despedida amable no repite la visita', () => {

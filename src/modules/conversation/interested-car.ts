@@ -33,7 +33,9 @@ import {
 } from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import {
+  resumenAsksForCredit,
   resumenAsksForListedPrice,
+  resumenAsksForPhotos,
   resumenAsksForOtherColor,
   resumenCabina,
   resumenCajaCompra,
@@ -45,6 +47,7 @@ import {
   vehicleClientePidio,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
+import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
 import { resumenTipoPatio, resumenTopeContado } from '../intelligence/parse-resumen';
@@ -234,10 +237,15 @@ export function leftShownCar(input: ShownCarContext): boolean {
   ) {
     return true;
   }
-  if (resumenPideOtras(resumen)) {
+  if (resumenPideOtras(resumen) && !otrasDiferidas(input.text)) {
     return true;
   }
   const stays = resumenStaysOnShownUnit(resumen);
+  const sigueEnEsta =
+    stays &&
+    (resumenAsksForCredit(resumen) ||
+      resumenAsksForListedPrice(resumen) ||
+      resumenAsksForPhotos(resumen));
   if (!stays && namedOtherUnit(nombra, car, lexicon)) {
     return true;
   }
@@ -263,10 +271,18 @@ export function leftShownCar(input: ShownCarContext): boolean {
       }
     }
   }
-  if (pedidoResumen && namedOtherUnit(pedidoResumen, car, lexicon)) {
+  if (
+    !sigueEnEsta &&
+    pedidoResumen &&
+    namedOtherUnit(pedidoResumen, car, lexicon)
+  ) {
     return true;
   }
-  if (input.pedido && !vehicleLabelFitsCar(input.pedido, car, lexicon)) {
+  if (
+    !sigueEnEsta &&
+    input.pedido &&
+    !vehicleLabelFitsCar(input.pedido, car, lexicon)
+  ) {
     const asked = detectNamedModelAsk(input.pedido, lexicon);
     if (
       !sameShownUnitAsk(asked, car) ||
@@ -275,10 +291,14 @@ export function leftShownCar(input: ShownCarContext): boolean {
       return true;
     }
   }
-  if (askedOtherUnitFacts(nombra, car, lexicon)) {
+  if (!sigueEnEsta && askedOtherUnitFacts(nombra, car, lexicon)) {
     return true;
   }
-  if (pedidoResumen && askedOtherUnitFacts(pedidoResumen, car, lexicon)) {
+  if (
+    !sigueEnEsta &&
+    pedidoResumen &&
+    askedOtherUnitFacts(pedidoResumen, car, lexicon)
+  ) {
     return true;
   }
   const otherBrand = detectBrand(nombra, lexicon);
@@ -298,7 +318,7 @@ export function leftShownCar(input: ShownCarContext): boolean {
         ? cajaFlag
         : detectGearbox(input.text, lexicon);
   const shownBox = gearboxOf(car);
-  if (box && shownBox && box !== shownBox) {
+  if (!sigueEnEsta && box && shownBox && box !== shownBox) {
     return true;
   }
   const shownKind = kindFromTypeBody(car.typeBody);
@@ -409,7 +429,17 @@ function listedPickStays(
     textoQueNombra(resumen, text, lexicon),
     lexicon,
   );
-  if (namedNow && !askedMatchesShownModel(namedNow.family, car.model)) {
+  const stays = resumenStaysOnShownUnit(resumen);
+  const sigueEnEsta =
+    stays &&
+    (resumenAsksForCredit(resumen) ||
+      resumenAsksForListedPrice(resumen) ||
+      resumenAsksForPhotos(resumen));
+  if (
+    namedNow &&
+    !sigueEnEsta &&
+    !askedMatchesShownModel(namedNow.family, car.model)
+  ) {
     return false;
   }
   if (
