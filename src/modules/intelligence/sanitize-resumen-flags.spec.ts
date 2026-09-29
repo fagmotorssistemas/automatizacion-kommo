@@ -67,6 +67,12 @@ describe('sanitizeInventedResumenFlags', () => {
     ).toBe(true);
   });
 
+  it('dónde la puedo revisar es ubicación', () => {
+    expect(
+      textAsksForLocation('Valor de la camioneta\nDonde la puedo revisar'),
+    ).toBe(true);
+  });
+
   it('sí por favor no inventa 7 plazas ni 3 filas', () => {
     expect(textAsksForSeats('Sí, por favor')).toBeNull();
     expect(textAsksForTresFilas('Sí, por favor')).toBe(false);

@@ -352,4 +352,34 @@ describe('comparación plan vs camino viejo', () => {
       coincide: false,
     });
   });
+
+  it('nombra otro modelo de la misma marca: suelta la unidad vieja', () => {
+    const creta: InterestedCarSnapshot = {
+      inventoryId: 'creta-2022',
+      brand: 'hyundai',
+      model: 'creta ac 1.5',
+      year: 2022,
+      price: 22990,
+      typeBody: 'jeep',
+      color: 'blanco',
+    };
+    const result = buildTurnPlan({
+      lexicon: buildLexicon([
+        { brand: 'hyundai', model: 'creta ac 1.5' },
+        { brand: 'hyundai', model: 'santa fe dm 7pas' },
+      ]),
+      unidad: creta,
+      ultimoBotListo: false,
+      resumen: [
+        'Vehículo: Hyundai Santa Fe 2018',
+        'SOLICITUD ACTUAL:',
+        'Cliente quiere el precio del Hyundai Santa Fe 2018.',
+        'Pide precio: sí',
+        'Pide otras: no',
+        'Falta vehículo: no',
+      ].join('\n'),
+    });
+    expect(result.accion).toBe('OTRAS');
+    expect(result.otras?.modelo?.family).toMatch(/santa/);
+  });
 });

@@ -62,6 +62,24 @@ describe('resumenAsksForListedPrice', () => {
     ).toBe(false);
   });
 
+  it('si la solicitud pide el $ y la bandera dijo no, igual es precio', () => {
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nCliente quiere que se confirme el precio de contado del Hyundai Santa Fe 2018 azul.\nPide precio: no\nPide otras: no\nPrefiere contado: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenAsksForListedPrice(
+        'SOLICITUD ACTUAL:\nconfirma que el valor ya dicho es de contado.\nPide precio: no\nPrefiere contado: sí',
+      ),
+    ).toBe(false);
+  });
+
   it('si no hay bandera, usa lo que escribió el analizador', () => {
     expect(
       resumenAsksForListedPrice(

@@ -2,6 +2,7 @@ import {
   appendUnloadedPrice,
   dropRepeatedListedPrice,
   ensureListedSetPrices,
+  isStrippedReplyStub,
   parsePricedUnitsFromReview,
   stripListedPriceAmounts,
   stripUnloadedPriceClaim,
@@ -259,5 +260,13 @@ modelo=ranger xl | año=2024 | color=plomo | km=11061 | precio=$44590`;
     expect(clean).not.toMatch(/placa/i);
     expect(clean).toMatch(/144904/);
     expect(clean).toMatch(/documentos en regla/i);
+  });
+
+  it('un resto “El” tras quitar el $ es un stub', () => {
+    expect(isStrippedReplyStub('El')).toBe(true);
+    expect(isStrippedReplyStub('El precio es')).toBe(true);
+    expect(isStrippedReplyStub('El precio del Hyundai Santa Fe 2018 es.')).toBe(
+      false,
+    );
   });
 });

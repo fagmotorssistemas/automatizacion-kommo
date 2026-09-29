@@ -284,6 +284,54 @@ describe('OutboundService', () => {
     );
   });
 
+  it('otras opciones: manda el listado y después el catálogo', async () => {
+    catalog.resolvePhotoBots
+      .mockResolvedValueOnce([101])
+      .mockResolvedValueOnce([202]);
+
+    await service.dispatch(
+      '41807269',
+      {
+        mensaje:
+          'Estas son otras opciones.\n\nByd Yuan 2026, plomo, automática.\n\nKia Sportage 2019, blanco, manual.\n\n¿Cuál le gustaría conocer más?',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: null,
+        },
+        img_prefix: '',
+      },
+      {
+        wantsPhotos: true,
+        packGapMs: 0,
+        photoAfterTextMs: 0,
+        photoQueue: [
+          { inventoryId: UUID, label: 'Yuan 2026 plomo' },
+          {
+            inventoryId: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+            label: 'Sportage 2019 blanco',
+          },
+        ],
+      },
+    );
+
+    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
+      1,
+      '41807269',
+      expect.stringContaining('Estas son otras opciones.'),
+    );
+    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
+      2,
+      '41807269',
+      'Yuan 2026 plomo',
+    );
+    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
+      3,
+      '41807269',
+      'Sportage 2019 blanco',
+    );
+  });
+
   it('si pide fotos otra vez, sí las manda aunque ya las haya visto', async () => {
     await service.dispatch(
       '41807269',

@@ -1,4 +1,5 @@
 import {
+  isStrippedReplyStub,
   stripListedPriceAmounts,
   stripUnloadedPriceClaim,
 } from '../conversation/strip-unsolicited-price';
@@ -167,12 +168,15 @@ export function ensureListedPrice(text: string, price: number): string {
   if (!Number.isFinite(amount) || amount <= 0) {
     return body;
   }
+  const lead = `El precio es $${amount.toLocaleString('en-US')}.`;
   if (priceIsInText(body, amount)) {
     return body;
   }
+  if (isStrippedReplyStub(body)) {
+    return lead;
+  }
   const clean = dropDanglingAnd(stripListedPriceAmounts(body));
-  const lead = `El precio es $${amount.toLocaleString('en-US')}.`;
-  return clean ? `${lead} ${clean}` : lead;
+  return isStrippedReplyStub(clean) || !clean ? lead : `${lead} ${clean}`;
 }
 
 export function formatMileageFact(

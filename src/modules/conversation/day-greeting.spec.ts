@@ -2,6 +2,7 @@ import {
   askWhichCarMessage,
   formatGreetingPedido,
   greetingForHour,
+  isGreetingOnly,
   shouldOfferGreeting,
 } from './day-greeting';
 
@@ -64,5 +65,16 @@ describe('day-greeting', () => {
     expect(formatGreetingPedido(true, 11)).toMatch(/Buenos días, estimado/);
     expect(formatGreetingPedido(false, 20)).toMatch(/SALUDO: no/);
     expect(formatGreetingPedido(false, 20)).not.toMatch(/Buenas noches/);
+  });
+
+  it('un saludo suelto no es un pedido', () => {
+    expect(isGreetingOnly('Hola buenos dias')).toBe(true);
+    expect(isGreetingOnly('Buenas noches, estimado')).toBe(true);
+    expect(isGreetingOnly('Disculpe que precio tiene el hyunday santa fe')).toBe(
+      false,
+    );
+    expect(isGreetingOnly('Hola. Me interesa el Hyundai Santa Fe 2018')).toBe(
+      false,
+    );
   });
 });

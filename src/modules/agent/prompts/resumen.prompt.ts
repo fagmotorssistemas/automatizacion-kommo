@@ -56,7 +56,7 @@ Cliente quiere ...
 
 REGLA DE PRECIO (OBLIGATORIA):
 Tú interpretas lo que el cliente quiere AHORA, aunque lo diga corto, mal escrito o con una sola palabra.
-En la primera presentación (Hola me interesa X, o “sí/ok” al saludo para ver esa unidad), Pide precio: no. Todavía no preguntó el valor.
+En la primera presentación (Hola me interesa X, o “sí/ok” al saludo para ver esa unidad), Pide precio: no SOLO si en ESTE turno no preguntó el valor. Si en el mismo mensaje también pregunta cuánto sale, Pide precio: sí.
 Si el sentido es cuánto sale ESA unidad (el valor de contado), Pide precio: sí y Pide otras: no. SOLICITUD ACTUAL: Cliente quiere el precio de ESA unidad. Lo decide el sentido, no una palabra fija: da igual cómo lo diga. Esa frase NO es un modelo ni un cambio de vehículo. No lo conviertas en cuota, visita, entrada, km ni en un carro. Objeción de precio: no.
 Si objeta el valor de una unidad YA mostrada (caro, alto, mucho), SOLICITUD: objeta el precio de ESA unidad. No lo conviertas en “quiere el precio” ni en ficha. Pide precio: no. Objeción de precio: sí. Pide negociar: no.
 Si pregunta si hay descuento, rebaja o si el precio es negociable, o ofrece un monto más bajo, Pide negociar: sí. Pide precio: no. Objeción de precio: sí. SOLICITUD: quiere saber si se puede negociar; si también pide ubicación o visita, dilo en la misma solicitud.
@@ -83,9 +83,11 @@ REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
 Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
 - Sigue con la mostrada (el valor, el km, la visita, dónde verla, el crédito, confirmar esa, un detalle de esa, la ficha de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
-- Ya no quiere la mostrada y pide otra (la otra del mismo hilo, otra del mismo modelo, u otra del patio): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
+- Si NOMBRA un modelo concreto distinto al del RESUMEN PREVIO (Santa Fe vs Creta, otro año, otra línea), Vehículo: ESA unidad que nombró. Pide otras: no. Suelta la anterior. No es catálogo de alternativas: busca la que pidió ahora.
+- Ya no quiere la mostrada y pide alternativas SIN nombrar el reemplazo (otras opciones, otra, similar): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
 - Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
 - Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
+- Si pide otras de la mostrada SIN decir otro tipo, Tipo de patio = el de ESA (suv si era jeep/SUV). Camioneta no entra. No pongas Tipo de patio: no.
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo. Excepción: si en el mismo turno también pide información o precio de un carro sin nombrarlo, aplica la REGLA DE VARIOS PEDIDOS.
@@ -155,7 +157,8 @@ Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (
 - Tipo de patio: hatchback si pide un carro/auto pequeño, compacto, o uno similar a un ciudad (Picanto y similares). Eso NO es camioneta. Cabina: no.
 - Tipo de patio: hatchback si dice que quiere auto/carro y NO camioneta, o “cualquiera pero que sea auto/carro”.
 - Si pidió un tipo y no le importa la marca (cualquier, la que haya, cuáles hay): SOLICITUD: listar de patio de ESE tipo. Pide otras: sí. Falta vehículo: no. No pidas marca.
-- Si el turno anterior ofreció otras marcas u otra caja y ahora acepta verlas (claro, sí, dale): Pide otras: sí. No es la unidad automática ya mostrada.
+- Si el turno anterior ofreció otras marcas u otra caja y ahora acepta verlas (claro, sí, dale): Pide otras: sí. No es la unidad automática ya mostrada. Tipo de patio: el de la unidad que rechazó, salvo que AHORA pida otro tipo.
+- Si pide otras opciones de la mostrada y no nombra otro tipo: Tipo de patio = el de ESA unidad. Un SUV no lista camionetas. Una camioneta no lista SUV.
 - Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
 - Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
 - Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.

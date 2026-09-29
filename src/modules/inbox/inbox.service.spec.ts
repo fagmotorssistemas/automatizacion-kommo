@@ -1,6 +1,7 @@
 import {
   BUFFER_TTL_SECONDS,
   DEBOUNCE_DELAY_MS,
+  GREETING_DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
   TURN_LOCK_RETRY_DELAY_MS,
   bufferKey,
@@ -68,7 +69,7 @@ describe('InboxService', () => {
     await expect(service.claimMessage('c1', 'msg-1')).resolves.toBe('unavailable');
   });
 
-  it('empuja el mensaje y agenda el flush a 30 s', async () => {
+  it('empuja el mensaje y agenda el flush; un hola espera más', async () => {
     jest.useFakeTimers();
     await expect(
       service.scheduleDebounce({
@@ -109,10 +110,32 @@ describe('InboxService', () => {
         assignedTo: undefined,
       },
       expect.objectContaining({
-        delay: DEBOUNCE_DELAY_MS,
+        delay: GREETING_DEBOUNCE_DELAY_MS,
         jobId: flushJobId('59458509', 'msg-1'),
         attempts: 1,
       }),
+    );
+    jest.useRealTimers();
+  });
+
+  it('un pedido de precio sigue en 30 s', async () => {
+    jest.useFakeTimers();
+    await expect(
+      service.scheduleDebounce({
+        contactId: '59458509',
+        messageId: 'msg-2',
+        text: 'Que precio tiene',
+        leadId: '41807269',
+        name: 'Rosa',
+        phone: '+593999000111',
+        source: 'waba',
+        createdAt: '1789340833',
+      }),
+    ).resolves.toBe('scheduled');
+    expect(queue.add).toHaveBeenCalledWith(
+      'flush',
+      expect.objectContaining({ text: 'Que precio tiene' }),
+      expect.objectContaining({ delay: DEBOUNCE_DELAY_MS }),
     );
     jest.useRealTimers();
   });

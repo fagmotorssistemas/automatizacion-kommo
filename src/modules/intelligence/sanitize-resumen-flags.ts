@@ -16,7 +16,7 @@ export function textAsksForLocation(text: string): boolean {
     /\b(?:direccion|ubicacion|ubicados?|ubicadas?|mapa|como llego|como llegar)\b/.test(
       n,
     ) ||
-    /\b(?:en\s+)?donde\s+(?:estan|esta|queda|quedan|ver|verla|los encuentro|la encuentro|puedo|puede)\b/.test(
+    /\b(?:en\s+)?donde\s+(?:(?:la|el|los|las)\s+)?(?:estan|esta|queda|quedan|ver|verla|los encuentro|la encuentro|puedo|puede)\b/.test(
       n,
     )
   );
@@ -25,7 +25,7 @@ export function textAsksForLocation(text: string): boolean {
 /** El cliente preguntó si atienden / el horario. Ir de visita no es esto. */
 export function textAsksForHours(text: string): boolean {
   const n = fold(text);
-  return /\b(?:horarios?|atienden|abren|cierran|estan abiertos?|a que hora)\b/.test(
+  return /\b(?:horarios?|atienden?|abren|cierran|estan abiertos?|a que hora)\b/.test(
     n,
   );
 }

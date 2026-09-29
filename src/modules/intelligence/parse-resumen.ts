@@ -94,30 +94,42 @@ function fold(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-/**
- * El resumen ya interpretó el mensaje. Aquí se lee esa bandera,
- * no las palabras sueltas del cliente.
- */
-export function resumenAsksForListedPrice(resumen: string): boolean {
-  if (resumenIsPriceObjection(resumen) || resumenPideNegociar(resumen)) {
-    return false;
-  }
-  const flag = flagSiNo(resumen, 'pide\\s+precio');
-  if (flag != null) {
-    return flag;
-  }
+/** La SOLICITUD pide oír el $; no objeta ni confirma un valor ya dicho. */
+function solicitudPideElValor(resumen: string): boolean {
   const raw = parseResumen(resumen).solicitudActual || resumen;
   const solicitud = fold(stripResumenFlags(raw));
   if (!solicitud) {
     return false;
   }
-  if (/\bprecio\s+menor\b/.test(solicitud) || /\bpresupuesto\b/.test(solicitud)) {
+  if (
+    /\bprecio\s+menor\b/.test(solicitud) ||
+    /\bpresupuesto\b/.test(solicitud) ||
+    /\bobjeta\b/.test(solicitud) ||
+    /\bvalor ya dicho\b/.test(solicitud) ||
+    /\bya\s+(?:dijo|dicho|informo|confirmo)\b/.test(solicitud)
+  ) {
     return false;
   }
   return (
-    /\b(?:quiere|pide|solicita)\b/.test(solicitud) &&
+    /\b(?:quiere|pide|solicita|confirme|confirmar)\b/.test(solicitud) &&
     /\b(?:precio|valor)\b/.test(solicitud)
   );
+}
+
+/**
+ * El resumen ya interpretó el mensaje. Aquí se lee esa bandera,
+ * no las palabras sueltas del cliente.
+ * Si la bandera dice no pero la SOLICITUD pide el valor, gana la solicitud:
+ * el analizador a veces marca primera presentación y deja el pedido de $ afuera.
+ */
+export function resumenAsksForListedPrice(resumen: string): boolean {
+  if (resumenIsPriceObjection(resumen) || resumenPideNegociar(resumen)) {
+    return false;
+  }
+  if (solicitudPideElValor(resumen)) {
+    return true;
+  }
+  return flagSiNo(resumen, 'pide\\s+precio') === true;
 }
 
 function flagSiNo(resumen: string, name: string): boolean | null {

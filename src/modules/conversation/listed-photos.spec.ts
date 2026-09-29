@@ -10,6 +10,8 @@ import {
   pickListedUnit,
   shortUnitLabel,
   wantsPhotosOfListed,
+  formatCustomerUnitSentence,
+  formatOtrasOptionsMessage,
 } from './listed-photos';
 import type { StockCar } from '../catalog/clasificar-filas';
 import { TEST_LEXICON } from './test-lexicon';
@@ -533,5 +535,37 @@ describe('listed photos', () => {
         patio,
       )?.id,
     ).toBe('sp-blanco');
+  });
+
+  it('otras opciones: un párrafo por unidad, sin datos vacíos', () => {
+    const f150: StockCar = {
+      id: 'f150-2014',
+      brand: 'ford',
+      model: 'f150 rc',
+      year: 2014,
+      typeBody: 'camioneta',
+      color: 'verde',
+      transmission: 'automatica',
+    };
+    const yuan: StockCar = {
+      id: 'yuan-2026',
+      brand: 'byd',
+      model: 'yuan pro gs',
+      year: 2026,
+      typeBody: 'jeep',
+      color: 'plomo',
+      transmission: 'automatica',
+      mileage: 25199,
+    };
+    expect(formatCustomerUnitSentence(yuan)).toBe(
+      'Byd Yuan 2026, plomo, automática, 25199 km.',
+    );
+    expect(formatCustomerUnitSentence(yuan)).not.toMatch(/aún no cargado|sin dato/i);
+    expect(formatCustomerUnitSentence(f150)).toMatch(/\.$/);
+    const text = formatOtrasOptionsMessage([yuan, sportages[0]]);
+    expect(text).toMatch(/^Estas son otras opciones\./);
+    expect(text).toContain('\n\n');
+    expect(text).toMatch(/\?\s*$/);
+    expect(text.split('\n\n').length).toBeGreaterThanOrEqual(3);
   });
 });

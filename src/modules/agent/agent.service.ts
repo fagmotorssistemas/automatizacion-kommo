@@ -113,6 +113,7 @@ import {
   dropRepeatedListedPrice,
   ensureListedSetPrices,
   hasLoadedPrice,
+  isStrippedReplyStub,
   type ListedSetUnit,
   messageLeaksPrice,
   parsePricedUnitsFromReview,
@@ -144,6 +145,7 @@ import {
   askedOutsideListed,
   askedOtherBrandThanListed,
   formatListedPhotoQueue,
+  formatOtrasOptionsMessage,
   historyHasUnitList,
   lastListedUnits,
   lastOfferAssistantText,
@@ -151,6 +153,7 @@ import {
   lastSingleShownUnit,
   looksLikeUnitList,
   pickListedUnit,
+  toPhotoQueue,
   wantsPhotosOfListed,
   type PhotoQueueItem,
 } from '../conversation/listed-photos';
@@ -561,6 +564,7 @@ export class AgentService {
       input.customerText,
       kindFromTypeBody(interested?.typeBody),
       resumenTipoPatio(resumen),
+      resumenPideOtras(resumen),
     );
     const topeNow = resumenTopeContado(resumen);
     const pidePresupuesto = resumenPidePresupuesto(resumen);
@@ -693,7 +697,7 @@ export class AgentService {
         resumenPideHorario(resumen)) &&
       (!resumenPideOtras(resumen) || askedPrice) &&
       !otherBrandNow;
-    if (stayFollowUp) {
+    if (stayFollowUp && !pideHorario) {
       const shown = lastSingleShownUnit(
         history,
         await this.catalog.listAvailableExcept('_'),
@@ -945,6 +949,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               color: interested.color ?? null,
               inventoryId: interested.inventoryId,
               brand: interested.brand ?? null,
+              typeBody: interested.typeBody ?? null,
             }
           : null,
         lexicon,
@@ -1403,11 +1408,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
 
     if (
       revision.photoQueue &&
-      revision.photoQueue.length > 1 &&
-      historyHasUnitList(history)
+      revision.photoQueue.length > 1
     ) {
       const parsed: ParsedAgentOutput = {
-        mensaje: 'Le mando las fotos de cada una, una por una.',
+        mensaje: historyHasUnitList(history)
+          ? 'Le mando las fotos de cada una, una por una.'
+          : revision.text,
         meta: {
           precioMostrado: false,
           cuotaMostrada: false,
@@ -1615,6 +1621,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;
+      } else if (
+        unitPrice != null &&
+        isStrippedReplyStub(parsed.mensaje)
+      ) {
+        parsed.mensaje = ensureListedPrice(parsed.mensaje, unitPrice);
+        parsed.meta.precioMostrado = true;
       } else if (quotingListedSet) {
         parsed.mensaje = ensureListedSetPrices(parsed.mensaje, listedSet);
         parsed.meta.precioMostrado = true;
@@ -1739,9 +1751,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     customerText: string,
     interestedKind: VehicleKind | null,
     tipoPatio: ReturnType<typeof resumenTipoPatio>,
+    pideOtras = false,
   ): Promise<VehicleKind | null> {
     const remembered = await this.conversation.loadVehicleKind(contactId);
-    const dropOldKind = tipoPatio === 'no';
+    const dropOldKind = tipoPatio === 'no' && !pideOtras;
     let kind = resolveVehicleKind({
       history,
       customerText,
@@ -1844,6 +1857,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       color?: string | null;
       inventoryId?: string | null;
       brand?: string | null;
+      typeBody?: string | null;
     } | null,
     lexicon: VehicleLexicon,
     spaceAsk = false,
@@ -2135,7 +2149,8 @@ vehiculo null.`,
       : null;
     const kindForAsk =
       tipoPatio === 'no'
-        ? inferredKind
+        ? inferredKind ??
+          (pideOtras && !asked && !namesBrandNow ? vehicleKind : null)
         : saidKind ??
           inferredKind ??
           (asked || namesBrandNow ? null : vehicleKind);
@@ -2279,13 +2294,12 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       const patio = await this.catalog.listAvailableExcept('_');
       const exceptId = reference?.inventoryId;
       let pool = patio.filter((car) => car.id !== exceptId);
-      if (kindForAsk) {
-        const typed = pool.filter((car) =>
-          matchesVehicleKind(car.typeBody, kindForAsk),
+      const kindPool =
+        kindForAsk ?? kindFromTypeBody(reference?.typeBody ?? null);
+      if (kindPool) {
+        pool = pool.filter((car) =>
+          matchesVehicleKind(car.typeBody, kindPool),
         );
-        if (typed.length > 0) {
-          pool = typed;
-        }
       }
       if (askedCab || askedDriveEarly) {
         pool = pickCabDriveOffer(pool, askedCab, askedDriveEarly).cars;
@@ -2301,26 +2315,44 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       );
       if (pool.length === 0) {
         return {
-          text: 'PIDIÓ OTRAS unidades. No hay otra en patio de ese tipo. Dilo. vehiculo null. PROHIBIDO volver a la que ya vio.',
+          text: 'PIDIÓ OTRAS unidades. No hay otra en patio de ese tipo. Dilo. vehiculo null. PROHIBIDO volver a la que ya vio. PROHIBIDO mezclar camioneta con SUV.',
           holdVehicle: true,
           sendId: null,
           switchedModel: true,
+          vehicleKind: kindPool,
         };
       }
-      const named = formatNamedUnits(
-        pool.length > 6 ? pool.slice(0, 6) : pool,
-        includePrice,
-      );
-      const cabHint =
-        askedCab || askedDriveEarly
-          ? pickCabDriveOffer(pool, askedCab, askedDriveEarly).hint
-          : '';
-      return {
-        ...named,
-        switchedModel: true,
-        vehicleKind: kindOfNamedUnits(pool),
-        text: `${cabHint ? `${cabHint}\n` : ''}${named.text}
+      const shown = pool.length > 6 ? pool.slice(0, 6) : pool;
+      if (askedCab || askedDriveEarly) {
+        const offer = pickCabDriveOffer(
+          shown,
+          askedCab,
+          askedDriveEarly,
+        );
+        const named = formatNamedUnits(offer.cars, includePrice);
+        return {
+          ...named,
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(offer.cars) ?? kindPool,
+          text: `${offer.hint}\n${named.text}
 PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presentarla. No pidas permiso para mostrarlas.`,
+        };
+      }
+      if (shown.length === 1) {
+        return {
+          ...formatNamedUnits(shown, includePrice),
+          switchedModel: true,
+          vehicleKind: kindOfNamedUnits(shown) ?? kindPool,
+        };
+      }
+      return {
+        text: formatOtrasOptionsMessage(shown),
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(shown) ?? kindPool,
+        listedUnits: shown,
+        photoQueue: toPhotoQueue(shown),
       };
     }
     if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
@@ -3253,6 +3285,26 @@ ${missing.text}`,
           break;
         }
       }
+    }
+    if (cars.length === 0) {
+      return {
+        text: 'PIDIÓ OTRAS unidades. No hay otra en patio de ese tipo. Dilo. vehiculo null. PROHIBIDO volver a la que ya vio. PROHIBIDO mezclar camioneta con SUV.',
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: input.kind,
+      };
+    }
+    if (cars.length > 1 && input.exceptId) {
+      return {
+        text: formatOtrasOptionsMessage(cars),
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: input.kind,
+        listedUnits: cars,
+        photoQueue: toPhotoQueue(cars),
+      };
     }
     return {
       ...formatPatioKindList({

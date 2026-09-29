@@ -53,6 +53,32 @@ function pickAskLine(pool: readonly string[], lastAssistant: string): string {
   return pool.find((line) => !lastAssistant.includes(line)) ?? pool[0];
 }
 
+function foldGreeting(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Solo saludo: no hay pedido. El debounce espera el globo que sí pregunta. */
+export function isGreetingOnly(text: string): boolean {
+  const n = foldGreeting(text);
+  if (!n) {
+    return false;
+  }
+  const leftover = n
+    .replace(
+      /\b(?:hola|buenos|buenas|dias|tardes|noches|disculpe|disculpa|estimado|estimada|senor|senora|por\s+favor|buen\s+dia)\b/g,
+      ' ',
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+  return leftover.length === 0;
+}
+
 export function askWhichCarMessage(
   greet: boolean,
   hour: number,

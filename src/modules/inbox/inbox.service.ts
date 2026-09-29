@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
+import { isGreetingOnly } from '../conversation/day-greeting';
 import {
   itemsForContact,
   joinBufferedTexts,
@@ -12,6 +13,7 @@ import {
 import {
   BUFFER_TTL_SECONDS,
   DEBOUNCE_DELAY_MS,
+  GREETING_DEBOUNCE_DELAY_MS,
   MESSAGE_ID_TTL_SECONDS,
   RECENT_OUTBOUND_TTL_SECONDS,
   TURN_LOCK_MAX_RETRIES,
@@ -124,8 +126,12 @@ export class InboxService {
         assignedTo: input.assignedTo,
       };
 
+      const delayMs = isGreetingOnly(input.text)
+        ? GREETING_DEBOUNCE_DELAY_MS
+        : DEBOUNCE_DELAY_MS;
+
       await this.debounceQueue.add('flush', jobData, {
-        delay: DEBOUNCE_DELAY_MS,
+        delay: delayMs,
         jobId: flushJobId(input.contactId, input.messageId),
         attempts: 1,
         removeOnComplete: true,
@@ -134,7 +140,7 @@ export class InboxService {
 
       // Redis Cloud se come las keys de BullMQ (delayed queda en 0).
       // El timer del proceso sí corre; flushIfLatest evita doble envío.
-      this.scheduleLocalFlush(jobData);
+      this.scheduleLocalFlush(jobData, delayMs);
 
       return 'scheduled';
     } catch (error) {
@@ -146,19 +152,22 @@ export class InboxService {
     }
   }
 
-  private scheduleLocalFlush(data: InboxDebounceJobData): void {
+  private scheduleLocalFlush(
+    data: InboxDebounceJobData,
+    delayMs = DEBOUNCE_DELAY_MS,
+  ): void {
     const previous = this.localFlushTimers.get(data.contactId);
     if (previous) {
       clearTimeout(previous);
     }
     this.logger.log(
-      `Debounce local en ${DEBOUNCE_DELAY_MS / 1000}s contactId=${data.contactId} messageId=${data.messageId}`,
+      `Debounce local en ${delayMs / 1000}s contactId=${data.contactId} messageId=${data.messageId}`,
     );
 
     const timer = setTimeout(() => {
       this.localFlushTimers.delete(data.contactId);
       void this.runLocalFlush(data);
-    }, DEBOUNCE_DELAY_MS);
+    }, delayMs);
     this.localFlushTimers.set(data.contactId, timer);
   }
 

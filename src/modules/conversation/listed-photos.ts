@@ -10,9 +10,12 @@ import {
   type StockCar,
   unitCab,
   unitCaja,
+  unitDoors,
   unitDrive,
 } from '../catalog/clasificar-filas';
+import { hasLoadedMileage } from '../catalog/mileage';
 import { asksForPhotos } from '../outbound/should-send-photos';
+import { carBodyGroup } from './gearbox';
 import {
   colorMatches,
   detectColorInText,
@@ -388,6 +391,43 @@ export function toPhotoQueue(cars: StockCar[]): PhotoQueueItem[] {
     inventoryId: car.id,
     label: shortUnitLabel(car),
   }));
+}
+
+/** Una unidad, una frase. Sin “aún no cargado” ni “sin dato”. */
+export function formatCustomerUnitSentence(car: StockCar): string {
+  const name = prettyFamily(car.model);
+  const brand = car.brand.trim();
+  const title = `${brand.charAt(0).toUpperCase()}${brand.slice(1)} ${name}`.trim();
+  const puertas = unitDoors(car);
+  const cab = unitCab(car);
+  const cabina =
+    carBodyGroup(car.typeBody) === 'camioneta'
+      ? cab === 'cd'
+        ? 'cabina doble'
+        : cab === 'cs'
+          ? 'cabina simple'
+          : ''
+      : '';
+  const bits = [
+    car.year ? String(car.year) : '',
+    car.color?.trim() ?? '',
+    unitCaja(car) ?? '',
+    puertas != null ? `${puertas} puertas` : '',
+    unitDrive(car) ?? '',
+    cabina,
+    hasLoadedMileage(car.mileage)
+      ? `${Math.round(car.mileage as number)} km`
+      : '',
+  ].filter(Boolean);
+  const body = bits.length > 0 ? ` ${bits.join(', ')}` : '';
+  return `${title}${body}.`;
+}
+
+/** Listado listo para WhatsApp: un párrafo por unidad, catálogo después. */
+export function formatOtrasOptionsMessage(cars: StockCar[]): string {
+  const units = cars.slice(0, MAX_PHOTO_PACKS);
+  const paragraphs = units.map((car) => formatCustomerUnitSentence(car));
+  return `Estas son otras opciones.\n\n${paragraphs.join('\n\n')}\n\n¿Cuál le gustaría conocer más?`;
 }
 
 export function formatListedPhotoQueue(cars: StockCar[]): {

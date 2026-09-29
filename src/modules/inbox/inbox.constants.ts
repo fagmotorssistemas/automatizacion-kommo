@@ -4,6 +4,9 @@ export const MESSAGE_ID_TTL_SECONDS = 5 * 60 * 60;
 /** Wait de n8n: 30 s. El webhook no duerme; el job BullMQ sí. */
 export const DEBOUNCE_DELAY_MS = 30_000;
 
+/** Solo “hola / buenos días”: espera más, el precio suele ir en el siguiente globo. */
+export const GREETING_DEBOUNCE_DELAY_MS = 45_000;
+
 /** La lista no debe vivir para siempre si el job no corre. */
 export const BUFFER_TTL_SECONDS = 120;
 

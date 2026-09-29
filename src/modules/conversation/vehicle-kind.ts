@@ -31,7 +31,7 @@ const LABELS: Record<VehicleKind, string> = {
 };
 
 const BODY: Record<VehicleKind, string[]> = {
-  camioneta: ['doble cabina', 'cabina doble', 'cabina simple'],
+  camioneta: ['camioneta', 'doble cabina', 'cabina doble', 'cabina simple'],
   suv: ['jeep', 'suv'],
   sedan: ['sedan'],
   hatchback: ['hatchback', 'hatckback'],
@@ -97,7 +97,7 @@ export function asksAnyBrand(text: string): boolean {
 
 /** El bot ofreció ver otras marcas o la otra caja; un “claro” no es seguir la unidad mostrada. */
 export function lastOfferedOtherOptions(text: string): boolean {
-  return /otras marcas|otra marca|otras opciones|seguir buscando|distinta transmisi[oó]n|si desea un sed[aá]n|si prefiere manual/i.test(
+  return /otras marcas|otra marca|otra(?:s)?\s+opci[oó]n(?:es)?|seguir buscando|distinta transmisi[oó]n|si desea un sed[aá]n|si prefiere manual/i.test(
     text,
   );
 }

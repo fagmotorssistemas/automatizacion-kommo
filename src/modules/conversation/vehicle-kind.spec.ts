@@ -11,6 +11,7 @@ import {
 describe('vehicle kind', () => {
   it('la camioneta no cuenta un jeep como el mismo tipo', () => {
     expect(matchesVehicleKind('doble cabina', 'camioneta')).toBe(true);
+    expect(matchesVehicleKind('camioneta', 'camioneta')).toBe(true);
     expect(matchesVehicleKind('jeep', 'camioneta')).toBe(false);
     expect(matchesVehicleKind('jeep', 'suv')).toBe(true);
   });
@@ -36,6 +37,7 @@ describe('vehicle kind', () => {
     expect(kindFromTypeBody('doble cabina')).toBe('camioneta');
     expect(kindFromTypeBody('cabina doble')).toBe('camioneta');
     expect(kindFromTypeBody('cabina simple')).toBe('camioneta');
+    expect(kindFromTypeBody('camioneta')).toBe('camioneta');
     expect(kindFromTypeBody('jeep')).toBe('suv');
   });
 
@@ -186,5 +188,10 @@ describe('vehicle kind', () => {
     expect(lastOfferedOtherOptions('El Kia Picanto blanco 2023 automático')).toBe(
       false,
     );
+    expect(
+      lastOfferedOtherOptions(
+        'Rene, ¿le gustó el Hyundai Santa Fe 2018 que le envié? Si prefiere, le busco otra opción o le doy más detalles.',
+      ),
+    ).toBe(true);
   });
 });

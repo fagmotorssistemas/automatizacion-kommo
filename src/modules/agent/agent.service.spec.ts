@@ -6796,10 +6796,9 @@ Falta vehículo: sí`,
       customerText: 'Claro',
     });
 
-    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).not.toMatch(/EL HILO SIGUE/);
-    expect(system).toMatch(/inventory_id=c3/);
-    expect(system).not.toMatch(/inventory_id=picanto/);
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/Shine|C3/i);
+    expect(result?.reply.mensaje).not.toMatch(/Picanto/i);
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
@@ -6869,11 +6868,10 @@ Falta vehículo: sí`,
       customerText: 'Manual mismo porfabor',
     });
 
-    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/inventory_id=c3/);
-    expect(system).toMatch(/inventory_id=tiggo-2/);
-    expect(system).not.toMatch(/No hay manual de ese tipo/i);
-    expect(system).not.toMatch(/EL HILO SIGUE/);
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/Shine|C3/i);
+    expect(result?.reply.mensaje).toMatch(/Tiggo/i);
+    expect(result?.reply.mensaje).not.toMatch(/No hay manual de ese tipo/i);
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
@@ -7263,11 +7261,106 @@ Falta vehículo: sí`,
       customerText: 'Q otras tienen porfabor',
     });
 
-    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/PIDIÓ OTRAS/i);
-    expect(system).toMatch(/dmax-2023|ranger-2024/i);
-    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/D-max|Ranger/i);
+    expect(result?.reply.mensaje).not.toMatch(/lariat/i);
+    expect(result?.reply.mensaje).toMatch(/\.\n\n/);
+    expect(result?.photoQueue?.map((item) => item.inventoryId).sort()).toEqual(
+      ['dmax-2023', 'ranger-2024'].sort(),
+    );
     expect(result?.reply.meta.vehiculo).toBeNull();
+  });
+
+  it('A56172: otras opciones de un Santa Fe lista SUV por párrafo y no mete camionetas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'santafe-2018',
+      brand: 'hyundai',
+      model: 'santa fe gls 2.4',
+      year: 2018,
+      price: 18900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Rene, ¿le gustó el Hyundai Santa Fe 2018 que le envié o hay algo que le detiene? Si prefiere, le busco otra opción o le doy más detalles.',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'yuan-2026',
+        brand: 'byd',
+        model: 'yuan pro gs',
+        year: 2026,
+        price: 19990,
+        typeBody: 'jeep',
+        color: 'plomo',
+        transmission: 'automatica',
+        mileage: 25199,
+      },
+      {
+        id: 'sportage-2019',
+        brand: 'kia',
+        model: 'sportage sl',
+        year: 2019,
+        price: 18500,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+      },
+      {
+        id: 'creta-2022',
+        brand: 'hyundai',
+        model: 'creta ac',
+        year: 2022,
+        price: 21000,
+        typeBody: 'jeep',
+        color: 'blanco',
+        transmission: 'manual',
+        mileage: 69344,
+      },
+      {
+        id: 'f150-2014',
+        brand: 'ford',
+        model: 'f150 rc',
+        year: 2014,
+        price: 17500,
+        typeBody: 'camioneta',
+        color: 'verde',
+        transmission: 'automatica',
+      },
+      {
+        id: 'hfc-2023',
+        brand: 'jac',
+        model: 'hfc1037d3kst luxury t8 pro ac',
+        year: 2023,
+        price: 22000,
+        typeBody: 'camioneta',
+        color: 'plomo',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere otras opciones.\nPide otras: sí\nTipo de patio: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+
+    const result = await service.handleTurn({
+      contactId: 'A56172',
+      customerText: 'Me ayudaría con otras opciones',
+    });
+
+    expect(openai.runSalesAgent).not.toHaveBeenCalled();
+    expect(result?.reply.mensaje).toMatch(/Yuan|Sportage|Creta/i);
+    expect(result?.reply.mensaje).not.toMatch(/F150|F-150|HFC/i);
+    expect(result?.reply.mensaje).not.toMatch(/aún no cargado|sin dato/i);
+    expect(result?.reply.mensaje.split(/\n\n/).length).toBeGreaterThanOrEqual(3);
+    expect(result?.photoQueue?.map((item) => item.inventoryId)).not.toEqual(
+      expect.arrayContaining(['f150-2014', 'hfc-2023']),
+    );
+    expect(result?.photoQueue?.length).toBeGreaterThanOrEqual(2);
   });
 
   it('si ninguno cumple manda el parecido y no busca otra marca', async () => {

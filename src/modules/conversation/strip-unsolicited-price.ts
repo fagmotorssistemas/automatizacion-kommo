@@ -10,6 +10,25 @@ export function hasLoadedPrice(price: number | null | undefined): boolean {
   return typeof price === 'number' && Number.isFinite(price) && price > 0;
 }
 
+/** Tras quitar el $ queda un resto inútil (“El”, “El precio es”). */
+export function isStrippedReplyStub(text: string): boolean {
+  const n = text
+    .trim()
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  if (!n) {
+    return true;
+  }
+  if (n.length < 4) {
+    return true;
+  }
+  return /^(?:el|la|los|las|un|una|de|del|es|precio|valor)(?:\s+(?:el|la|los|las|un|una|de|del|es|precio|valor))*$/.test(
+    n,
+  );
+}
+
 export const PRICE_UNLOADED =
   'El precio de esta unidad aún no está cargado en patio. En un momento un asesor le confirma el valor.';
 

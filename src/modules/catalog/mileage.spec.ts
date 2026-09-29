@@ -75,4 +75,8 @@ describe('mileage', () => {
     expect(clean).toMatch(/124923 km\./);
     expect(clean).not.toMatch(/km, y/);
   });
+
+  it('si el recorte dejó “El”, pega el $ de patio', () => {
+    expect(ensureListedPrice('El', 22990)).toBe('El precio es $22,990.');
+  });
 });
