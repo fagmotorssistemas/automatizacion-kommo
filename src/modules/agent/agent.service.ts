@@ -73,6 +73,8 @@ import {
   detectTresFilas,
   resolveTresFilas,
   askedModelPhrase,
+  carsMatchingName,
+  nombresSeparados,
   detectTrimInText,
   detectYearInText,
   detectYearSpan,
@@ -232,6 +234,7 @@ import {
   formatNamedUnits,
   hasUsableFicha,
   preferCurrentYears,
+  prettyFamily,
   modelFamily,
   detectAskedCab,
   detectAskedDrive,
@@ -1767,6 +1770,40 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     return gearbox;
   }
 
+  /** Cada nombre se busca por marca y, si no hay filas, por modelo. */
+  private async revisionPorNombres(
+    pedido: string,
+    names: string[],
+  ): Promise<BrandReview> {
+    let patio: StockCar[] | null = null;
+    const lines: string[] = [];
+    for (const name of names) {
+      let cars = await this.catalog.listByBrand(name);
+      if (cars.length === 0) {
+        patio ??= await this.catalog.listAvailableExcept('_');
+        cars = carsMatchingName(patio, name);
+      }
+      if (cars.length === 0) {
+        lines.push(
+          `${name} no está en patio. Di que no tenemos ${name}. Prohibido presentarlo como otra marca de esta lista.`,
+        );
+        continue;
+      }
+      const lineas = [
+        ...new Set(cars.map((car) => prettyFamily(car.model)).filter(Boolean)),
+      ];
+      lines.push(
+        `${name} SÍ está en patio. Líneas: ${lineas.join(', ')}. Pregunta cuál le interesa. No elijas una. PROHIBIDO decir que no tenemos ${name}.`,
+      );
+    }
+    return {
+      text: `PEDIDO: ${pedido}\n${lines.join('\n')}\nvehiculo null.`,
+      holdVehicle: true,
+      sendId: null,
+      switchedModel: true,
+    };
+  }
+
   private async reviewBrand(
     history: { role: string; content: string }[],
     customerText: string,
@@ -1997,6 +2034,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       pedidoPinned = strict.length > 0;
       if (hits.length === 0) {
         if (!listedFollowUp) {
+          const names = nombresSeparados(pedido ?? '');
+          if (names.length >= 2) {
+            return this.revisionPorNombres(pedido ?? '', names);
+          }
           return {
             text: `PEDIDO: ${pedido}
 Ese modelo no está en patio. Di primero que no lo tenemos, con el nombre que pidió.

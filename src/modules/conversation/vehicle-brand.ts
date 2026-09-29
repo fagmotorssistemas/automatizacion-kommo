@@ -1,4 +1,8 @@
-import { modelFamily, normalizeModelText } from '../catalog/clasificar-filas';
+import {
+  modelFamily,
+  normalizeModelText,
+  textMentionsModel,
+} from '../catalog/clasificar-filas';
 import {
   brandsOfFamily,
   emptyLexicon,
@@ -179,6 +183,88 @@ export function askedModelPhrase(
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+const NOMBRE_SUELTO = new Set([
+  'un',
+  'una',
+  'el',
+  'la',
+  'los',
+  'las',
+  'de',
+  'del',
+  'al',
+  'carro',
+  'carros',
+  'vehiculo',
+  'vehiculos',
+  'seminuevo',
+  'seminuevos',
+  'usado',
+  'usados',
+  'manual',
+  'automatico',
+  'mecanico',
+  '4x2',
+  '4x4',
+  '4wd',
+  'awd',
+]);
+
+/**
+ * «Jetour o DFSK» son dos nombres. Un año («2021 o 2022»), la caja y la
+ * tracción no se parten. Un solo modelo queda en una sola pieza.
+ */
+export function nombresSeparados(pedido: string): string[] {
+  if (!pedido.trim() || detectYearSpan(pedido)) {
+    return [];
+  }
+  const names: string[] = [];
+  for (const raw of pedido.split(/\s+(?:o|y|u)\s+/i)) {
+    const words = raw
+      .replace(/\bdoble\s+cabina\b/gi, ' ')
+      .replace(/\bcabina\s+(?:doble|simple)\b/gi, ' ')
+      .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((word) => {
+        const folded = foldAccents(word).toLowerCase();
+        return !NOMBRE_SUELTO.has(folded) && !/^(?:19|20)\d{2}$/.test(folded);
+      });
+    const name = words.join(' ').trim();
+    if (name.length >= 2) {
+      names.push(name);
+    }
+  }
+  return names.length >= 2 ? names : [];
+}
+
+/** Marca o modelo, en las filas de patio que ya se trajeron. */
+export function carsMatchingName<T extends { brand: string; model: string }>(
+  cars: T[],
+  name: string,
+): T[] {
+  const words = foldAccents(name)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const brandsInPatio = new Set(
+    cars.map((car) => foldAccents(car.brand).toLowerCase().trim()),
+  );
+  const brandsInName = words.filter((word) => brandsInPatio.has(word));
+  return cars.filter((car) => {
+    const brand = foldAccents(car.brand).toLowerCase().trim();
+    const asked = foldAccents(name).toLowerCase().trim();
+    const brandHit = words.includes(brand) || brand === asked;
+    const modelHit =
+      textMentionsModel(name, car.model) ||
+      modelPhraseMatchesCar(name, car.model);
+    if (brandsInName.length > 0 && words.length > 1) {
+      return brandHit && modelHit;
+    }
+    return brandHit || modelHit;
+  });
 }
 
 /** El modelo pedido es esa línea, no otra que solo se le parece. */

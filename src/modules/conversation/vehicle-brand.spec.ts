@@ -8,7 +8,9 @@ import {
   detectTresFilas,
   detectYearInText,
   detectYearSpan,
+  carsMatchingName,
   modelPhraseMatchesCar,
+  nombresSeparados,
   resolveBrand,
   resolveTresFilas,
 } from './vehicle-brand';
@@ -409,5 +411,27 @@ describe('marca y tres filas', () => {
         remembered: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('varios nombres', () => {
+  it('parte Jetour o DFSK y no parte un año, la caja ni un solo modelo', () => {
+    expect(nombresSeparados('Jetour y DFSK')).toEqual(['Jetour', 'DFSK']);
+    expect(nombresSeparados('un Jetour o un DFSK')).toEqual(['Jetour', 'DFSK']);
+    expect(nombresSeparados('2021 o 2022')).toEqual([]);
+    expect(nombresSeparados('manual o automático')).toEqual([]);
+    expect(nombresSeparados('Peugeot 2008')).toEqual([]);
+  });
+
+  it('X70 calza por modelo y DFSK no calza ni por marca ni por modelo', () => {
+    const patio = [
+      { brand: 'jetour', model: 'x70 plus ii ac 1.5 4x2 tm' },
+      { brand: 'jetour', model: 't1 ac 2.0 5p 4x4 ta' },
+    ];
+    expect(carsMatchingName(patio, 'X70').map((car) => car.model)).toEqual([
+      'x70 plus ii ac 1.5 4x2 tm',
+    ]);
+    expect(carsMatchingName(patio, 'Jetour X70')).toHaveLength(1);
+    expect(carsMatchingName(patio, 'DFSK')).toEqual([]);
   });
 });

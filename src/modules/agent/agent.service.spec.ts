@@ -5568,6 +5568,71 @@ Falta vehículo: sí`,
     );
   });
 
+  it('Jetour o DFSK lista el Jetour y niega solo el DFSK', async () => {
+    catalog.listByBrand.mockImplementation(async (brand: string) => {
+      if (brand.toLowerCase() === 'jetour') {
+        return [
+          {
+            id: 'x70',
+            brand: 'jetour',
+            model: 'x70 plus ii ac 1.5 4x2 tm',
+            year: 2025,
+            price: 22800,
+            typeBody: 'jeep',
+          },
+          {
+            id: 't1',
+            brand: 'jetour',
+            model: 't1 ac 2.0 5p 4x4 ta',
+            year: 2026,
+            price: 38990,
+            typeBody: 'jeep',
+          },
+        ];
+      }
+      return [];
+    });
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'x70',
+        brand: 'jetour',
+        model: 'x70 plus ii ac 1.5 4x2 tm',
+        year: 2025,
+        price: 22800,
+        typeBody: 'jeep',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    openai.complete
+      .mockResolvedValueOnce(
+        `RESUMEN PREVIO:
+Vehículo: Jetour y DFSK
+SOLICITUD ACTUAL:
+Cliente quiere un Jetour o un DFSK.
+Pide otras: no
+Falta vehículo: no
+Pide precio: no`,
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos Jetour. No tenemos DFSK.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'A76578',
+      customerText: 'Xfa indíqueme un Jetour o un DFSK',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/Jetour SÍ está en patio/i);
+    expect(system).toMatch(/Di que no tenemos DFSK/i);
+    expect(system).toMatch(/PROHIBIDO decir que no tenemos Jetour/i);
+    expect(system).not.toMatch(/Ese modelo no está en patio/i);
+  });
+
   it('el RESUMEN PREVIO recibe el hilo cliente-bot', async () => {
     conversation.recentMessages.mockResolvedValue([
       { role: 'user', content: 'hay ranger?' },
