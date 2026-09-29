@@ -1,5 +1,6 @@
 import {
   isStrippedReplyStub,
+  replyCarriesFinancing,
   stripListedPriceAmounts,
   stripUnloadedPriceClaim,
 } from '../conversation/strip-unsolicited-price';
@@ -174,6 +175,9 @@ export function ensureListedPrice(text: string, price: number): string {
   }
   if (isStrippedReplyStub(body)) {
     return lead;
+  }
+  if (replyCarriesFinancing(body)) {
+    return `${lead} ${body}`.replace(/\s{2,}/g, ' ').trim();
   }
   const clean = dropDanglingAnd(stripListedPriceAmounts(body));
   return isStrippedReplyStub(clean) || !clean ? lead : `${lead} ${clean}`;

@@ -111,13 +111,12 @@ import {
 import {
   appendUnloadedPrice,
   asksForPlate,
-  dropRepeatedListedPrice,
   ensureListedSetPrices,
   hasLoadedPrice,
   isStrippedReplyStub,
   type ListedSetUnit,
-  messageLeaksPrice,
   parsePricedUnitsFromReview,
+  stripShownUnitCashPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import {
@@ -1357,7 +1356,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           argsJson,
           revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
           selling && !buying ? null : brand,
-          (canQuotePrice || askedPrice) && Boolean(revision.sendId),
+          Boolean(revision.sendId),
           lexicon,
         ),
     });
@@ -1425,17 +1424,17 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         !askedPrice;
       const listedPrice =
         askedPrice && unitPrice != null ? unitPrice : null;
-      const cleaned = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice:
-          quotingListedSet ||
-          (unitPrice != null &&
-            (canQuotePrice ||
-              listedPrice != null ||
-              confirmingCashOrDelivery ||
-              askedCredit)),
+      const firstFichaSinPrecio =
+        !alreadyShown && Boolean(replyId) && !askedPrice;
+      const withoutPlate = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
+        keepPrice: true,
         keepPlateShort: askedPlate || firstPresentation,
       });
-      if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
+      const cleaned =
+        firstFichaSinPrecio && unitPrice != null
+          ? stripShownUnitCashPrice(withoutPlate, unitPrice)
+          : withoutPlate;
+      if (cleaned !== parsed.mensaje) {
         this.logger.warn(
           `Se quitó dato no pedido contactId=${input.contactId}`,
         );
@@ -1444,15 +1443,6 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         ? stripRepeatedMileageCare(cleaned)
         : cleaned;
       parsed.mensaje = stripGestionarOffer(parsed.mensaje);
-      if (
-        askedCredit &&
-        !askedPrice &&
-        alreadyShown &&
-        unitPrice != null &&
-        priceAlreadySaid
-      ) {
-        parsed.mensaje = dropRepeatedListedPrice(parsed.mensaje, unitPrice);
-      }
       const quoteBits = financingInputsFromThread(
         input.customerText,
         resumen,

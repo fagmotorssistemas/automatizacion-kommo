@@ -569,6 +569,9 @@ describe('clasificar filas', () => {
     const una = formatNamedUnits([rangers[0]], false);
     expect(una.sendId).toBe('r2026');
     expect(una.holdVehicle).toBe(false);
+    expect(una.text).toMatch(/precio_interno=65990/);
+    expect(una.text).toMatch(/dato interno/i);
+    expect(una.text).not.toMatch(/\$65990/);
 
     const sinKm = formatNamedUnits(
       [{ ...rangers[1], mileage: 0 }],

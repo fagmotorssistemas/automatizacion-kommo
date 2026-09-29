@@ -83,39 +83,57 @@ export function stripListedPriceAmounts(text: string): string {
   return stripped === withoutZero ? withoutZero : tidyStrippedPriceHoles(stripped);
 }
 
-/**
- * En un turno de crédito, si el precio de contado ya se dijo en el hilo,
- * no se vuelve a decir: se quitan las frases que traen ese monto exacto
- * (salvo las que llevan la cuota). Va por el número, no por palabras.
- */
+function amountSpellings(price: number): string[] {
+  const raw = String(Math.round(price));
+  return [
+    raw,
+    raw.replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+    raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
+  ];
+}
+
+/** La frase ya trae entrada, cuota o financiamiento: no se le recortan los montos. */
+export function replyCarriesFinancing(text: string): boolean {
+  return /\b(?:cuota|mensual(?:es)?|financi\w*|entrada)\b/i.test(text);
+}
+
 export function mentionsAmount(text: string, price: number): boolean {
   const amount = Math.round(price);
   if (!Number.isFinite(amount) || amount <= 0) {
     return false;
   }
-  const raw = String(amount);
-  const variants = [
-    raw,
-    raw.replace(/\B(?=(\d{3})+(?!\d))/g, ','),
-    raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
-  ];
-  return variants.some((v) =>
+  return amountSpellings(amount).some((v) =>
     new RegExp(`(?<![\\d.,])${v.replace(/[.,]/g, '\\$&')}(?!\\d)`).test(text),
   );
 }
 
-export function dropRepeatedListedPrice(text: string, price: number): string {
-  const hasPrice = (sentence: string): boolean => mentionsAmount(sentence, price);
-  const carriesCuota = (sentence: string): boolean =>
-    /\b(?:cuota|mensual|mensuales)\b/i.test(sentence);
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  const kept = sentences.filter(
-    (sentence) => !hasPrice(sentence) || carriesCuota(sentence),
-  );
-  if (kept.length === sentences.length || kept.length === 0) {
+/** Quita solo el precio de contado de ESA unidad. Entrada, cuota y financiamiento se quedan. */
+export function stripShownUnitCashPrice(text: string, price: number): string {
+  const amount = Math.round(price);
+  if (!Number.isFinite(amount) || amount <= 0) {
     return text;
   }
-  return kept.join(' ').trim();
+  let out = text;
+  for (const spelling of amountSpellings(amount)) {
+    const token = spelling.replace(/[.,]/g, '\\$&');
+    out = out.replace(
+      new RegExp(
+        `(?:\\s+y)?\\s*\\b(?:precio(?:\\s+de)?|vale|cuesta|sale|queda)\\s*(?:en\\s*)?\\$?\\s*${token}\\b`,
+        'gi',
+      ),
+      '',
+    );
+    out = out.replace(new RegExp(`\\$\\s*${token}\\b`, 'g'), '');
+  }
+  return out
+    .replace(/\b(?:y\s+)?precio\s+de\s*(?=[.,]|$)/gi, '')
+    .replace(/\best[aá]\s+en\s*[.,]/gi, '.')
+    .replace(/\bes\s*[.,]/gi, '.')
+    .replace(/\btiene\s+un\s*[.,]\s*/gi, '')
+    .replace(/\s+y\s*[.,]/gi, '.')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+\./g, '.')
+    .trim();
 }
 
 export function appendUnloadedPrice(text: string): string {
@@ -197,21 +215,8 @@ function tidyStrippedPriceHoles(text: string): string {
     .replace(/\b(?:el\s+)?precio\s+de\s+contado\s+es\s+de\s*[.,]?\s*/gi, '')
     .replace(/\b(?:el\s+)?precio(?:\s+registrado)?\s+es\s*[.,]?\s*/gi, '')
     .replace(/\best[aá]\s+en\s*[.,]/gi, '.')
-    .replace(
-      /\bcon\s+una\s+entrada\s+de(?:\s+la)?\s*(?=la\s+cuota|[.,])/gi,
-      '',
-    )
-    .replace(
-      /\bla\s+cuota(?:\s+aproximada)?(?:\s+ser[ií]a)?(?:\s+de)?\s*[.,]?\s*/gi,
-      '',
-    )
-    .replace(/\bentrada\s+de\s+y\b/gi, 'entrada y')
-    .replace(/\bentrada\s+de(?:\s+la)?\s*/gi, '')
     .replace(/\bes\s+de\s*[.,]/gi, '.')
     .replace(/\btiene\s+un\s*[.,]\s*/gi, '')
-    .replace(/\bcon\s+de\s+entrada\b/gi, '')
-    .replace(/\bpara\s+financiar(?:\s+a\s+\d+\s+a[nñ]os)?\s*/gi, '')
-    .replace(/\bmensuales\b/gi, '')
     .replace(/\bde\s+[.,]/g, '.')
     .replace(/\bpor\s+[.,]/gi, '.')
     .replace(/\bcontado\s+del\b[^.]*\s+[.,]/gi, '')

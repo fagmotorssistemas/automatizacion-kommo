@@ -520,6 +520,18 @@ export function preferCurrentYears<T extends { year?: number | null }>(
   return [...kept].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
 }
 
+function notaPrecioFicha(car: StockCar, decirlo: boolean): string {
+  const amount = car.price && car.price > 0 ? Math.round(car.price) : null;
+  if (decirlo) {
+    return amount
+      ? '\nPidió el valor: di SOLO el $ de esta ficha. PROHIBIDO inventar otro.'
+      : '\nPidió el valor: el patio NO tiene $. Dilo así. PROHIBIDO inventar un número.';
+  }
+  return amount
+    ? `\nprecio_interno=${amount} (dato interno. PROHIBIDO escribirlo en la respuesta. PROHIBIDO inventar otro número.)`
+    : '\nEl precio no está cargado. PROHIBIDO inventar un $.';
+}
+
 /** Una unidad se manda. Varias se nombran para que elija. */
 export function formatNamedUnits(
   cars: StockCar[],
@@ -539,13 +551,7 @@ export function formatNamedUnits(
       car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
       text: `De este modelo hay una sola unidad y hay que mandarla: ${describeUnit(car, includePrice)}.
-En meta.vehiculo.inventory_id pon exactamente "${car.id}".${
-        includePrice && !(car.price && car.price > 0)
-          ? '\nPidió el valor: el patio NO tiene $. Dilo así. PROHIBIDO inventar un número.'
-          : includePrice
-            ? '\nPidió el valor: di SOLO el $ de esta ficha. PROHIBIDO inventar otro.'
-            : ''
-      }`,
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(car, includePrice)}`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
@@ -969,7 +975,7 @@ export function formatMissingNamedModel(
     return {
       text: `${header}
 Lo más cercano, y hay que mandarlo solo después de decir que no hay ${asked}: ${describeUnit(car, includePrice)}.
-En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(car, includePrice)}`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,

@@ -8862,8 +8862,8 @@ Falta vehículo: sí`,
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/NO HAY UNIDAD CONFIRMADA/i);
     expect(system).toMatch(/PROHIBIDO inventar un precio/i);
-    expect(result?.reply.mensaje).not.toMatch(/15[,.]?000/);
     expect(result?.reply.mensaje).toMatch(/España/i);
+    expect(result?.reply.mensaje).toMatch(/15[,.]?000/);
   });
 
   it('contado y crédito: da el precio y abre financiamiento', async () => {
@@ -10445,7 +10445,7 @@ Falta vehículo: sí`,
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/YA se dijo en el hilo: PROHIBIDO repetirlo/i);
     const reply = result?.reply.mensaje ?? '';
-    expect(reply).not.toMatch(/22,900/);
+    expect(reply).toMatch(/22,900/);
     expect(reply).toMatch(
       /Con una entrada de \$4,000 y un plazo de 4 años, la cuota sería de \$654\.68 mensuales/,
     );
@@ -10863,6 +10863,7 @@ Falta vehículo: sí`,
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/PRIMERA PRESENTACIÓN/i);
+    expect(system).toMatch(/precio_interno=13800/);
     expect(system).not.toMatch(/\$13800/);
     expect(result?.reply.mensaje).not.toMatch(/13800/);
     expect(result?.reply.mensaje).not.toMatch(/\$/);

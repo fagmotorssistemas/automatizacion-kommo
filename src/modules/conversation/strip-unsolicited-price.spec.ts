@@ -1,10 +1,10 @@
 import {
   appendUnloadedPrice,
-  dropRepeatedListedPrice,
   ensureListedSetPrices,
   isStrippedReplyStub,
   parsePricedUnitsFromReview,
   stripListedPriceAmounts,
+  stripShownUnitCashPrice,
   stripUnloadedPriceClaim,
   messageLeaksPrice,
   PRICE_UNLOADED,
@@ -95,11 +95,11 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     const clean = stripUnsolicitedPriceAndPlate(
       'La Chevrolet Dmax 2020 está disponible por $22900 al contado. El precio de contado es de $22900. Con una entrada de $2000 y un plazo de 6 años.',
     );
-    expect(clean).not.toMatch(/22900|2000/);
+    expect(clean).not.toMatch(/22900/);
     expect(clean).not.toMatch(/\$/);
     expect(clean).not.toMatch(/por al contado/i);
     expect(clean).not.toMatch(/es de\s*\./i);
-    expect(clean).not.toMatch(/entrada de y/i);
+    expect(clean).toMatch(/entrada/i);
     expect(clean).toMatch(/Dmax 2020/i);
   });
 
@@ -136,10 +136,11 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     const clean = stripUnsolicitedPriceAndPlate(
       'El Chevrolet d-max, tiene un precio de $32,990. Con $1,000 de entrada para financiar a 5 años la cuota aproximada sería de $962.39 mensuales.',
     );
-    expect(clean).not.toMatch(/32,990|1,000/);
+    expect(clean).not.toMatch(/32,990/);
     expect(clean).not.toMatch(/tiene un\s*\./i);
-    expect(clean).not.toMatch(/con de entrada/i);
-    expect(clean).not.toMatch(/962\.39/);
+    expect(clean).toMatch(/entrada/i);
+    expect(clean).toMatch(/financiar/i);
+    expect(clean).toMatch(/mensuales/i);
     expect(clean).toMatch(/d-max/i);
   });
 
@@ -168,25 +169,15 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(stripZeroListedPrice(raw)).toBe(raw);
   });
 
-  it('dropRepeatedListedPrice quita la frase del precio ya dicho y deja la cuota', () => {
-    const out = dropRepeatedListedPrice(
+  it('en la primera ficha quita solo el precio de esa unidad y deja entrada y cuota', () => {
+    const out = stripShownUnitCashPrice(
       'El precio de contado del Kia Sportage 2019 es $22,900. Con una entrada de $4,000 y un plazo de 4 años, la cuota es $654.68.',
       22900,
     );
     expect(out).not.toMatch(/22,900/);
-    expect(out).toBe(
-      'Con una entrada de $4,000 y un plazo de 4 años, la cuota es $654.68.',
-    );
-  });
-
-  it('dropRepeatedListedPrice no vacía el mensaje ni toca frases con la cuota', () => {
-    const solo = 'El precio es $22,900.';
-    expect(dropRepeatedListedPrice(solo, 22900)).toBe(solo);
-    const junto = 'Son $22,900 y la cuota es $522.88.';
-    expect(dropRepeatedListedPrice(junto, 22900)).toBe(junto);
-    expect(dropRepeatedListedPrice('Entrada de $4,000.', 22900)).toBe(
-      'Entrada de $4,000.',
-    );
+    expect(out).toMatch(/entrada de \$4,000/i);
+    expect(out).toMatch(/cuota es \$654\.68/i);
+    expect(out).toMatch(/financiamiento|plazo de 4 años/i);
   });
 
   it('detecta fuga de precio', () => {

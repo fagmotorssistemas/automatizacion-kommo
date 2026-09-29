@@ -79,4 +79,14 @@ describe('mileage', () => {
   it('si el recorte dejó “El”, pega el $ de patio', () => {
     expect(ensureListedPrice('El', 22990)).toBe('El precio es $22,990.');
   });
+
+  it('una frase de financiamiento no se recorta y se le pega el precio si falta', () => {
+    const raw =
+      'Con una entrada de $4,000 y financiamiento a 4 años, la cuota aproximada es $654.68 mensuales.';
+    const clean = ensureListedPrice(raw, 22900);
+    expect(clean).toMatch(/^El precio es \$22,900\./);
+    expect(clean).toMatch(/entrada de \$4,000/i);
+    expect(clean).toMatch(/financiamiento a 4 años/i);
+    expect(clean).toMatch(/\$654\.68 mensuales/i);
+  });
 });
