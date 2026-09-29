@@ -225,6 +225,11 @@ import {
   seatsOfCar,
 } from '../conversation/large-passenger';
 import {
+  coincidenUnidad,
+  contarHechos,
+  hechosDesdeTexto,
+} from '../catalog/coinciden-unidad';
+import {
   carsFromYearOnward,
   carsInYearSpan,
   carsShownInHistory,
@@ -1770,6 +1775,44 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     return gearbox;
   }
 
+  /**
+   * Varios datos de la misma unidad. No entra en matchUnitFacts:
+   * un solo dato sigue filtrando igual.
+   */
+  private revisionPorCoincidencia(input: {
+    text: string;
+    cars: StockCar[];
+    lexicon: VehicleLexicon;
+    year: number | null;
+    includePrice: boolean;
+    yearSpan: boolean;
+    otroColor: boolean;
+  }): BrandReview | null {
+    if (input.yearSpan || input.otroColor) {
+      return null;
+    }
+    const hechos = hechosDesdeTexto(input.text, input.year, input.lexicon);
+    if (contarHechos(hechos) < 2) {
+      return null;
+    }
+    const hit = coincidenUnidad(input.cars, hechos);
+    if (!hit) {
+      return null;
+    }
+    const named = formatNamedUnits(hit.cars, input.includePrice);
+    const nota =
+      hit.distinto.length > 0
+        ? `No coincide: ${hit.distinto.join(', ')}. Di el dato de esta ficha. PROHIBIDO decir que no está el carro ni volver a otra unidad.`
+        : 'Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que no está.';
+    return {
+      ...named,
+      text: `${named.text}\n${nota}`,
+      switchedModel: true,
+      vehicleKind: kindOfNamedUnits(hit.cars),
+      choseFromShown: hit.cars.length === 1,
+    };
+  }
+
   /** Cada nombre se busca por marca y, si no hay filas, por modelo. */
   private async revisionPorNombres(
     pedido: string,
@@ -2430,6 +2473,18 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       !wantsClosest &&
       !skipShownYearAsSameModel
     ) {
+      const porCoincidencia = this.revisionPorCoincidencia({
+        text: `${customerText}\n${solicitud}`,
+        cars: listed,
+        lexicon,
+        year: yearAsk,
+        includePrice,
+        yearSpan: Boolean(yearSpan),
+        otroColor: askedOtherColor,
+      });
+      if (porCoincidencia) {
+        return porCoincidencia;
+      }
       const offered = asked
         ? alreadyOffered.filter((car) =>
             textMentionsModel(car.model, asked.family),
