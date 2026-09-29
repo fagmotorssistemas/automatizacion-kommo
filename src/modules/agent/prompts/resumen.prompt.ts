@@ -175,10 +175,16 @@ Lee el sentido, no una frase fija. ¿Quiere un carro de 3 filas / tercera fila /
 - Si hay unidad ya mostrada y pregunta si ESA tiene 3 filas: Tres filas: sí. Pide otras: no. SOLICITUD: validar ESA.
 - Tres filas: no si no pidió filas.
 
+REGLA DE CONFIRMAR LA ÚLTIMA PREGUNTA (OBLIGATORIA):
+Lee el sentido, no una frase fija. Si el último mensaje del bot ofreció o preguntó un dato (horario, ubicación, fotos) y ESTE turno solo acepta eso, sin nombrar otro carro ni otro pedido:
+- La SOLICITUD es ESE dato. La bandera de ese dato es sí (Pide horario / Pide ubicación…).
+- Pide otras: no. No es “sigue con el carro”. No inventes entrega, estado ni otro tema.
+- Si el dato ya se entregó en el hilo, igual la bandera es sí: el sistema lo confirma o lo repite breve.
+
 REGLA DE HORARIO (OBLIGATORIA):
-Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)?
-- Pide horario: sí. La SOLICITUD dice qué día preguntó. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
-- Pide horario: no si habla de un vehículo (precio, fotos, esa unidad).
+Lee el sentido. ¿Este turno pregunta si atienden, el horario o si abren (hoy, mañana, un día)? ¿O acepta la pregunta de horario que el bot acaba de hacer?
+- Pide horario: sí. La SOLICITUD dice qué día preguntó o que aceptó el horario. Pide otras: no. No menciones un carro. El sistema pone HOY y MAÑANA (abren o no).
+- Pide horario: no si habla de un vehículo (precio, fotos, esa unidad) y no está aceptando una pregunta de horario.
 
 REGLA DE LO YA ENTREGADO (OBLIGATORIA):
 Si viene la sección YA ENTREGADO EN EL HILO, esas piezas ya las tiene el cliente (dirección, precio de contado, horario, pregunta de si aplica al crédito).

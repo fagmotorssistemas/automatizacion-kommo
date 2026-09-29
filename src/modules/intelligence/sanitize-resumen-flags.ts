@@ -1,4 +1,6 @@
+import { isBareConfirmation } from '../inbox/first-touch';
 import { parsePassengerAsk } from '../conversation/large-passenger';
+import { isThreadAck } from './parse-resumen';
 
 function fold(text: string): string {
   return text
@@ -50,18 +52,36 @@ export function textAsksForTresFilas(text: string): boolean {
   return /\b(?:3|tres)\s+filas?\b|\btercera\s+fila\b/.test(n);
 }
 
+/** El turno solo acepta lo que el bot acaba de ofrecer o preguntar. */
+export function acceptsLastAssistantAsk(customerText: string): boolean {
+  return isThreadAck(customerText) || isBareConfirmation(customerText);
+}
+
 /**
  * El analizador no puede inventar banderas. Si el mensaje no las pidió, quedan no.
+ * Si el bot preguntó un dato y este turno solo acepta, ese dato sí se pide.
  */
 export function sanitizeInventedResumenFlags(
   resumen: string,
   customerText: string,
+  lastAssistant = '',
 ): string {
   let out = resumen;
-  if (!textAsksForLocation(customerText)) {
+  const hours =
+    textAsksForHours(customerText) ||
+    (acceptsLastAssistantAsk(customerText) && textAsksForHours(lastAssistant));
+  const location =
+    textAsksForLocation(customerText) ||
+    (acceptsLastAssistantAsk(customerText) &&
+      textAsksForLocation(lastAssistant));
+  if (location && !textAsksForLocation(customerText)) {
+    out = replaceFlag(out, 'Pide ubicaci[oó]n', 'sí');
+  } else if (!location) {
     out = forceFlagNo(out, 'Pide ubicaci[oó]n');
   }
-  if (!textAsksForHours(customerText)) {
+  if (hours && !textAsksForHours(customerText)) {
+    out = replaceFlag(out, 'Pide horario', 'sí');
+  } else if (!hours) {
     out = forceFlagNo(out, 'Pide horario');
   }
   const seats = textAsksForSeats(customerText);

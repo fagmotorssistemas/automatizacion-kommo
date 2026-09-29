@@ -141,6 +141,7 @@ describe('contado y crédito', () => {
     expect(textAsksForCredit('Buen')).toBe(false);
     expect(isThreadAck('Aaa')).toBe(true);
     expect(isThreadAck('Buen')).toBe(true);
+    expect(isThreadAck('Bueno')).toBe(true);
     expect(
       textAsksForCredit('Aaa bueno voy buscar un poco de entrada mas'),
     ).toBe(false);

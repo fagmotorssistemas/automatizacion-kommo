@@ -4770,6 +4770,246 @@ describe('AgentService', () => {
         year: 2016,
       },
     },
+    {
+      lead: 'tucson-a-santafe',
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'tucson-old',
+        brand: 'hyundai',
+        model: 'tucson gl',
+        year: 2019,
+      },
+    },
+    {
+      lead: 'creta-a-kona',
+      text: 'Tiene Kona?',
+      id: 'kona-1',
+      brand: 'hyundai',
+      model: 'kona gl',
+      year: 2021,
+      typeBody: 'suv',
+      old: {
+        inventoryId: 'creta-old',
+        brand: 'hyundai',
+        model: 'creta ac 1.5 5p 4x2 tm',
+        year: 2022,
+      },
+    },
+    {
+      lead: 'l200-a-montero',
+      text: 'Hola. Me interesa el Montero Sport',
+      id: 'e5847771-9c0b-4ef8-bb6d-6bb9bd380a11',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'l200-old',
+        brand: 'mitsubishi',
+        model: 'l200 2.4 cd',
+        year: 2021,
+      },
+    },
+    {
+      lead: 'montero-a-l200',
+      text: 'Me interesa la L200',
+      id: 'l200-new',
+      brand: 'mitsubishi',
+      model: 'l200 2.4 cd',
+      year: 2021,
+      typeBody: 'camioneta',
+      old: {
+        inventoryId: 'e5847771-9c0b-4ef8-bb6d-6bb9bd380a11',
+        brand: 'mitsubishi',
+        model: 'montero sport gls ac 3.0 5p 4x4',
+        year: 2022,
+      },
+    },
+    {
+      lead: 'hilux-a-prado',
+      text: 'Hola. Me interesa el Toyota Prado',
+      id: 'prado-1',
+      brand: 'toyota',
+      model: 'prado txl',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'hilux-old',
+        brand: 'toyota',
+        model: 'hilux 2.4 cd',
+        year: 2020,
+      },
+    },
+    {
+      lead: 'dmax-a-hilux',
+      text: 'Tiene Hilux?',
+      id: 'hilux-1',
+      brand: 'toyota',
+      model: 'hilux 2.4 cd',
+      year: 2020,
+      typeBody: 'camioneta',
+      old: {
+        inventoryId: 'dmax-old',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2019,
+      },
+    },
+    {
+      lead: 'f150-a-explorer',
+      text: 'Me interesa la Explorer',
+      id: 'explorer-new',
+      brand: 'ford',
+      model: 'explorer xlt',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'f150-old',
+        brand: 'ford',
+        model: 'f-150',
+        year: 2017,
+      },
+    },
+    {
+      lead: '2008-a-tucson',
+      text: 'Hola. Me interesa el Hyundai Tucson',
+      id: 'tucson-from-2008',
+      brand: 'hyundai',
+      model: 'tucson gl',
+      year: 2019,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'p2008-old',
+        brand: 'peugeot',
+        model: '2008 fin',
+        year: 2019,
+      },
+    },
+    {
+      lead: 'x70-a-t1',
+      text: 'Me interesa el Jetour T1',
+      id: 't1-new',
+      brand: 'jetour',
+      model: 't1 ac 2.0 5p 4x4 ta',
+      year: 2024,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'x70-old',
+        brand: 'jetour',
+        model: 'x70 ii ac 1.5',
+        year: 2023,
+      },
+    },
+    {
+      lead: 'picanto-a-sportage',
+      text: 'Hola. Me interesa el Kia Sportage 2019',
+      id: 'sportage-new',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'picanto-old',
+        brand: 'kia',
+        model: 'picanto lx',
+        year: 2023,
+      },
+    },
+    {
+      lead: 'sentra-a-xtrail',
+      text: 'Me interesa el Nissan Xtrail',
+      id: 'xtrail-new',
+      brand: 'nissan',
+      model: 'x-trail sense',
+      year: 2016,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'sentra-old',
+        brand: 'nissan',
+        model: 'sentra exclusive',
+        year: 2020,
+      },
+    },
+    {
+      lead: 'aveo-a-optra',
+      text: 'Hola. Me interesa el Chevrolet Optra',
+      id: 'optra-new',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l',
+      year: 2012,
+      typeBody: 'sedan',
+      old: {
+        inventoryId: 'aveo-old',
+        brand: 'chevrolet',
+        model: 'aveo ls ac 1.6',
+        year: 2018,
+      },
+    },
+    {
+      lead: 'ram700-a-1500',
+      text: 'Me interesa el Ram 1500',
+      id: 'ram1500-new',
+      brand: 'ram',
+      model: 'ram 1500 laramie 4x4',
+      year: 2022,
+      typeBody: 'camioneta',
+      old: {
+        inventoryId: 'ram700-old',
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+      },
+    },
+    {
+      lead: 'poer-a-hunter',
+      text: 'Hola. Me interesa el Hunter',
+      id: 'hunter-new',
+      brand: 'great wall',
+      model: 'hunter ac 2.4 cd',
+      year: 2023,
+      typeBody: 'camioneta',
+      old: {
+        inventoryId: 'poer-old',
+        brand: 'great wall',
+        model: 'poer 2.0',
+        year: 2022,
+      },
+    },
+    {
+      lead: 'tcross-a-creta',
+      text: 'Me interesa el Hyundai Creta',
+      id: 'creta-from-tcross',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      typeBody: 'suv',
+      old: {
+        inventoryId: 'tcross-old',
+        brand: 'volkswagen',
+        model: 't-cross',
+        year: 2021,
+      },
+    },
+    {
+      lead: '4runner-a-prado',
+      text: 'Hola. Me interesa el Prado',
+      id: 'prado-from-4r',
+      brand: 'toyota',
+      model: 'prado txl',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: '4runner-old',
+        brand: 'toyota',
+        model: '4 runner 4x2 t/a',
+        year: 2016,
+      },
+    },
   ])('$lead con carro ya mostrado «$text» igual pega el id', async (row) => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: row.old.inventoryId,
@@ -4782,8 +5022,12 @@ describe('AgentService', () => {
     });
     conversation.recentMessages.mockResolvedValue([
       {
+        role: 'user',
+        content: `Hola. Me interesa el ${row.old.brand} ${row.old.model}`,
+      },
+      {
         role: 'assistant',
-        content: `Estimado, tenemos disponible un ${row.old.brand} ${row.old.model} ${row.old.year} color blanco.`,
+        content: `Estimado, tenemos disponible un ${row.old.brand} ${row.old.model} ${row.old.year} color blanco, con 80000 km. Aquí tiene las fotos.`,
       },
     ]);
     catalog.listByBrand.mockImplementation(async (brand: string) => {
@@ -7354,6 +7598,54 @@ Falta vehículo: sí`,
     expect(system).not.toMatch(/Poer/i);
     expect(result?.reply.meta.vehiculo).toBeNull();
     expect(result?.reply.mensaje).toMatch(/sábado|09:30/i);
+  });
+
+  it('A76491 acepta la pregunta de horario y no cambia a la Ram', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'c2633734-4541-468e-a0ba-cb1ef2b383a1',
+      brand: 'ram',
+      model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+      year: 2023,
+      price: 18990,
+      typeBody: 'camioneta',
+      color: 'blanco',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Perfecto, cuando decida venir a Cuenca para ver la Ram 700 2023, estaremos atentos. ¿Le gustaría que le informe sobre nuestros horarios para cuando planifique su visita?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere confirmar que está bien y sigue interesado en la Ram 700 2023.',
+          'Pide horario: no',
+          'Pide otras: no',
+          'Falta vehículo: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Atendemos de lunes a viernes de 08:30 a 18:00 y el sábado de 09:30 a 13:30.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42076441',
+      customerText: 'Bueno',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/ATENCIÓN \/ HORARIO/i);
+    expect(system).not.toMatch(/listo para entrega/i);
+    expect(result?.resumen).toMatch(/Pide horario: sí/i);
+    expect(result?.reply.mensaje).toMatch(/08:30|atiend/i);
   });
 
   it('A75264 cabina simple 4x4 no lista las cd 4x2', async () => {

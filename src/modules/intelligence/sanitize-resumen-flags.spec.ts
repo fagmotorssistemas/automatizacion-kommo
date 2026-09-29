@@ -95,6 +95,32 @@ describe('sanitizeInventedResumenFlags', () => {
     expect(out).toMatch(/Tres filas: no/i);
   });
 
+  it('si el bot preguntó horario y el turno solo acepta, el horario se queda', () => {
+    const last =
+      '¿Le gustaría que le informe sobre nuestros horarios para cuando planifique su visita?';
+    const inventado = [
+      'SOLICITUD ACTUAL:',
+      'Cliente confirma interés en la Ram.',
+      'Pide horario: no',
+      'Pide ubicación: no',
+    ].join('\n');
+    const out = sanitizeInventedResumenFlags(inventado, 'Bueno', last);
+    expect(out).toMatch(/Pide horario: sí/i);
+    expect(out).toMatch(/Pide ubicación: no/i);
+  });
+
+  it('un ok suelto sin pregunta de horario no inventa horario', () => {
+    const last =
+      'Tenemos la Ram 700 2023 blanca. ¿Le gustó o hay algo que le detiene?';
+    const out = sanitizeInventedResumenFlags(
+      'SOLICITUD ACTUAL:\nSigue.\nPide horario: sí\nPide ubicación: sí',
+      'ok',
+      last,
+    );
+    expect(out).toMatch(/Pide horario: no/i);
+    expect(out).toMatch(/Pide ubicación: no/i);
+  });
+
   it('3 filas se queda si lo dijo', () => {
     expect(textAsksForTresFilas('Es de 3 filas ?')).toBe(true);
     const out = sanitizeInventedResumenFlags(

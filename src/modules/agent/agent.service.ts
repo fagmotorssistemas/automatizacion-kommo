@@ -521,10 +521,14 @@ export class AgentService {
       previousResumen,
       entregado,
     });
+    const lastAssistantForFlags =
+      [...history].reverse().find((item) => item.role === 'assistant')
+        ?.content ?? '';
     const resumen = sanitizeInventedResumenFlags(
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
         input.customerText,
       input.customerText,
+      lastAssistantForFlags,
     );
     const nombra = textoQueNombra(resumen, input.customerText, lexicon);
     const brandSaidNow = detectBrand(nombra, lexicon);
