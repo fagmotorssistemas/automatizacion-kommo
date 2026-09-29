@@ -451,6 +451,7 @@ export function formatNamedUnits(
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice: number | null;
+  listedUnits: StockCar[];
   choseFromShown?: boolean;
 } {
   if (cars.length === 1) {
@@ -469,16 +470,22 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".${
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
+      listedUnits: cars,
       choseFromShown: true,
     };
   }
 
   return {
     text: `De este modelo hay ${cars.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
-${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+${cars.map((car) => describeUnit(car, includePrice)).join('\n')}${
+      includePrice
+        ? '\nPidió los valores: di el $ de inventario de CADA ficha. PROHIBIDO redondear o inventar.'
+        : ''
+    }`,
     holdVehicle: true,
     sendId: null,
     unitPrice: null,
+    listedUnits: cars,
   };
 }
 
@@ -814,6 +821,7 @@ export function formatMissingNamedModel(
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice: number | null;
+  listedUnits?: StockCar[];
   choseFromShown?: boolean;
 } {
   const same = alternatives.filter((car) =>
@@ -843,6 +851,7 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
+      listedUnits: [car],
       choseFromShown: true,
     };
   }
@@ -854,6 +863,7 @@ ${close.map((car) => describeUnit(car, includePrice)).join('\n')}`,
       holdVehicle: true,
       sendId: null,
       unitPrice: null,
+      listedUnits: close,
     };
   }
   return {

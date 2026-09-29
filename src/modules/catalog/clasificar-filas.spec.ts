@@ -540,6 +540,7 @@ describe('clasificar filas', () => {
     const varias = formatNamedUnits(rangers, false);
     expect(varias.holdVehicle).toBe(true);
     expect(varias.sendId).toBeNull();
+    expect(varias.listedUnits).toHaveLength(2);
     expect(varias.text).toMatch(/ranger xlt/i);
     expect(varias.text).toMatch(/2026/);
     expect(varias.text).toMatch(/ranger xl/i);

@@ -210,3 +210,144 @@ export function messageLeaksPrice(text: string): boolean {
 export function asksForPlate(text: string): boolean {
   return /\bplacas?\b/i.test(text);
 }
+
+export type ListedSetUnit = {
+  year?: number | null;
+  color?: string | null;
+  mileage?: number | null;
+  price: number;
+};
+
+const LISTED_AMOUNT_RE =
+  /\$\s*(?:\d{1,3}(?:[.,]\d{3})+|\d{4,6})(?:[.,]\d{2})?/g;
+
+function formatListedUsd(amount: number): string {
+  return `$${Math.round(amount).toLocaleString('en-US')}`;
+}
+
+function parseListedAmount(token: string): number | null {
+  const raw = token.replace(/[^\d.,]/g, '');
+  if (!raw) {
+    return null;
+  }
+  const grouped = raw.replace(/[.,](?=\d{3}(?:[.,]|$))/g, '');
+  const whole = grouped.replace(/[.,]\d+$/, '');
+  const n = Number(whole);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
+function unitMentionIndex(text: string, unit: ListedSetUnit): number {
+  if (unit.year != null) {
+    const hit = new RegExp(`\\b${unit.year}\\b`).exec(text);
+    if (hit) {
+      return hit.index;
+    }
+  }
+  if (typeof unit.mileage === 'number' && unit.mileage > 0) {
+    const i = text.indexOf(String(Math.round(unit.mileage)));
+    if (i >= 0) {
+      return i;
+    }
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+/** Fichas del patio en la revisión (`precio=$68800`). */
+export function parsePricedUnitsFromReview(text: string): ListedSetUnit[] {
+  const out: ListedSetUnit[] = [];
+  for (const block of text.split(/(?=modelo=)/)) {
+    const price = Number(block.match(/precio=\$(\d+)/)?.[1]);
+    if (!Number.isFinite(price) || price <= 0) {
+      continue;
+    }
+    const year = Number(block.match(/año=(\d{4})/)?.[1]);
+    const color = block.match(/color=([^|\n]+)/)?.[1]?.trim() ?? null;
+    const mileage = Number(block.match(/km=(\d+)/)?.[1]);
+    out.push({
+      price: Math.round(price),
+      year: Number.isFinite(year) ? year : null,
+      color: color && !/^sin /i.test(color) ? color : null,
+      mileage: Number.isFinite(mileage) ? mileage : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * Listado de varias unidades: el modelo no puede inventar un $.
+ * Se pegan los montos de patio en el orden en que nombra cada carro.
+ */
+export function ensureListedSetPrices(
+  text: string,
+  units: ListedSetUnit[],
+): string {
+  const priced = units.filter(
+    (unit) => Number.isFinite(unit.price) && unit.price > 0,
+  );
+  if (priced.length === 0) {
+    return stripListedPriceAmounts(text);
+  }
+
+  const allowed = new Set(priced.map((unit) => Math.round(unit.price)));
+  const found = [...text.matchAll(LISTED_AMOUNT_RE)]
+    .map((match) => parseListedAmount(match[0]))
+    .filter((n): n is number => n != null);
+  const allGood =
+    found.length === priced.length &&
+    found.every((n) => allowed.has(n)) &&
+    priced.every((unit) => mentionsAmount(text, Math.round(unit.price)));
+  if (allGood) {
+    return text;
+  }
+
+  const ordered = [...priced].sort(
+    (a, b) => unitMentionIndex(text, a) - unitMentionIndex(text, b),
+  );
+  let i = 0;
+  let out = text.replace(LISTED_AMOUNT_RE, () => {
+    const unit = ordered[i];
+    if (!unit) {
+      return '';
+    }
+    i += 1;
+    return formatListedUsd(unit.price);
+  });
+
+  while (i < ordered.length) {
+    const unit = ordered[i];
+    i += 1;
+    const amount = Math.round(unit.price);
+    if (mentionsAmount(out, amount)) {
+      continue;
+    }
+    const year = unit.year != null ? String(unit.year) : '';
+    const yearAt = year ? out.search(new RegExp(`\\b${year}\\b`)) : -1;
+    if (yearAt < 0) {
+      out = `${out} ${formatListedUsd(amount)}.`.trim();
+      continue;
+    }
+    const afterYear = yearAt + year.length;
+    const tail = out.slice(afterYear);
+    const cut = tail.search(
+      /\s*(?:está\s+en|en)?\s*(?:[,.]?\s+y\s+el\b|[.,]|¿|\?)/i,
+    );
+    const at = cut >= 0 ? afterYear + cut : afterYear;
+    const rest = out.slice(at).replace(/^\s*(?:está\s+en|en)\s*/i, ' ');
+    out = `${out.slice(0, at).replace(/\s+$/, '')} está en ${formatListedUsd(amount)}${rest}`;
+  }
+
+  return tidyStrippedPriceHoles(
+    stripAmountsOutside(out, allowed)
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+,/g, ',')
+      .replace(/\s+\./g, '.')
+      .trim(),
+  );
+}
+
+function stripAmountsOutside(text: string, allowed: Set<number>): string {
+  return text.replace(LISTED_AMOUNT_RE, (token) => {
+    const n = parseListedAmount(token);
+    return n != null && allowed.has(n) ? token : '';
+  });
+}

@@ -1,6 +1,8 @@
 import {
   appendUnloadedPrice,
   dropRepeatedListedPrice,
+  ensureListedSetPrices,
+  parsePricedUnitsFromReview,
   stripListedPriceAmounts,
   stripUnloadedPriceClaim,
   messageLeaksPrice,
@@ -200,6 +202,53 @@ describe('stripUnsolicitedPriceAndPlate', () => {
         'Estimado, no tenemos el precio cargado aún para vehículos Nissan SUV. El precio de esta unidad aún no está cargado en patio.',
       ),
     ).toBe('');
+  });
+
+  it('A76116 el listado de Rangers no deja $ inventados', () => {
+    const invented =
+      'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo está en $70,000, y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en $65,000. ¿Cuál desea ver?';
+    const units = [
+      { year: 2026, color: 'plomo', mileage: 22868, price: 68800 },
+      { year: 2024, color: 'plomo', mileage: 11061, price: 44590 },
+    ];
+    const clean = ensureListedSetPrices(invented, units);
+    expect(clean).toMatch(/68,?800/);
+    expect(clean).toMatch(/44,?590/);
+    expect(clean).not.toMatch(/70,?000/);
+    expect(clean).not.toMatch(/65,?000/);
+    expect(clean).toMatch(/2026/);
+    expect(clean).toMatch(/2024/);
+  });
+
+  it('si el listado quedó sin $ los pega al lado de cada año', () => {
+    const stripped =
+      'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo. y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en. ¿Cuál desea ver?';
+    const clean = ensureListedSetPrices(stripped, [
+      { year: 2026, color: 'plomo', mileage: 22868, price: 68800 },
+      { year: 2024, color: 'plomo', mileage: 11061, price: 44590 },
+    ]);
+    expect(clean).toMatch(/68,?800/);
+    expect(clean).toMatch(/44,?590/);
+  });
+
+  it('si el listado ya trae los $ de patio no lo reescribe', () => {
+    const ok =
+      'El Ranger XLT 2026 está en $68,800 y el XL 2024 en $44,590. ¿Cuál desea ver?';
+    expect(
+      ensureListedSetPrices(ok, [
+        { year: 2026, price: 68800 },
+        { year: 2024, price: 44590 },
+      ]),
+    ).toBe(ok);
+  });
+
+  it('lee precio=$ de la revisión', () => {
+    const review = `modelo=ranger xlt | año=2026 | color=plomo | km=22868 | precio=$68800
+modelo=ranger xl | año=2024 | color=plomo | km=11061 | precio=$44590`;
+    expect(parsePricedUnitsFromReview(review)).toEqual([
+      { price: 68800, year: 2026, color: 'plomo', mileage: 22868 },
+      { price: 44590, year: 2024, color: 'plomo', mileage: 11061 },
+    ]);
   });
 
   it('si no preguntó placa quita también la corta', () => {

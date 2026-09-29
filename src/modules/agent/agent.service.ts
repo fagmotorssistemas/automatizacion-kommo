@@ -110,7 +110,10 @@ import {
   appendUnloadedPrice,
   asksForPlate,
   dropRepeatedListedPrice,
+  ensureListedSetPrices,
+  hasLoadedPrice,
   messageLeaksPrice,
+  parsePricedUnitsFromReview,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import {
@@ -308,6 +311,7 @@ type BrandReview = {
   holdVehicle: boolean;
   sendId: string | null;
   unitPrice?: number | null;
+  listedUnits?: StockCar[];
   switchedModel?: boolean;
   vehicleKind?: VehicleKind | null;
   photoQueue?: PhotoQueueItem[];
@@ -1107,11 +1111,20 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const priceAlreadySaid =
       unitPrice != null &&
       entregadoEnHilo(history, { unitPrice }).precio != null;
+    const toListedUnit = (car: StockCar) => ({
+      year: car.year,
+      color: car.color,
+      mileage: car.mileage,
+      price: Math.round(car.price as number),
+    });
+    let listedSet = (revision.listedUnits ?? [])
+      .filter((car) => hasLoadedPrice(car.price))
+      .map(toListedUnit);
+    if (listedSet.length === 0) {
+      listedSet = parsePricedUnitsFromReview(revision.text);
+    }
     const quotingListedSet =
-      askedPrice &&
-      revision.sendId == null &&
-      revision.holdVehicle === true &&
-      /\$\s*\d/.test(revision.text);
+      askedPrice && revision.sendId == null && listedSet.length > 1;
     const canQuotePrice =
       quotingListedSet ||
       (unitPrice != null &&
@@ -1543,6 +1556,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
+        parsed.meta.precioMostrado = true;
+      } else if (quotingListedSet) {
+        parsed.mensaje = ensureListedSetPrices(parsed.mensaje, listedSet);
         parsed.meta.precioMostrado = true;
       } else if (
         askedPrice &&
@@ -2090,11 +2106,29 @@ El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay fic
         if (cashBudget && pool.length > 0) {
           listedPool = pool;
         }
+        const quotePool = pool.length > 0 ? pool : listedPool;
+        if (wantsListedPrices && quotePool.length > 0) {
+          const named = formatNamedUnits(quotePool, true);
+          const one = quotePool.length === 1;
+          return {
+            ...named,
+            holdVehicle: !one,
+            sendId: one ? quotePool[0].id : null,
+            switchedModel: true,
+            vehicleKind: kindOfNamedUnits(quotePool),
+            text: one
+              ? `${named.text}
+El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro color u otra caja.`
+              : `${named.text}
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+          };
+        }
         return {
           text: `Ya le nombró ${listedPool.length} unidades. PROHIBIDO volver a listarlas. UNA línea: ¿cuál quiere ver? vehiculo null.`,
           holdVehicle: true,
           sendId: null,
           switchedModel: true,
+          listedUnits: listedPool,
         };
       }
     }

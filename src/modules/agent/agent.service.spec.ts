@@ -1478,6 +1478,70 @@ describe('AgentService', () => {
     );
   });
 
+  it('A76116 cotizar las dos Ranger pega $ de patio, no 70000/65000', async () => {
+    const xlt2026 = {
+      id: 'ab7f5898-b04d-4d56-b757-f0c9dc217c9e',
+      brand: 'ford',
+      model: 'ranger xlt ac 2.0 cd 4x4 ta diesel',
+      year: 2026,
+      price: 68800,
+      typeBody: 'doble cabina',
+      color: 'plomo',
+      mileage: 22868,
+    };
+    const xl2024 = {
+      id: 'fa2ead3d-bc19-4572-8904-9a872790308c',
+      brand: 'ford',
+      model: 'ranger xl ac 2.0 cd 4x2 tm diesel',
+      year: 2024,
+      price: 44590,
+      typeBody: 'doble cabina',
+      color: 'plomo',
+      mileage: 11061,
+    };
+    persistence.latestInterestedCar.mockResolvedValue(null);
+    conversation.loadVehicleBrand.mockResolvedValue('ford');
+    catalog.getLexicon.mockResolvedValue({
+      ...TEST_LEXICON,
+      models: [...TEST_LEXICON.models, { brand: 'ford', family: 'ranger' }],
+    });
+    catalog.listByBrand.mockResolvedValue([xlt2026, xl2024]);
+    catalog.listAvailableExcept.mockResolvedValue([xlt2026, xl2024]);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenos días, estimado. Tenemos dos Ford Ranger disponibles: un Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo con 22,868 km,; y un Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo con 11,061 km, ¿Cuál le interesa ver con fotos?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Ford Ranger\nContexto: Primera interacción\n\nSOLICITUD ACTUAL:\nCliente quiere cotizar Ford Ranger.\nPide precio: sí\nPide crédito: no\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo está en $70,000, y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en $65,000. ¿Cuál desea ver?',
+        meta: { precio_mostrado: true, vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59765299',
+      customerText: 'Sí, por favor\nNo, solo cotizo',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/68,?800/);
+    expect(result?.reply.mensaje).toMatch(/44,?590/);
+    expect(result?.reply.mensaje).not.toMatch(/70,?000/);
+    expect(result?.reply.mensaje).not.toMatch(/65,?000/);
+    expect(result?.reply.meta.precioMostrado).toBe(true);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/68800|\$68,?800/);
+    expect(system).toMatch(/44590|\$44,?590/);
+  });
+
   it('A76278 elige la X70 Plus II manual del listado, no vuelve a preguntar cuál', async () => {
     const manual = {
       id: 'x70-ii-tm',
