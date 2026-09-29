@@ -38,6 +38,67 @@ describe('marca y tres filas', () => {
       year: 2008,
     });
     expect(
+      detectNamedModelAsk('Hola. Me interesa el Ram 700 2023', TEST_LEXICON),
+    ).toEqual({
+      brand: 'ram',
+      family: '700',
+      year: 2023,
+    });
+    expect(
+      detectNamedModelAsk('Me interesa el Ram 1500 2022', TEST_LEXICON),
+    ).toEqual({
+      brand: 'ram',
+      family: '1500',
+      year: 2022,
+    });
+    expect(detectNamedModelAsk('Me interesa el Ram 1500', TEST_LEXICON)).toEqual({
+      brand: 'ram',
+      family: '1500',
+      year: null,
+    });
+    expect(detectNamedModelAsk('Buenas tardes tal vez l200', TEST_LEXICON)).toEqual({
+      brand: 'mitsubishi',
+      family: 'l200',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk(
+        'Cliente quiere información de una L200 y solicita fotos.',
+        TEST_LEXICON,
+      ),
+    ).toEqual({
+      brand: 'mitsubishi',
+      family: 'l200',
+      year: null,
+    });
+    expect(detectNamedModelAsk('Hola. Me interesa el Peugeot 2008', TEST_LEXICON)).toEqual({
+      brand: 'peugeot',
+      family: '2008',
+      year: null,
+    });
+    expect(detectNamedModelAsk('tiene una Ford F-150', TEST_LEXICON)).toEqual({
+      brand: 'ford',
+      family: 'f150',
+      year: null,
+    });
+    expect(detectNamedModelAsk('Jetour X70', TEST_LEXICON)).toEqual({
+      brand: 'jetour',
+      family: 'x70',
+      year: null,
+    });
+    expect(detectNamedModelAsk('Fiat 500 lounge', TEST_LEXICON)).toEqual({
+      brand: 'fiat',
+      family: '500',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk('Hola, algún sz pero 2020 a 2022', TEST_LEXICON),
+    ).toEqual({
+      brand: '',
+      family: 'vitara',
+      year: 2022,
+    });
+    expect(
       detectNamedModelAsk(
         'Hola. Me interesa el Toyota Land Cruiser Prado',
         TEST_LEXICON,

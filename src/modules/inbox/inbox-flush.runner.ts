@@ -316,18 +316,27 @@ export class InboxFlushRunner {
     await this.runLog.record({
       ...ctx,
       step: 'outbound',
-      status: outbound.delivered ? 'ok' : 'skipped',
+      status: outbound.shadow
+        ? 'skipped'
+        : outbound.delivered
+          ? 'ok'
+          : 'error',
       reason: outbound.shadow
         ? 'shadow_no_envia'
-        : outbound.missingPhotos
-          ? 'enviado_sin_fotos'
-          : 'enviado',
+        : outbound.delivered
+          ? outbound.missingPhotos
+            ? 'enviado_sin_fotos'
+            : 'enviado'
+          : 'kommo_no_escribio',
       detail: {
         mensaje: turn.reply.mensaje.slice(0, 1000),
         photoBots: outbound.photoBots,
         missingPhotos: outbound.missingPhotos,
         inventoryId: turn.reply.meta.vehiculo?.inventory_id ?? null,
       },
+      error: outbound.delivered || outbound.shadow
+        ? undefined
+        : 'Kommo rechazó Respuesta IA (revisar pago/402)',
     });
 
     const storedLead =

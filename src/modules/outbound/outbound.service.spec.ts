@@ -53,6 +53,28 @@ describe('OutboundService', () => {
       inventoryId: UUID,
     });
     expect(result.missingPhotos).toBe(false);
+    expect(result.delivered).toBe(true);
+  });
+
+  it('si Kommo responde 402 no marca entregado ni dispara fotos', async () => {
+    crm.setRespuestaIa.mockResolvedValue(false);
+
+    const result = await service.dispatch(
+      '42074903',
+      {
+        mensaje: 'Tenemos una Ram 700',
+        meta: {
+          precioMostrado: false,
+          cuotaMostrada: false,
+          vehiculo: { inventory_id: UUID },
+        },
+        img_prefix: '',
+      },
+      { photoAfterTextMs: 0 },
+    );
+
+    expect(result.delivered).toBe(false);
+    expect(crm.runSalesbot).not.toHaveBeenCalled();
   });
 
   it('si hay UUID pero no bot_id, avisa al cliente y no dispara fotos', async () => {
@@ -167,6 +189,26 @@ describe('OutboundService', () => {
       '41807269',
       'Estimado, tenemos disponible un Chevrolet Dmax 2022 color vino, con 87687 km.',
     );
+    expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
+  });
+
+  it('42074953: sin UUID recorta fotos y deja la ficha del Montero', async () => {
+    await service.dispatch('42074953', {
+      mensaje:
+        'Buenas noches, estimado. Aquí tiene las fotos del Montero Sport GLS 2022 negro, 75.258 km.',
+      meta: {
+        precioMostrado: false,
+        cuotaMostrada: false,
+        vehiculo: null,
+      },
+      img_prefix: '',
+    });
+
+    const sent = crm.setRespuestaIa.mock.calls[0][1] as string;
+    expect(sent).toMatch(/Montero Sport GLS 2022/i);
+    expect(sent).toMatch(/75\.258 km/i);
+    expect(sent).not.toMatch(/fotos/i);
+    expect(sent).not.toBe('Buenas noches, estimado.');
     expect(catalog.resolvePhotoBots).not.toHaveBeenCalled();
   });
 

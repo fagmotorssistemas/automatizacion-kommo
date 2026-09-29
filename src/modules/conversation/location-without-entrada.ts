@@ -117,6 +117,20 @@ export function dropRepeatedAddress(text: string): string {
   return stripped || text;
 }
 
+/** Horario de casa (08:30–18:00). No se manda si no lo pidió. */
+export function dropUnsolicitedHours(text: string): string {
+  const stripped = text
+    .split(/(?<=[.!?])\s+/)
+    .filter(
+      (sentence) =>
+        !(/\b0?8[:h]30\b/.test(sentence) && /\b18[:h]00\b/.test(sentence)),
+    )
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return stripped || text;
+}
+
 export function appendMapLink(text: string): string {
   if (!hasDealershipAddress(text) || text.includes(MAP_URL)) {
     return text;

@@ -63,6 +63,7 @@ export function normalizeModelText(value: string): string {
     .replace(/\bland\s*cruiser\s*prado\b/g, 'prado')
     .replace(/\blc\s*prado\b/g, 'prado')
     .replace(/\bgrand?\s*vitara\b/g, 'vitara')
+    .replace(/\bsz\b/g, 'vitara')
     .replace(/-/g, '');
 }
 
@@ -78,6 +79,14 @@ export function modelFamily(model: string): string {
     (part) => part.length >= 3 && !skip.has(part) && !isDriveToken(part),
   );
   if (token) {
+    const next = parts[parts.indexOf(token) + 1];
+    if (
+      next &&
+      /^\d{2,4}$/.test(next) &&
+      (Number(next) < 1990 || Number(next) > 2035)
+    ) {
+      return next;
+    }
     return token;
   }
   return parts.find((part) => /^[a-z]\d{1,3}$/i.test(part)) ?? '';
@@ -411,6 +420,24 @@ export function carsInYearSpan<T extends { year?: number | null }>(
     (car) =>
       car.year != null && car.year >= minYear && car.year <= maxYear,
   );
+}
+
+/** Otras del mismo tipo cuando no está el modelo en ese rango de años. */
+export function pickSpanAlternatives(
+  cars: StockCar[],
+  family: string,
+  kind: VehicleKind | null,
+  span: { min: number; max: number },
+  limit = 3,
+): StockCar[] {
+  const sameType = cars.filter(
+    (car) => !kind || matchesVehicleKind(car.typeBody, kind),
+  );
+  const others = sameType.filter((car) => !sameAskedUnit(car, family, null));
+  const pool = others.length > 0 ? others : sameType;
+  const inSpan = carsInYearSpan(pool, span.min, span.max);
+  const chosen = inSpan.length > 0 ? inSpan : preferCurrentYears(pool);
+  return chosen.slice(0, limit);
 }
 
 /**
@@ -816,6 +843,7 @@ export function formatMissingNamedModel(
   includePrice = false,
   onward = false,
   kind?: VehicleKind | null,
+  yearMax?: number | null,
 ): {
   text: string;
   holdVehicle: boolean;
@@ -824,18 +852,29 @@ export function formatMissingNamedModel(
   listedUnits?: StockCar[];
   choseFromShown?: boolean;
 } {
-  const same = alternatives.filter((car) =>
-    sameAskedUnit(car, family, year, onward),
-  );
+  const same = alternatives.filter((car) => {
+    if (year != null && yearMax != null && yearMax !== year) {
+      return (
+        sameAskedUnit(car, family, null) &&
+        car.year != null &&
+        car.year >= year &&
+        car.year <= yearMax
+      );
+    }
+    return sameAskedUnit(car, family, year, onward);
+  });
   if (same.length > 0) {
     return formatNamedUnits(same, includePrice);
   }
   const pretty = family.charAt(0).toUpperCase() + family.slice(1);
-  const asked = year
-    ? onward
-      ? `${pretty} ${year} en adelante`
-      : `${pretty} ${year}`
-    : pretty;
+  const asked =
+    year != null && yearMax != null && yearMax !== year
+      ? `${pretty} ${year} a ${yearMax}`
+      : year
+        ? onward
+          ? `${pretty} ${year} en adelante`
+          : `${pretty} ${year}`
+        : pretty;
   const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA solo si es el mismo tipo. Prohibido presentarla como si fuera el ${pretty}. Prohibido cambiar de tipo. Prohibido volver al carro que el cliente ya dejó.`;
   const close = alternatives.filter((car) =>
     kind ? matchesVehicleKind(car.typeBody, kind) : true,

@@ -20,6 +20,7 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'nissan', model: 'sentra exclusive' },
   { brand: 'hyundai', model: 'tucson gl' },
   { brand: 'hyundai', model: 'kona gl' },
+  { brand: 'hyundai', model: 'creta ac 1.5 5p 4x2 tm' },
   { brand: 'ford', model: 'explorer xlt' },
   { brand: 'ford', model: 'f-150' },
   { brand: 'volkswagen', model: 't-cross' },
@@ -28,4 +29,8 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'mitsubishi', model: 'l200 2.4 cd' },
   { brand: 'peugeot', model: '2008 fin' },
   { brand: 'peugeot', model: '3008n' },
+  { brand: 'ram', model: 'ram 700 slt ac 1.4 cs 4x2 tm' },
+  { brand: 'ram', model: 'ram 1500 laramie 4x4' },
+  { brand: 'fiat', model: '500 lounge ac 1.4 3p 4x2 tm' },
+  { brand: 'mitsubishi', model: 'montero sport gls ac 3.0 5p 4x4' },
 ]);

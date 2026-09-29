@@ -37,4 +37,35 @@ describe('stripUnsentPhotoClaim', () => {
       'Estimado, tenemos disponible un Chevrolet Dmax CRDI 2.5 CD 4x4 manual diesel 2022 color vino, con 87687 km.',
     );
   });
+
+  it('A76424 no se come la ficha si va pegada a las fotos', () => {
+    const clean = stripUnsentPhotoClaim(
+      'Buenas noches, estimado. Tenemos disponible una Chevrolet D-max crdi 2.5 cs 4x2 año 2020 color blanco, con 93787 km, transmisión manual y Aquí tiene también las fotos del vehículo.',
+    );
+    expect(clean).toMatch(/D-max/i);
+    expect(clean).toMatch(/93787/);
+    expect(clean).not.toMatch(/fotos/i);
+    expect(clean).not.toBe('Buenas noches, estimado.');
+  });
+
+  it('42074953: la ficha del Montero no se va con “aquí tiene las fotos de…”', () => {
+    const clean = stripUnsentPhotoClaim(
+      'Buenas noches, estimado. Aquí tiene las fotos del Montero Sport GLS 2022 negro, 75.258 km.',
+    );
+    expect(clean).toMatch(/Montero Sport GLS 2022/i);
+    expect(clean).toMatch(/75\.258 km/i);
+    expect(clean).not.toMatch(/fotos/i);
+    expect(clean).not.toBe('Buenas noches, estimado.');
+  });
+
+  it('42074953: varios Monteros, la lista no se recorta con el saludo', () => {
+    const clean = stripUnsentPhotoClaim(
+      'Buenas noches, estimado. Aquí tiene las fotos de los Monteros: Montero Sport GLS 2022 negro, 75.258 km, y Montero 2016 plomo.',
+    );
+    expect(clean).toMatch(/Montero Sport GLS 2022/i);
+    expect(clean).toMatch(/75\.258 km/i);
+    expect(clean).toMatch(/Montero 2016/i);
+    expect(clean).not.toMatch(/fotos/i);
+    expect(clean).not.toBe('Buenas noches, estimado.');
+  });
 });

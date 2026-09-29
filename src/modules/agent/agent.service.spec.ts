@@ -219,11 +219,51 @@ describe('AgentService', () => {
     expect(system).toMatch(
       /SALUDO: (Buenos días|Buenas tardes|Buenas noches), estimado/,
     );
+    expect(system).toMatch(/Solo UNA pregunta: qué carro le interesa/);
+    expect(system).not.toMatch(/PIDIÓ UBICACIÓN/);
     expect(conversation.saveLastSeen).toHaveBeenCalledWith('59099901');
     expect(conversation.appendMessage).toHaveBeenCalledWith('59099901', {
       role: 'assistant',
       content: result?.reply.mensaje,
     });
+  });
+
+  it('42074887: primer “quiero más información” no manda casa ni horario aunque el resumen lo invente', async () => {
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere más información.',
+          'Pide otras: no',
+          'Falta vehículo: sí',
+          'Pide ubicación: sí',
+          'Pide horario: sí',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estamos en Av. España 6-73 y Sevilla, Cuenca. Atendemos de lunes a viernes de 08:30 a 18:00 y el sábado de 09:30 a 13:30. ¿Qué carro le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42074887',
+      customerText: '¡Hola! Quiero más información',
+    });
+
+    const system = esperaSoloPreguntarCarro(result);
+    expect(system).toMatch(/Solo UNA pregunta: qué carro le interesa/);
+    expect(system).not.toMatch(/PIDIÓ UBICACIÓN/);
+    const msg = result?.reply.mensaje ?? '';
+    expect(msg).toMatch(/¿Qué carro le interesa\?/);
+    expect(msg).not.toMatch(/Av\. España/i);
+    expect(msg).not.toContain(MAP_URL);
+    expect(msg).not.toMatch(/08:30/);
+    expect(result?.resumen).toMatch(/Pide ubicación: no/i);
+    expect(result?.resumen).toMatch(/Pide horario: no/i);
   });
 
   it('envíeme fotos sin carro ni listado no arma cola', async () => {
@@ -3658,6 +3698,671 @@ describe('AgentService', () => {
     expect(system).toMatch(/SÍ está en patio/i);
     expect(system).not.toMatch(/No hay Prado 2015/i);
     expect(system).not.toContain('fortuner-2015');
+  });
+
+  it('Vitara 2015 y luego Optra presenta el 2012, no dice que no hay 2015', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Hola. Me interesa el Suzuki Grand Vitara 2015',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'optra-2012',
+        brand: 'chevrolet',
+        model: 'optra advance 1.8l',
+        year: 2012,
+        price: 10900,
+        typeBody: 'sedan',
+        color: 'vino',
+        mileage: 219500,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Grand Vitara 2015\nSOLICITUD ACTUAL:\nCliente quiere el Optra.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos un Optra Advance 2012 vino, 219500 km.',
+        meta: { vehiculo: { inventory_id: 'optra-2012' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '41950009',
+      customerText: 'Optra',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'optra-2012' }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('inventory_id=optra-2012');
+    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).not.toMatch(/No hay Optra 2015/i);
+  });
+
+  it('42074889: SZ 2020 a 2022 no está, lista otras SUV de esos años', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'sz-2015',
+        brand: 'suzuki',
+        model: 'grand vitara sz ac 2.0',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'sportage-2021',
+        brand: 'kia',
+        model: 'sportage r gti',
+        year: 2021,
+        price: 21990,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'tucson-2022',
+        brand: 'hyundai',
+        model: 'tucson gl',
+        year: 2022,
+        price: 22990,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'rio-2018',
+        brand: 'kia',
+        model: 'rio lx',
+        year: 2018,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca un SZ 2020 a 2022.\nPide precio: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay SZ 2020 a 2022. Tenemos Sportage 2021 y Tucson 2022.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42074889',
+      customerText: 'Hola, algún sz pero 2020 a 2022 derrepente..?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/No hay Vitara 2020 a 2022/i);
+    expect(system).toMatch(/sportage/i);
+    expect(system).toMatch(/tucson/i);
+    expect(system).not.toMatch(/No hay otra del mismo tipo/i);
+  });
+
+  it('42074903: Ram 700 2023 manda el UUID para fotos', async () => {
+    const ramId = 'c7b85a94-0ac1-415c-aeec-e3c682a8603e';
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'ram-1500',
+        brand: 'ram',
+        model: 'ram 1500 laramie 4x4',
+        year: 2022,
+        price: 42990,
+        typeBody: 'camioneta',
+        color: 'negro',
+        mileage: 41000,
+      },
+      {
+        id: ramId,
+        brand: 'ram',
+        model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+        year: 2023,
+        price: 18990,
+        typeBody: 'camioneta',
+        color: 'blanco',
+        mileage: 61798,
+      },
+      {
+        id: 'ram-rebel',
+        brand: 'ram',
+        model: 'ram rebel 4x4',
+        year: 2021,
+        price: 38990,
+        typeBody: 'camioneta',
+        color: 'rojo',
+        mileage: 52000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Ram 700 2023 y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos un Ram 700 SLT 2023 blanco, 61798 km.',
+        meta: { vehiculo: { inventory_id: ramId } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42074903',
+      customerText: 'Hola. Me interesa el Ram 700 2023',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: ramId }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain(`inventory_id=${ramId}`);
+    expect(system).toMatch(/una sola unidad y hay que mandarla/i);
+    expect(system).not.toContain('inventory_id=ram-1500');
+    expect(system).not.toContain('inventory_id=ram-rebel');
+  });
+
+  it('42074973: un solo Fiat 500 lounge disponible manda el UUID', async () => {
+    const loungeId = 'f1a7500a-0ac1-415c-aeec-e3c682a8603e';
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: loungeId,
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'plomo',
+        mileage: 76793,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Fiat 500 lounge y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Buenas noches, estimado. Tenemos disponible un Fiat 500 lounge 2017 color plomo, con 76,793 km, transmisión manual.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42074973',
+      customerText: 'Fiat 500 lounge',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: loungeId }),
+    );
+    expect(system).toContain(`inventory_id=${loungeId}`);
+    expect(system).toMatch(/una sola unidad y hay que mandarla/i);
+  });
+
+  it('42074973: un lounge + otros Fiat, el modelo no pone id — ¿el review lo clava?', async () => {
+    const loungeId = 'f1a7500a-0ac1-415c-aeec-e3c682a8603e';
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: loungeId,
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'plomo',
+        mileage: 76793,
+      },
+      {
+        id: 'fiat-pulse',
+        brand: 'fiat',
+        model: 'pulse drive at',
+        year: 2024,
+        price: 21990,
+        typeBody: 'suv',
+        color: 'blanco',
+        mileage: 12000,
+      },
+      {
+        id: 'fiat-argo',
+        brand: 'fiat',
+        model: 'argo trekking',
+        year: 2022,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'rojo',
+        mileage: 34000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Fiat 500 lounge y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Buenas noches, estimado. Tenemos disponible un Fiat 500 lounge 2017 color plomo, con 76,793 km, transmisión manual.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42074973',
+      customerText: 'Fiat 500 lounge',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/una sola unidad y hay que mandarla/i);
+    expect(system).toContain(`inventory_id=${loungeId}`);
+    expect(system).not.toMatch(/hay \d+ unidades/i);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe(loungeId);
+  });
+
+  it('42074973: dos Fiat 500 disponibles — ¿se tira el id del lounge?', async () => {
+    const loungeId = 'f1a7500a-0ac1-415c-aeec-e3c682a8603e';
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: loungeId,
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 12990,
+        typeBody: 'hatchback',
+        color: 'plomo',
+        mileage: 76793,
+      },
+      {
+        id: 'fiat-500-pop',
+        brand: 'fiat',
+        model: '500 pop ac 1.2 3p 4x2 tm',
+        year: 2015,
+        price: 10990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+        mileage: 92000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Fiat 500 lounge y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos un Fiat 500 lounge 2017 plomo, 76793 km.',
+        meta: { vehiculo: { inventory_id: loungeId } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '42074973-dos',
+      customerText: 'Fiat 500 lounge',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/hay 2 unidades/i);
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe(loungeId);
+  });
+
+  it.each([
+    {
+      lead: '42074903',
+      text: 'Hola. Me interesa el Ram 700 2023',
+      id: 'c7b85a94-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'ram',
+      model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+      year: 2023,
+      typeBody: 'camioneta',
+      extras: [
+        {
+          id: 'ram-1500',
+          brand: 'ram',
+          model: 'ram 1500 laramie 4x4',
+          year: 2022,
+          typeBody: 'camioneta',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42074973',
+      text: 'Fiat 500 lounge',
+      id: 'f1a7500a-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'fiat',
+      model: '500 lounge ac 1.4 3p 4x2 tm',
+      year: 2017,
+      typeBody: 'hatchback',
+      extras: [
+        {
+          id: 'fiat-pulse',
+          brand: 'fiat',
+          model: 'pulse drive at',
+          year: 2024,
+          typeBody: 'suv',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42074965',
+      text: 'Creta 2022\nCuál es el precio',
+      id: 'c2e7a001-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      typeBody: 'suv',
+      extras: [
+        {
+          id: 'tucson-1',
+          brand: 'hyundai',
+          model: 'tucson gl',
+          year: 2021,
+          typeBody: 'jeep',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '41950009',
+      text: 'Optra',
+      id: 'e9e226aa-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l',
+      year: 2012,
+      typeBody: 'sedan',
+      extras: [
+        {
+          id: 'aveo-1',
+          brand: 'chevrolet',
+          model: 'aveo ls ac 1.6',
+          year: 2018,
+          typeBody: 'sedan',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: 'montero',
+      text: 'Hola. Me interesa el Montero Sport',
+      id: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'l200-x',
+          brand: 'mitsubishi',
+          model: 'l200 2.4 cd 4x4',
+          year: 2022,
+          typeBody: 'camioneta',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42074887',
+      text: '¡Hola! Quiero más información',
+      id: 'no-debe',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      typeBody: 'jeep',
+      extras: [],
+      expectId: false,
+    },
+  ])('$lead «$text» ¿bota el id?', async (row) => {
+    catalog.listByBrand.mockResolvedValue([
+      ...row.extras,
+      {
+        id: row.id,
+        brand: row.brand,
+        model: row.model,
+        year: row.year,
+        price: 18990,
+        typeBody: row.typeBody,
+        color: 'blanco',
+        mileage: 69000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        row.expectId
+          ? `SOLICITUD ACTUAL:\nCliente quiere ${row.text} y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no`
+          : 'SOLICITUD ACTUAL:\nCliente pide información pero no especificó qué carro.\nFalta vehículo: sí\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: row.expectId
+          ? `Tenemos el ${row.model}.`
+          : '¿Qué carro le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: row.lead,
+      customerText: row.text,
+    });
+    const got = result?.reply.meta.vehiculo?.inventory_id ?? 'ninguno';
+    if (row.expectId) {
+      expect(got).toBe(row.id);
+    } else {
+      expect(got).toBe('ninguno');
+    }
+  });
+
+  it.each([
+    {
+      name: 'Ram 1500 2022',
+      text: 'Hola. Me interesa el Ram 1500 2022',
+      id: 'a11b22c3-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'ram',
+      model: 'ram 1500 laramie 4x4',
+      year: 2022,
+      typeBody: 'camioneta',
+      extras: [
+        {
+          id: 'ram-700-other',
+          brand: 'ram',
+          model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+          year: 2023,
+          typeBody: 'camioneta',
+        },
+      ],
+    },
+    {
+      name: 'Ram 1500 sin año',
+      text: 'Me interesa el Ram 1500',
+      id: 'b22c33d4-0ac1-415c-aeec-e3c682a8603e',
+      brand: 'ram',
+      model: 'ram 1500 laramie 4x4',
+      year: 2022,
+      typeBody: 'camioneta',
+      extras: [
+        {
+          id: 'ram-700-other',
+          brand: 'ram',
+          model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+          year: 2023,
+          typeBody: 'camioneta',
+        },
+      ],
+    },
+    {
+      name: 'L200',
+      text: 'Buenas tardes tal vez l200',
+      id: 'l200-1',
+      brand: 'mitsubishi',
+      model: 'l200 2.4 cd 4x4',
+      year: 2022,
+      typeBody: 'camioneta',
+    },
+    {
+      name: 'Peugeot 2008',
+      text: 'Hola. Me interesa el Peugeot 2008',
+      id: 'p2008-2022',
+      brand: 'peugeot',
+      model: '2008 fin',
+      year: 2022,
+      typeBody: 'suv',
+    },
+    {
+      name: 'Ford F-150',
+      text: 'tiene una Ford F-150',
+      id: 'f150-1',
+      brand: 'ford',
+      model: 'f-150 lariat 5.0 4x4',
+      year: 2021,
+      typeBody: 'camioneta',
+    },
+    {
+      name: 'Jetour X70',
+      text: 'Hola. Me interesa el Jetour X70',
+      id: 'x70-1',
+      brand: 'jetour',
+      model: 'x70 ii ac 1.5 5p 4x2 tm',
+      year: 2023,
+      typeBody: 'jeep',
+    },
+    {
+      name: 'Chevrolet Optra',
+      text: 'me interesa el Chevrolet Optra',
+      id: 'optra-1',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l',
+      year: 2012,
+      typeBody: 'sedan',
+    },
+  ])('$name manda el id de esa unidad, no se corta', async (row) => {
+    catalog.listByBrand.mockResolvedValue([
+      ...(row.extras ?? []),
+      {
+        id: row.id,
+        brand: row.brand,
+        model: row.model,
+        year: row.year,
+        price: 18990,
+        typeBody: row.typeBody,
+        color: 'blanco',
+        mileage: 40000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        `SOLICITUD ACTUAL:\nCliente quiere el ${row.name} y solicita fotos.\nPide precio: no\nFalta vehículo: no\nPide otras: no`,
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: `Tenemos el ${row.name}.`,
+        meta: { vehiculo: { inventory_id: row.id } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: `uid-${row.id}`,
+      customerText: row.text,
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: row.id }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain(`inventory_id=${row.id}`);
+    for (const extra of row.extras ?? []) {
+      expect(system).not.toContain(`inventory_id=${extra.id}`);
+    }
+  });
+
+  it('del 2015 y luego Optra sí exige ese año', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'del 2015' },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'optra-2012',
+        brand: 'chevrolet',
+        model: 'optra advance 1.8l',
+        year: 2012,
+        price: 10900,
+        typeBody: 'sedan',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca un Optra del 2015.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos Optra 2015. Hay un Optra 2012.',
+        meta: { vehiculo: { inventory_id: 'optra-2012' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Optra',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/No hay Optra 2015|no tenemos Optra 2015/i);
+    expect(system).toContain('inventory_id=optra-2012');
+  });
+
+  it('2015 en adelante y luego Optra 2012 no lo ofrece como vigente', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: '2015 en adelante' },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'optra-2012',
+        brand: 'chevrolet',
+        model: 'optra advance 1.8l',
+        year: 2012,
+        price: 10900,
+        typeBody: 'sedan',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca Optra 2015 en adelante.\nPide precio: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos Optra 2015 en adelante.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '1',
+      customerText: 'Optra',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2015 en adelante/i);
+    expect(system).not.toMatch(/SÍ está en patio/i);
   });
 
   it('si pide otro modelo no se queda en el Seltos ni reusa la caja', async () => {

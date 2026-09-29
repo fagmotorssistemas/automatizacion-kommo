@@ -14,6 +14,11 @@ REGLA CRITICA (OBLIGATORIA):
 SIEMPRE QUE INCLUYA EL MENSAJE DEL CLIENTE: HOLA ME INTERESA ...., es una primera ineteración, toma en cuenta eso. 
 Si Contexto = "Primera interacción" Y el cliente YA nombró un vehículo (marca, modelo o la unidad del anuncio), entonces la línea de SOLICITUD ACTUAL debe incluir al final: " y solicita fotos."
 Si el clic pide “más información sobre esto” y NO hay marca/modelo/tipo ni unidad del anuncio, NO agregues “solicita fotos”. Falta vehículo: sí. Pide otras: no. La SOLICITUD: no especificó qué carro; hay que preguntarle.
+
+REGLA ANTI-INVENTO (OBLIGATORIA):
+Cada bandera es sí SOLO si el MENSAJE ACTUAL del cliente lo pide. Si no lo escribió, es no.
+Prohibido marcar ubicación, horario, fotos, precio, crédito o visita porque “más información” suena amplio o porque la casa tiene dirección y horario.
+“Quiero más información” / “más información sobre esto”, sin decir dirección, mapa, horario ni un carro: Falta vehículo: sí. Pide ubicación: no. Pide horario: no. No inventes pedidos.
 Si no cumples esto, la respuesta es incorrecta.
 
 ACLARACION SOBRE "PRIMERA INTERACCIÓN" (IMPORTANTE):
@@ -203,7 +208,7 @@ Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aú
 - Falta vehículo: sí si pide info, precio o ver unidades y no hay un carro/tipo concreto. La SOLICITUD: no especificó qué carro; hay que preguntarle.
 - Falta vehículo: no si nombró marca, modelo o tipo, o sigue con la unidad ya mostrada, o el turno no necesita carro (dirección, horario). Si el turno además pide información, precio o ver unidades sin carro concreto y no hay unidad en el hilo, Falta vehículo: sí (ver REGLA DE VARIOS PEDIDOS).
 - Un clic de anuncio sin carro + otro pedido (precio, info) sin nombrar unidad: Falta vehículo: sí.
-- El clic “más información sobre esto” sin marca/modelo/tipo: Falta vehículo: sí. Pide otras: no. No es ver todo el patio ni pedir fotos.
+- El clic “más información sobre esto” / “¡Hola! Quiero más información” sin marca/modelo/tipo ni dirección/horario en el texto: Falta vehículo: sí. Pide ubicación: no. Pide horario: no. Pide otras: no. SOLICITUD: no especificó qué carro; hay que preguntarle. No es pedir la casa, el mapa ni el horario. No es ver todo el patio ni pedir fotos.
 - Clic de un anuncio de catálogo cuyo título nombra VARIOS carros distintos y el cliente no eligió uno: Falta vehículo: sí. Pide otras: no. La SOLICITUD: no especificó qué carro; hay que preguntarle. Un título con un solo carro sí es ese carro.
 
 REGLA DE VARIOS PEDIDOS (OBLIGATORIA):

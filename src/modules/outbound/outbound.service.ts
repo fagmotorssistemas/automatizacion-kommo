@@ -143,11 +143,13 @@ export class OutboundService {
       };
     }
 
+    let wrote = true;
     if (mensaje) {
-      await this.sendText(leadId, mensaje);
+      const sent = await this.sendText(leadId, mensaje);
+      wrote = sent.wrote;
     }
 
-    if (photoBots.length > 0) {
+    if (wrote && photoBots.length > 0) {
       await this.pauseBeforePhotos(options?.photoAfterTextMs);
       for (const botId of photoBots) {
         await this.crm.runSalesbot(botId, leadId);
@@ -155,13 +157,13 @@ export class OutboundService {
     }
 
     this.logger.log(
-      `Outbound lead=${leadId} texto=${Boolean(mensaje)} fotos=${photoBots.length} sin_fotos=${missingPhotos}`,
+      `Outbound lead=${leadId} texto=${Boolean(mensaje)} escrito=${wrote} fotos=${wrote ? photoBots.length : 0} sin_fotos=${missingPhotos}`,
     );
     reply.mensaje = mensaje;
     return {
-      delivered: true,
+      delivered: wrote,
       shadow: false,
-      photoBots,
+      photoBots: wrote ? photoBots : [],
       missingPhotos,
     };
   }
@@ -214,7 +216,16 @@ export class OutboundService {
       const item = queue[i];
       const pack = packs[i];
       if (pack.text) {
-        await this.sendText(leadId, pack.text);
+        const sent = await this.sendText(leadId, pack.text);
+        if (!sent.wrote) {
+          this.logger.error(`Kommo no escribió Respuesta IA lead=${leadId}`);
+          return {
+            delivered: false,
+            shadow: false,
+            photoBots: allBots,
+            missingPhotos,
+          };
+        }
       }
       if (pack.bots.length > 0) {
         await this.pauseBeforePhotos(photoAfterTextMs);

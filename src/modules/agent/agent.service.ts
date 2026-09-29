@@ -102,6 +102,7 @@ import {
   isConcreteAsk,
   resolveConcreteAsk,
 } from '../conversation/concrete-ask';
+import { resolveThreadYear } from '../conversation/thread-year';
 import {
   formatGreetingPedido,
   shouldOfferGreeting,
@@ -124,6 +125,8 @@ import {
 import {
   appendMapLink,
   dropRepeatedAddress,
+  dropUnsolicitedHours,
+  hasDealershipAddress,
   ungateLocationReply,
 } from '../conversation/location-without-entrada';
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
@@ -191,6 +194,7 @@ import {
   textAsksForOtherColor,
   textIsPriceObjection,
 } from '../intelligence/parse-resumen';
+import { sanitizeInventedResumenFlags } from '../intelligence/sanitize-resumen-flags';
 import {
   ensureListedPrice,
   historySaidMileageCare,
@@ -230,6 +234,7 @@ import {
   kindFromStockFamily,
   pickCabDriveOffer,
   pickClosestToMissingModel,
+  pickSpanAlternatives,
   pickShownByYear,
   unitDrive,
   shownThreadText,
@@ -372,21 +377,6 @@ function matchUnitFacts(
   });
 }
 
-function lastYearInUserTexts(
-  texts: string[],
-  lexicon: VehicleLexicon,
-): number | null {
-  let year: number | null = null;
-  for (const text of texts) {
-    const asked = detectNamedModelAsk(text, lexicon);
-    const found = asked ? asked.year : detectYearInText(text);
-    if (found) {
-      year = found;
-    }
-  }
-  return year;
-}
-
 /** Si pidió un año y no está, no ofrezcas uno 20 años más viejo. */
 function carsNearYear(cars: StockCar[], year: number, delta = 3): StockCar[] {
   return cars.filter(
@@ -480,6 +470,8 @@ export class AgentService {
 
     const lexicon = await this.catalog.getLexicon();
     const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
+    const bareMoreInfo =
+      isFacebookMoreInfoOpener(input.customerText) && !adVehicle;
 
     if (!this.openai.isReady()) {
       throw new Error('OPENAI_API_KEY vacío; no se llama al modelo');
@@ -527,9 +519,11 @@ export class AgentService {
       previousResumen,
       entregado,
     });
-    const resumen =
+    const resumen = sanitizeInventedResumenFlags(
       (await this.openai.complete(RESUMEN_SYSTEM_PROMPT, resumenInput)) ??
-      input.customerText;
+        input.customerText,
+      input.customerText,
+    );
     const nombra = textoQueNombra(resumen, input.customerText, lexicon);
     const brandSaidNow = detectBrand(nombra, lexicon);
     let pedido = detectNamedModelAsk(nombra, lexicon)
@@ -650,7 +644,8 @@ export class AgentService {
       .map((item) => item.content)
       .join('\n')}`;
     const spaceAsk = asksForLargePassengerSpace(spaceText);
-    const pideHorario = resumenPideHorario(resumen);
+    const pideHorario =
+      bareMoreInfo ? false : resumenPideHorario(resumen);
     const tresFilas =
       !esToma &&
       (resumenTresFilas(resumen) ||
@@ -666,7 +661,9 @@ export class AgentService {
         : null;
     const lastOfferText = lastOfferAssistantText(history);
     const lastAssistantListed = lastOfferIsUnitList(lastOfferText);
-    const askedLocation = resumenAsksForLocation(resumen);
+    const askedLocation = bareMoreInfo
+      ? false
+      : resumenAsksForLocation(resumen);
     const hasShownDoubt = resumenHasPendingDoubt(resumen);
     const shownBrandEarly = interested?.brand.trim().toLowerCase() ?? '';
     const otherBrandNow = Boolean(
@@ -1171,15 +1168,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       entregadoEnHilo(history, { unitPrice }),
     );
     const faltaCarroHint =
-      (resumenFaltaVehiculo(resumen) ||
-        (isFacebookMoreInfoOpener(input.customerText) && !adVehicle)) &&
+      (resumenFaltaVehiculo(resumen) || bareMoreInfo) &&
       !adVehicle &&
       !hasQuotedUnit &&
       !brandSaidNow &&
       !pedido &&
       !detectVehicleKind(input.customerText) &&
       !asksAnyBrand(input.customerText)
-        ? 'NO HAY CARRO DEFINIDO: el cliente aún no dijo cuál quiere. Contesta TODO lo que pidió que no dependa del carro (con tus filas: ubicación, horario, toma…). Lo que depende del carro (precio, fotos, cuota) queda pendiente: dile que se lo pasas apenas diga cuál. Termina con UNA sola pregunta: qué carro le interesa. PROHIBIDO inventar una unidad, precio o ficha. PROHIBIDO cerrar con otra pregunta (visita, agendar).'
+        ? bareMoreInfo
+          ? 'NO HAY CARRO DEFINIDO: pidió información pero no dijo de qué vehículo. Solo UNA pregunta: qué carro le interesa. PROHIBIDO dirección, mapa, horario, visita, ficha, precio o fotos. PROHIBIDO inventar una unidad.'
+          : 'NO HAY CARRO DEFINIDO: el cliente aún no dijo cuál quiere. Contesta TODO lo que pidió que no dependa del carro (con tus filas: ubicación, horario, toma…). Lo que depende del carro (precio, fotos, cuota) queda pendiente: dile que se lo pasas apenas diga cuál. Termina con UNA sola pregunta: qué carro le interesa. PROHIBIDO inventar una unidad, precio o ficha. PROHIBIDO cerrar con otra pregunta (visita, agendar).'
         : '';
     const cashDeliveryHint = confirmingCashOrDelivery
       ? 'YA le dijo el $. Ahora confirma lo que pidió: ese valor ES de contado y/o SÍ hay entrega inmediata. PROHIBIDO repetir ficha, km, color ni el $ como si no lo hubiera dicho. No abras crédito. Una o dos frases.'
@@ -1430,8 +1428,19 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       (revision.holdVehicle ||
         (isMoneyNotVisit(input.customerText) && !askedCredit))
     ) {
-      parsed.meta.vehiculo = null;
-      parsed.img_prefix = '';
+      const claimed = parsed.meta.vehiculo?.inventory_id?.trim() ?? '';
+      const listedIds = new Set(
+        (revision.listedUnits ?? []).map((car) => car.id),
+      );
+      if (claimed && isUuid(claimed) && listedIds.has(claimed)) {
+        parsed.meta.vehiculo = {
+          ...(parsed.meta.vehiculo ?? {}),
+          inventory_id: claimed,
+        };
+      } else {
+        parsed.meta.vehiculo = null;
+        parsed.img_prefix = '';
+      }
     } else {
       // Sin carro confirmado por inventario: no dejar ids inventados ni img_prefix para fotos.
       const claimed = parsed.meta.vehiculo?.inventory_id;
@@ -1600,7 +1609,18 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }
       // Donde va la dirección va el mapa (lo pega el sistema, no el modelo).
       // Si ya se entregó y el resumen no la volvió a pedir, se quita.
-      if (entregado.direccion && !askedLocation) {
+      // Clic “más información” sin pedir casa: no se manda dirección ni horario.
+      if (bareMoreInfo) {
+        parsed.mensaje = dropUnsolicitedHours(
+          dropRepeatedAddress(parsed.mensaje),
+        );
+        if (
+          !parsed.mensaje.trim() ||
+          hasDealershipAddress(parsed.mensaje)
+        ) {
+          parsed.mensaje = '¿Qué carro le interesa?';
+        }
+      } else if (entregado.direccion && !askedLocation) {
         parsed.mensaje = dropRepeatedAddress(parsed.mensaje);
       } else {
         parsed.mensaje = appendMapLink(parsed.mensaje);
@@ -1792,9 +1812,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const staysOnShown = resumenStaysOnShownUnit(resumen);
     const nombraAhora = textoQueNombra(resumen, customerText, lexicon);
     const brandSaidInTurn = detectBrand(nombraAhora, lexicon);
-    const namesBrandNow = Boolean(brandSaidInTurn);    const fromText = staysOnShown
-      ? null
-      : detectNamedModelAsk(nombraAhora, lexicon);
+    const namesBrandNow = Boolean(brandSaidInTurn);    const fromText =
+      staysOnShown && (reference?.inventoryId || reference?.family)
+        ? null
+        : detectNamedModelAsk(nombraAhora, lexicon);
     const fromSolicitud =
       cajaCompra === 'no' || (namesBrandNow && !fromText)
         ? null
@@ -1883,7 +1904,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !askedCab &&
       !askedDriveEarly &&
       !phrase &&
-      !tresFilas
+      !tresFilas &&
+      !detectYearSpan(customerText)
     ) {
       return empty;
     }
@@ -1908,7 +1930,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !maybeAsk &&
       !namesBrandNow &&
       !(mightNameModel(customerText) && !staysOnShown) &&
-      !listedFollowUp
+      !listedFollowUp &&
+      !detectYearSpan(customerText)
     ) {
       return empty;
     }
@@ -2295,22 +2318,24 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
       .map((item) => item.content);
+    const threadYear = resolveThreadYear({
+      priorUserTexts,
+      currentText: customerText,
+      lexicon,
+      yearSaidNow,
+    });
     const yearOnward =
-      asksYearOnward(customerText) ||
-      asksYearOnward(solicitud) ||
-      priorUserTexts.some((text) => asksYearOnward(text));
+      threadYear.onward || asksYearOnward(solicitud);
     const wantsClosest =
       Boolean(asked) &&
       (asksClosestByFacts(customerText) ||
         yearOnward ||
         asksClosestByFacts(solicitud));
-    const yearFromThread = asked
-      ? yearSaidNow ??
-        asked.year ??
-        lastYearInUserTexts(priorUserTexts, lexicon)
-      : (yearAsk ?? lastYearInUserTexts(priorUserTexts, lexicon));
+    const yearFromThread = threadYear.year;
     const yearSpan =
-      detectYearSpan(customerText) || detectYearSpan(solicitud);
+      detectYearSpan(customerText) ||
+      detectYearSpan(solicitud) ||
+      threadYear.span;
     const searchingNewPatio =
       !asked &&
       (Boolean(askedCab) ||
@@ -2430,6 +2455,15 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
               vehicleKind: kindOfNamedUnits(picked),
             };
           }
+          if (yearSpan) {
+            return await this.missingYearSpanReview(
+              threadFamily,
+              yearSpan,
+              listed,
+              includePrice,
+              kindForAsk,
+            );
+          }
           if (yearAsk) {
             const missingYear = formatMissingNamedModel(
               threadFamily,
@@ -2523,11 +2557,15 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         };
       }
     }
-    const namedNow = listed.filter(
-      (car) =>
-        textMentionsModel(customerText, car.model) ||
-        (asked ? textMentionsModel(car.model, asked.family) : false),
-    );
+    const namedNow = listed.filter((car) => {
+      if (asked?.family) {
+        return (
+          textMentionsModel(car.model, asked.family) ||
+          modelFamily(car.model) === asked.family
+        );
+      }
+      return textMentionsModel(customerText, car.model);
+    });
     const referenceFamily = reference?.family ?? '';
     if (namedNow.length > 0) {
       const boxed = saidBox
@@ -2546,6 +2584,28 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           switchedModel: true,
           vehicleKind: kindOfNamedUnits(pool),
         };
+      }
+      if (yearSpan) {
+        const inSpan = carsInYearSpan(pool, yearSpan.min, yearSpan.max);
+        if (inSpan.length > 0) {
+          return this.namedModelFound(
+            inSpan,
+            includePrice,
+            false,
+            false,
+            null,
+            false,
+          );
+        }
+        const family =
+          asked?.family || modelFamily(pool[0]?.model ?? '') || 'unidad';
+        return await this.missingYearSpanReview(
+          family,
+          yearSpan,
+          listed,
+          includePrice,
+          kindForAsk ?? kindOfNamedUnits(pool),
+        );
       }
       let offer = preferCurrentYears(
         cabPick && cabPick.cars.length > 0 ? cabPick.cars : pool,
@@ -2630,7 +2690,38 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       }
     }
     if (asked && !tresFilas) {
-      const floorYear = yearFromThread ?? asked.year;
+      if (yearSpan) {
+        const fromEmbed = this.filterByAskedYear(
+          await this.lookupNamedByEmbedding(
+            customerText,
+            asked.family,
+            asked.brand,
+            listed,
+            includePrice,
+          ),
+          yearSpan.min,
+          false,
+          yearSpan.max,
+        );
+        if (fromEmbed.length > 0) {
+          return this.namedModelFound(
+            fromEmbed,
+            includePrice,
+            true,
+            false,
+            null,
+            false,
+          );
+        }
+        return await this.missingYearSpanReview(
+          asked.family,
+          yearSpan,
+          listed,
+          includePrice,
+          kindForAsk,
+        );
+      }
+      const floorYear = yearFromThread;
       const fromEmbed = this.filterByAskedYear(
         await this.lookupNamedByEmbedding(
           customerText,
@@ -2655,7 +2746,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       const elsewhere = this.filterByAskedYear(
         await this.familyInOtherBrands(
           asked.family,
-          yearOnward ? null : asked.year,
+          yearOnward ? null : yearFromThread,
           targetBrand,
         ),
         floorYear,
@@ -2681,8 +2772,8 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       const yearOk = yearOnward && floorYear
         ? carsFromYearOnward(sameFamily, floorYear)
-        : asked.year && sameFamily.length > 0
-          ? carsNearYear(sameFamily, asked.year)
+        : yearFromThread && sameFamily.length > 0
+          ? carsNearYear(sameFamily, yearFromThread)
           : sameFamily;
       const inBudget = threadBudget
         ? yearOk.filter((car) => carFitsBudget(car, threadBudget))
@@ -2736,7 +2827,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       const missing = formatMissingNamedModel(
         asked.family,
-        yearOnward ? floorYear : asked.year,
+        yearOnward ? floorYear : yearFromThread,
         alternatives,
         includePrice,
         yearOnward,
@@ -2875,6 +2966,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           includePrice,
           false,
           kindForAsk,
+          yearSpan.max,
         );
         return {
           ...missing,
@@ -2924,6 +3016,7 @@ ${missing.text}`,
           includePrice,
           false,
           kindForAsk,
+          yearSpan.max,
         );
         return {
           ...missing,
@@ -2933,6 +3026,29 @@ ${missing.text}`,
           vehicleKind: kindForAsk,
         };
       } else {
+        const family = asked?.family || targetBrand || 'unidad';
+        const alts = pickSpanAlternatives(
+          cars.length > 0 ? cars : listed,
+          family,
+          kindForAsk,
+          yearSpan,
+        );
+        if (alts.length > 0) {
+          const missing = formatMissingNamedModel(
+            family,
+            yearSpan.min,
+            alts,
+            includePrice,
+            false,
+            kindForAsk,
+            yearSpan.max,
+          );
+          return {
+            ...missing,
+            switchedModel: true,
+            vehicleKind: kindForAsk ?? kindOfNamedUnits(alts),
+          };
+        }
         cars = inSpan;
       }
     }
@@ -3323,6 +3439,34 @@ ${named.text}`,
       facts.push({ id: car.id, seguro: hit.seguro, dato: hit.dato });
     }
     return facts;
+  }
+
+  private async missingYearSpanReview(
+    family: string,
+    span: { min: number; max: number },
+    listed: StockCar[],
+    includePrice: boolean,
+    kind: VehicleKind | null,
+  ): Promise<BrandReview> {
+    let alts = pickSpanAlternatives(listed, family, kind, span);
+    if (alts.length === 0) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      alts = pickSpanAlternatives(patio, family, kind, span);
+    }
+    const missing = formatMissingNamedModel(
+      family,
+      span.min,
+      alts,
+      includePrice,
+      false,
+      kind,
+      span.max,
+    );
+    return {
+      ...missing,
+      switchedModel: true,
+      vehicleKind: kind ?? kindOfNamedUnits(alts),
+    };
   }
 
   private filterByAskedYear(

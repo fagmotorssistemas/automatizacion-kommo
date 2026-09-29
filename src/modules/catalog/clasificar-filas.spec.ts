@@ -9,6 +9,7 @@ import {
   unitCab,
   formatMissingNamedModel,
   formatNamedUnits,
+  modelFamily,
   formatRevisionMarca,
   kindFromStockFamily,
   pickClosestToMissingModel,
@@ -321,6 +322,19 @@ describe('clasificar filas', () => {
   it('4 x 2 en el texto es tracción 4x2', () => {
     expect(detectAskedDrive('Una Chevrolet doble cabina 4 x 2')).toBe('4x2');
     expect(detectAskedDrive('quiero 4x4')).toBe('4x4');
+  });
+
+  it('la familia es el modelo, no la marca ni el año', () => {
+    expect(modelFamily('ram 700 slt ac 1.4 cs 4x2 tm')).toBe('700');
+    expect(modelFamily('ram 1500 laramie 4x4')).toBe('1500');
+    expect(modelFamily('l200 2.4 cd 4x4')).toBe('l200');
+    expect(modelFamily('f-150 lariat 5.0 4x4')).toBe('f150');
+    expect(modelFamily('x70 plus ii ac 1.5')).toBe('x70');
+    expect(modelFamily('2008 fin')).toBe('2008');
+    expect(modelFamily('3008n')).toBe('3008n');
+    expect(modelFamily('explorer xlt')).toBe('explorer');
+    expect(modelFamily('optra advance 1.8l')).toBe('optra');
+    expect(modelFamily('i10 gls')).toBe('i10');
   });
 
   it('cs/cd y c/d se leen del modelo, no se inventan', () => {
@@ -692,6 +706,39 @@ describe('clasificar filas', () => {
         (car) => car.id,
       ),
     ).toEqual(['dmax-2022']);
+  });
+
+  it('si no hay SZ 2020 a 2022 lo dice y lista otras SUV', () => {
+    const missing = formatMissingNamedModel(
+      'vitara',
+      2020,
+      [
+        {
+          id: 'sportage-2021',
+          brand: 'kia',
+          model: 'sportage r gti',
+          year: 2021,
+          price: 21990,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'tucson-2022',
+          brand: 'hyundai',
+          model: 'tucson gl',
+          year: 2022,
+          price: 22990,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+      false,
+      'suv',
+      2022,
+    );
+    expect(missing.text).toMatch(/No hay Vitara 2020 a 2022/i);
+    expect(missing.text).toMatch(/sportage/i);
+    expect(missing.text).toMatch(/tucson/i);
+    expect(missing.sendId).toBeNull();
   });
 
   it('si el patio sí tiene ese año no dice que no hay', () => {

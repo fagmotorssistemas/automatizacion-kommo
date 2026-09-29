@@ -2,6 +2,7 @@ import {
   appendMapLink,
   DEALERSHIP_ADDRESS,
   dropRepeatedAddress,
+  dropUnsolicitedHours,
   MAP_URL,
   replyGatesInfoOnEntrada,
   stripDepositDisclaimer,
@@ -114,5 +115,13 @@ describe('link del mapa junto a la dirección', () => {
     expect(appendMapLink('Con gusto le ayudo con el precio.')).toBe(
       'Con gusto le ayudo con el precio.',
     );
+  });
+
+  it('quita el horario de casa y deja la pregunta', () => {
+    expect(
+      dropUnsolicitedHours(
+        'Atendemos de lunes a viernes de 08:30 a 18:00 y el sábado de 09:30 a 13:30. ¿Qué carro le interesa?',
+      ),
+    ).toBe('¿Qué carro le interesa?');
   });
 });

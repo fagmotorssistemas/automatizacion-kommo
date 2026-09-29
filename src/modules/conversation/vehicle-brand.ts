@@ -265,7 +265,7 @@ function isFactToken(token: string): boolean {
 }
 
 const FAMILY_TOKEN =
-  /\b((?:19|20)\d{2}|[a-z][a-z0-9]+|[0-9]+[a-z][a-z0-9]*|\d{3})\b/gi;
+  /\b((?:19|20)\d{2}|[a-z][a-z0-9]+|[0-9]+[a-z][a-z0-9]*|\d{3,4})\b/gi;
 
 function tokenAfter(tail: string, from: number): string | null {
   const re = new RegExp(FAMILY_TOKEN.source, 'gi');
@@ -273,7 +273,10 @@ function tokenAfter(tail: string, from: number): string | null {
   let match: RegExpExecArray | null;
   while ((match = re.exec(tail)) !== null) {
     const token = match[1];
-    if (isYearLikeFamily(token) || token.length <= 3) {
+    if (isYearLikeFamily(token)) {
+      continue;
+    }
+    if (token.length <= 3 && !/^\d{3}$/.test(token)) {
       continue;
     }
     return token;
