@@ -885,17 +885,29 @@ export function pickClosestToMissingModel(
   return [];
 }
 
+/** 2008 en el Peugeot 2008 es el modelo de la ficha, no el año. */
+export function yearNamesTheModel(
+  year: number | null | undefined,
+  family: string,
+): boolean {
+  if (year == null || !family.trim()) {
+    return false;
+  }
+  return String(year) === modelFamily(family);
+}
+
 function sameAskedUnit(
   car: StockCar,
   family: string,
   year: number | null,
   onward = false,
 ): boolean {
-  if (year != null) {
+  const askedYear = yearNamesTheModel(year, family) ? null : year;
+  if (askedYear != null) {
     if (car.year == null) {
       return false;
     }
-    if (onward ? car.year < year : car.year !== year) {
+    if (onward ? car.year < askedYear : car.year !== askedYear) {
       return false;
     }
   }
@@ -937,13 +949,14 @@ export function formatMissingNamedModel(
     return formatNamedUnits(same, includePrice);
   }
   const pretty = family.charAt(0).toUpperCase() + family.slice(1);
+  const yearForLabel = yearNamesTheModel(year, family) ? null : year;
   const asked =
-    year != null && yearMax != null && yearMax !== year
-      ? `${pretty} ${year} a ${yearMax}`
-      : year
+    yearForLabel != null && yearMax != null && yearMax !== yearForLabel
+      ? `${pretty} ${yearForLabel} a ${yearMax}`
+      : yearForLabel
         ? onward
-          ? `${pretty} ${year} en adelante`
-          : `${pretty} ${year}`
+          ? `${pretty} ${yearForLabel} en adelante`
+          : `${pretty} ${yearForLabel}`
         : pretty;
   const header = `No hay ${asked} en patio. PRIMERO dilo claro: no tenemos ${asked}. DESPUÉS, si hay una de abajo, ofrece ESA solo si es el mismo tipo. Prohibido presentarla como si fuera el ${pretty}. Prohibido cambiar de tipo. Prohibido volver al carro que el cliente ya dejó.`;
   const close = alternatives.filter((car) =>

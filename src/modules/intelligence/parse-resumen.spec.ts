@@ -326,7 +326,7 @@ describe('resumenPideOtras', () => {
     expect(resumenPideOtras('Q otras tienen porfabor')).toBe(false);
   });
 
-  it('Pide otras: no significa que sigue en la mostrada', () => {
+  it('Pide otras: no significa que no hay catálogo', () => {
     expect(
       resumenStaysOnShownUnit(
         'SOLICITUD ACTUAL:\nCliente quiere el precio de la unidad.\nPide precio: sí\nPide otras: no',

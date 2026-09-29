@@ -36,6 +36,7 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenCabina,
+  resumenCajaCompra,
   resumenHasPendingDoubt,
   resumenPideOtras,
   resumenPidePresupuesto,
@@ -221,8 +222,11 @@ export function leftShownCar(input: ShownCarContext): boolean {
   const nombra = textoQueNombra(resumen, input.text, lexicon);
   // Del resumen se lee el pedido de ESTE turno (solicitud + vehículo), no el
   // Contexto de turnos viejos: ahí una palabra suelta («otra opción») ensucia.
-  const pedidoResumen = solicitudSinBanderas(resumen)
-    ? [solicitudSinBanderas(resumen), vehicleClientePidio(resumen) ?? ''].join('\n')
+  // La solicitud va al final: el modelo de ESTE turno gana sobre el
+  // Vehículo del resumen previo, que si no queda último y no suelta.
+  const solicitud = solicitudSinBanderas(resumen);
+  const pedidoResumen = solicitud
+    ? [vehicleClientePidio(resumen) ?? '', solicitud].filter(Boolean).join('\n')
     : resumen;
   if (
     textAsksForOtherColor(input.text) ||
@@ -286,20 +290,32 @@ export function leftShownCar(input: ShownCarContext): boolean {
   ) {
     return true;
   }
-  const box = detectGearbox(input.text, lexicon);
+  const cajaFlag = resumenCajaCompra(resumen);
+  const box =
+    cajaFlag === 'no'
+      ? null
+      : cajaFlag === 'manual' || cajaFlag === 'automatica'
+        ? cajaFlag
+        : detectGearbox(input.text, lexicon);
   const shownBox = gearboxOf(car);
   if (box && shownBox && box !== shownBox) {
     return true;
   }
   const shownKind = kindFromTypeBody(car.typeBody);
-  const tipoPatio = resumenTipoPatio(input.resumen ?? '');
-  if (tipoPatio && tipoPatio !== 'no' && shownKind && tipoPatio !== shownKind) {
+  const solicitudKind = solicitud ? detectVehicleKind(solicitud) : null;
+  const textKind = detectVehicleKind(input.text);
+  const tipoPatio = resumenTipoPatio(resumen);
+  const askedKind = textKind || solicitudKind;
+  if (
+    tipoPatio &&
+    tipoPatio !== 'no' &&
+    shownKind &&
+    tipoPatio !== shownKind &&
+    askedKind === tipoPatio
+  ) {
     return true;
   }
-  const saidKind =
-    detectVehicleKind(input.text) ||
-    (input.resumen ? detectVehicleKind(input.resumen) : null);
-  if (saidKind && shownKind && saidKind !== shownKind) {
+  if (askedKind && shownKind && askedKind !== shownKind) {
     return true;
   }
   const askedCab =
@@ -355,6 +371,103 @@ export function followsShownCar(input: ShownCarContext): boolean {
     return false;
   }
   return !leftShownCar(input);
+}
+
+/**
+ * Una sola decisión. Verdadero = seguir en la unidad.
+ * Si leftShownCar suelta, nadie después vuelve a pegarla.
+ * Tras un listado, sigue solo si señaló esa unidad.
+ */
+export function decideStayOnShown(
+  input: ShownCarContext & { lastListed?: boolean; lastOfferText?: string },
+): boolean {
+  if (!input.car) {
+    return false;
+  }
+  if (leftShownCar(input)) {
+    return false;
+  }
+  if (input.lastListed) {
+    return listedPickStays(input);
+  }
+  return true;
+}
+
+function listedPickStays(
+  input: ShownCarContext & { lastOfferText?: string },
+): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
+  }
+  const lexicon = input.lexicon ?? emptyLexicon();
+  const text = input.text;
+  const resumen = input.resumen ?? '';
+  const yearNow = detectYearInText(text);
+  const colorNow = detectColorInText(text);
+  const namedNow = detectNamedModelAsk(
+    textoQueNombra(resumen, text, lexicon),
+    lexicon,
+  );
+  if (namedNow && !askedMatchesShownModel(namedNow.family, car.model)) {
+    return false;
+  }
+  if (
+    yearNow != null &&
+    car.year &&
+    yearNow !== car.year &&
+    String(yearNow) !== modelFamily(car.model)
+  ) {
+    return false;
+  }
+  if (colorNow && car.color && !colorMatches(car.color, colorNow)) {
+    return false;
+  }
+  const cajaFlag = resumenCajaCompra(resumen);
+  const box =
+    cajaFlag === 'no'
+      ? null
+      : cajaFlag === 'manual' || cajaFlag === 'automatica'
+        ? cajaFlag
+        : detectGearbox(text, lexicon);
+  const shownBox = gearboxOf(car);
+  if (box && shownBox && box !== shownBox) {
+    return false;
+  }
+  const askedCab = resumenCabina(resumen) ?? detectAskedCab(text);
+  const shownCab = unitCab(car);
+  if (askedCab && shownCab && askedCab !== shownCab) {
+    return false;
+  }
+  const askedDrive = detectAskedDrive(`${text}\n${resumen}`);
+  const shownDrive = unitDrive(car);
+  if (
+    askedDrive &&
+    (shownDrive === '4x2' || shownDrive === '4x4') &&
+    askedDrive !== shownDrive &&
+    !resumenHasPendingDoubt(resumen) &&
+    !textAsksAboutShownDrive(text)
+  ) {
+    return false;
+  }
+  const pointed =
+    yearNow != null ||
+    Boolean(colorNow) ||
+    Boolean(namedNow) ||
+    Boolean(box) ||
+    Boolean(askedCab) ||
+    Boolean(askedDrive) ||
+    resumenAsksForListedPrice(resumen);
+  if (!pointed) {
+    return false;
+  }
+  if (
+    input.lastOfferText &&
+    !textMentionsModel(input.lastOfferText, car.model)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function foldAsk(text: string): string {
@@ -520,5 +633,5 @@ Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}
 inventory_id=${car.inventoryId}${interno}${priceUnload}${tipoLine}${factsLine}
-El resumen y el historial dicen cómo sigue el hilo: si pidió otro año, versión o modelo, busca esa unidad en inventario. Si no cambió de carro, sigue ESTA.`;
+Si no cambió de carro, sigue ESTA. No busques otra unidad.`;
 }

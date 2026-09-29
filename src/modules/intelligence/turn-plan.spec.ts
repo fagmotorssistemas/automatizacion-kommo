@@ -391,7 +391,7 @@ describe('comparación plan vs camino viejo', () => {
     expect(turnPlanLog(result, 'REVIEW_BRAND')).toEqual({
       accion: 'SEGUIR_UNIDAD',
       fuente: 'resumen',
-      razon: 'Pide otras: no y sigue en la unidad',
+      razon: 'La unidad de este turno cabe: sigue en la unidad',
       caminoViejo: 'REVIEW_BRAND',
       coincide: false,
     });

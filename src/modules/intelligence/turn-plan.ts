@@ -1,6 +1,9 @@
 import type { InterestedCarSnapshot } from '../persistence/lead.types';
 import type { VehicleLexicon } from '../conversation/fuzzy-vehicle-name';
-import { customerNamedAnotherShownCar } from '../conversation/interested-car';
+import {
+  customerNamedAnotherShownCar,
+  leftShownCar,
+} from '../conversation/interested-car';
 import { resumenBrandFitsShown } from '../conversation/named-this-turn';
 import {
   detectBrand,
@@ -43,15 +46,16 @@ import {
  *
  * Orden de precedencia (el primero que aplica gana):
  *  1. CIERRE           se despide de verdad (sin duda pendiente)
- *  2. HORARIO          pregunta si atienden / horario
- *  3. ASIENTOS         pide un número de plazas
- *  4. VENTA_PROPIA     habla de vender su carro (lo dice quien llama, viene de intents)
- *  5. PEDIR_CARRO      no hay unidad y el resumen dice que falta el vehículo
- *  6. RESPALDO         el resumen no trae «Pide otras»: no se decide aquí,
+ *  2. OTRAS            este turno soltó la unidad (el horario no lo apaga)
+ *  3. HORARIO          pregunta si atienden / horario, y sigue en la misma unidad
+ *  4. ASIENTOS         pide un número de plazas
+ *  5. VENTA_PROPIA     habla de vender su carro (lo dice quien llama, viene de intents)
+ *  6. PEDIR_CARRO      no hay unidad y el resumen dice que falta el vehículo
+ *  7. RESPALDO         el resumen no trae «Pide otras»: no se decide aquí,
  *                      el llamador usa el camino de siempre (texto)
- *  7. ELEGIR_DE_LISTA  el bot acaba de listar unidades y no pide otras
- *  8. SEGUIR_UNIDAD    sigue en la unidad ya mostrada
- *  9. OTRAS            busca otra unidad (lo que pide sale del resumen)
+ *  8. ELEGIR_DE_LISTA  el bot acaba de listar unidades y no pide otras
+ *  9. SEGUIR_UNIDAD    la unidad de este turno cabe en la mostrada
+ * 10. OTRAS            busca otra unidad (lo que pide sale del resumen)
  *
  * Con el resumen no se lee el texto crudo del cliente: ni marca, ni modelo,
  * ni «gracias» como aceptar algo. Lo que necesite del texto (un número, un
@@ -200,6 +204,25 @@ export function buildTurnPlan(input: TurnPlanInput): TurnPlan {
   if (resumenIsFarewell(resumen)) {
     return plan('CIERRE', 'Es despedida: sí, sin duda pendiente');
   }
+  const solicitudAhora = solicitudSinBanderas(resumen);
+  const pedidoTexto = solicitudAhora
+    ? [vehiculo ?? '', solicitudAhora].filter(Boolean).join('\n')
+    : (vehiculo ?? resumen);
+  if (
+    unidad &&
+    leftShownCar({
+      text: pedidoTexto,
+      resumen,
+      history: input.history,
+      car: unidad,
+      lexicon,
+      pedido: vehiculo,
+    })
+  ) {
+    return plan('OTRAS', 'El turno soltó la unidad mostrada', {
+      otras: pedidoOtras(resumen, lexicon),
+    });
+  }
   if (resumenPideHorario(resumen)) {
     return plan('HORARIO', 'Pide horario: sí');
   }
@@ -223,11 +246,6 @@ export function buildTurnPlan(input: TurnPlanInput): TurnPlan {
   if (pideOtras === null) {
     return plan('RESPALDO', 'El resumen no trae «Pide otras»');
   }
-
-  const pedidoTexto = [
-    solicitudSinBanderas(resumen),
-    vehiculo ?? '',
-  ].join('\n');
 
   if (unidad && input.ultimoBotListo && pideOtras) {
     return plan('OTRAS', 'Pide otras: sí tras un listado', {
@@ -257,7 +275,21 @@ export function buildTurnPlan(input: TurnPlanInput): TurnPlan {
         otras: pedidoOtras(resumen, lexicon),
       });
     }
-    return plan('SEGUIR_UNIDAD', 'Pide otras: no y sigue en la unidad', {
+    if (
+      leftShownCar({
+        text: pedidoTexto,
+        resumen,
+        history: input.history,
+        car: unidad,
+        lexicon,
+        pedido: vehiculo,
+      })
+    ) {
+      return plan('OTRAS', 'El turno soltó la unidad mostrada', {
+        otras: pedidoOtras(resumen, lexicon),
+      });
+    }
+    return plan('SEGUIR_UNIDAD', 'La unidad de este turno cabe: sigue en la unidad', {
       seguir: seguirTemas(resumen),
     });
   }

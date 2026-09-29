@@ -432,7 +432,7 @@ describe('vehículo de interés', () => {
     expect(formatInterestedCar(explorer)).not.toContain('$33990');
     expect(formatInterestedCar(explorer)).toContain('precio_interno=33990');
     expect(formatInterestedCar(explorer, true)).toContain('$33990');
-    expect(formatInterestedCar(explorer)).toMatch(/si pidió otro año/i);
+    expect(formatInterestedCar(explorer)).toMatch(/Si no cambió de carro, sigue ESTA/i);
   });
 
   it('el km está para responderlo si lo pide, no para soltar la placa', () => {

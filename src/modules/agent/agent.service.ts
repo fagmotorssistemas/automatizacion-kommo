@@ -178,7 +178,6 @@ import {
   resumenTipoPatio,
   resumenTopeContado,
   resumenPidePresupuesto,
-  resumenSigueEnUnidadMostrada,
   resumenEsToma,
   resumenTomaFicha,
   stripTomaFacts,
@@ -208,12 +207,9 @@ import {
   stripRepeatedMileageCare,
 } from '../catalog/mileage';
 import {
-  followsShownCar,
-  leftShownCar,
+  decideStayOnShown,
   formatInterestedCar,
   historyPresentedFicha,
-  askedMatchesShownModel,
-  customerNamedAnotherShownCar,
   refersToInterestedCar,
   vehicleLabelFitsCar,
 } from '../conversation/interested-car';
@@ -233,6 +229,7 @@ import {
   carsShownInHistory,
   formatRevisionMarca,
   formatMissingNamedModel,
+  yearNamesTheModel,
   formatNamedUnits,
   hasUsableFicha,
   preferCurrentYears,
@@ -699,11 +696,8 @@ export class AgentService {
       (askedPrice ||
         askedLocation ||
         hasShownDoubt ||
-        resumenSigueEnUnidadMostrada(resumen)) &&
-      (!lastAssistantListed ||
-        askedLocation ||
-        resumenPideNegociar(resumen) ||
-        resumenPideHorario(resumen)) &&
+        resumenPideFicha(resumen)) &&
+      !lastAssistantListed &&
       !resumenPideOtras(resumen) &&
       !otherBrandNow;
     if (stayFollowUp && !pideHorario) {
@@ -739,119 +733,16 @@ export class AgentService {
         (!resumenStaysOnShownUnit(resumen) &&
           (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)))) &&
       lastOfferedOtherOptions(lastOfferText);
-    let stayOnShown = lastAssistantListed
-      ? false
-      : acceptedOtherOffer
-        ? false
-        : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
-            !resumenPideOtras(resumen) &&
-            !pidePresupuesto
-          ? true
-          : followsShownCar({
-              text: input.customerText,
-              resumen,
-              history,
-              car: interested,
-              lexicon,
-              pedido,
-            });
-    const boxNow = detectGearbox(input.customerText, lexicon);
-    const shownBox = interested ? gearboxOf(interested) : null;
-    if (
-      stayFollowUp &&
-      interested &&
-      (fichaAlreadyGiven || askedPrice) &&
-      !askedOtherColor &&
-      !(boxNow && shownBox && boxNow !== shownBox) &&
-      !otherBrandNow &&
-      !(pedido && !vehicleLabelFitsCar(pedido, interested, lexicon)) &&
-      !resumenPideOtras(resumen) &&
-      (resumenStaysOnShownUnit(resumen) ||
-        !detectNamedModelAsk(nombra, lexicon))
-    ) {
-      stayOnShown = true;
-    }
-    if (
-      lastAssistantListed &&
-      interested &&
-      !resumenPideOtras(resumen) &&
-      !askedOtherColor &&
-      !otherBrandNow
-    ) {
-      const yearNow = detectYearInText(input.customerText);
-      const colorNow = detectColorInText(input.customerText);
-      const namedNow = detectNamedModelAsk(nombra, lexicon);
-      const namedOther = namedNow
-        ? !askedMatchesShownModel(namedNow.family, interested.model)
-        : false;
-      const yearOk = yearNow == null || interested.year === yearNow;
-      const colorOk =
-        !colorNow ||
-        Boolean(interested.color && colorMatches(interested.color, colorNow));
-      if (
-        !namedOther &&
-        yearOk &&
-        colorOk &&
-        (askedPrice || yearNow != null || Boolean(colorNow)) &&
-        textMentionsModel(lastOfferText, interested.model)
-      ) {
-        stayOnShown = true;
-      }
-    }
-    if (acceptedOtherOffer || asksAnyBrand(input.customerText)) {
-      stayOnShown = false;
-    }
-    if (boxNow && shownBox && boxNow !== shownBox) {
-      stayOnShown = false;
-    }
-    // El resumen manda: si dice que sigue en la unidad (Pide otras: no) y con
-    // SOLO lo que él entendió (sin releer palabras sueltas del texto) no se fue
-    // de ella, se responde sobre esa unidad. No se abre marca ni catálogo.
-    if (
-      interested &&
-      !lastAssistantListed &&
-      !acceptedOtherOffer &&
-      !askedOtherColor &&
-      resumenStaysOnShownUnit(resumen) &&
-      !resumenFaltaVehiculo(resumen) &&
-      resumenBrandFitsShown(resumen, interested.brand, lexicon) &&
-      !leftShownCar({
-        text: '',
-        resumen,
-        history,
-        car: interested,
-        lexicon,
-        pedido,
-      })
-    ) {
-      stayOnShown = true;
-    }
-    if (
-      interested &&
-      resumenSigueEnUnidadMostrada(resumen) &&
-      !resumenPideOtras(resumen) &&
-      !acceptedOtherOffer &&
-      !otherBrandNow &&
-      !askedOtherColor &&
-      (!lastAssistantListed ||
-        askedLocation ||
-        resumenPideNegociar(resumen) ||
-        resumenPideHorario(resumen))
-    ) {
-      stayOnShown = true;
-    }
-    if (
-      customerNamedAnotherShownCar(
-        input.customerText,
-        interested,
-        lexicon,
-      ) ||
-      (interested &&
-        !resumenBrandFitsShown(resumen, interested.brand, lexicon)) ||
-      resumenPideOtras(resumen)
-    ) {
-      stayOnShown = false;
-    }
+    const stayOnShown = decideStayOnShown({
+      text: input.customerText,
+      resumen,
+      history,
+      car: interested,
+      lexicon,
+      pedido,
+      lastListed: lastAssistantListed,
+      lastOfferText,
+    });
     const priceObjection =
       resumenIsPriceObjection(resumen) ||
       textIsPriceObjection(input.customerText);
@@ -2463,7 +2354,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       (asksClosestByFacts(customerText) ||
         yearOnward ||
         asksClosestByFacts(solicitud));
-    const yearFromThread = threadYear.year;
+    const yearFromThread = yearNamesTheModel(threadYear.year, asked?.family ?? '')
+      ? null
+      : threadYear.year;
     const yearSpan =
       detectYearSpan(customerText) ||
       detectYearSpan(solicitud) ||

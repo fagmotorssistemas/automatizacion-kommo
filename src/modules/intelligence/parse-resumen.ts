@@ -587,17 +587,14 @@ function solicitudPideVerTope(resumen: string): boolean {
 }
 
 /**
- * ESTE turno pide ver qué cabe en un tope. Un tope copiado de turnos
- * previos no cuenta si el hilo sigue en la unidad mostrada.
+ * ESTE turno pide ver qué cabe en un tope. Un monto copiado mientras
+ * preguntan precio, km o ubicación no cuenta: la solicitud no pide el tope.
  */
 export function resumenPidePresupuesto(resumen: string): boolean {
   if (!resumenTopeContado(resumen)) {
     return false;
   }
-  if (resumenSigueEnUnidadMostrada(resumen)) {
-    return false;
-  }
-  return resumenPideOtras(resumen) || solicitudPideVerTope(resumen);
+  return solicitudPideVerTope(resumen);
 }
 
 function tomaFichaLine(resumen: string): string | null {

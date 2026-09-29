@@ -36,7 +36,9 @@ Reglas especiales:
   (techo, automático, 4x4, airbags, sensores, km, tipo, etc.)
   → usar SIEMPRE equipamientovehiculo.
 - PROHIBIDO responder sin consultar la herramienta.
-- Si el cliente pide año menor, precio menor o un modelo diferente o color → presentacionopciones
+- Si pide otro color del mismo modelo → presentacionopciones
+- Si nombra otra marca, otro modelo, otro año u otra versión → compra
+- Si pide un precio menor sin nombrar una unidad → presentacionopciones
 - Si dice que le sale de su presupuesto, que no le alcanza → presupuestocliente
 - Cliente quiere información o información detallada sobre un vehículo → compra
 - Si preguntan por garantia y mantenimiento → garantias

@@ -79,15 +79,15 @@ Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, pide las letras, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no. Pide crédito: sí. SOLICITUD: quiere la cuota. Aunque el bot haya preguntado si aplica demasiado pronto, si AHORA da plazo o pide las letras no es “acepta ver si aplica”: primero la letra.
 Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
-REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
-Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
-Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
-- Sigue con la mostrada (el valor, el km, la visita, dónde verla, el crédito, confirmar esa, un detalle de esa, la ficha de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
-- Si NOMBRA un modelo concreto distinto al del RESUMEN PREVIO (Santa Fe vs Creta, otro año, otra línea), Vehículo: ESA unidad que nombró. Pide otras: no. Suelta la anterior. No es catálogo de alternativas: busca la que pidió ahora.
-- Ya no quiere la mostrada y pide alternativas SIN nombrar el reemplazo (otras opciones, otra, similar): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
-- Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
-- Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
-- Si pide otras de la mostrada SIN decir otro tipo, Tipo de patio = el de ESA (suv si era jeep/SUV). Camioneta no entra. No pongas Tipo de patio: no.
+REGLA DE PIDE OTRAS (OBLIGATORIA):
+Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el pedido concreto (precio, ficha, ubicación, horario, la unidad que nombró).
+- Listado, sin nombrar una unidad (otra, otras, similar, alternativas, cualquier marca, un tipo): Pide otras: sí. SOLICITUD: quiere ver otras.
+- Nombra una unidad distinta (marca, modelo, año o versión): Vehículo: esa. SOLICITUD: esa unidad, con el nombre que dijo. Pide otras: no.
+- Precio, km, ficha, visita, ubicación, crédito, un detalle o las plazas de la mostrada: Pide otras: no. No pongas otro carro en Vehículo ni en la SOLICITUD.
+- Rechazar el crédito, la visita o un dato de la misma unidad: Pide otras: no.
+- Si el turno anterior ofreció alternativas y ahora acepta verlas: Pide otras: sí.
+- Otro color y otra caja no son este listado: van en Pide otro color y en Caja de compra. Pide otras: no.
+- Si pide listado de la mostrada y no dice otro tipo: Tipo de patio = el de ESA (suv si era jeep/SUV). Camioneta no entra. No pongas Tipo de patio: no.
 
 REGLAS:
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo. Excepción: si en el mismo turno también pide información o precio de un carro sin nombrarlo, aplica la REGLA DE VARIOS PEDIDOS.
@@ -110,7 +110,7 @@ Pide ubicación: no si dice que va a visitar después (la otra semana, más adel
 - Respuestas vagas ("sí", "ok") deben interpretarse según la pregunta previa.
 - Si la pregunta previa fue si ayudamos a ver si aplica, “sí/ok” es Acepta crédito: sí. No es ver otras opciones.
 - Si la pregunta previa fue crédito o contado, “sí/ok” es Pide crédito: sí. Prefiere contado: no. No es ver otras opciones.
-- Pide otras sigue la REGLA DE CAMBIO DE VEHÍCULO: pedir otra unidad es cambiar de vehículo. No lo dejes en no solo porque no nombró otro modelo.
+- Pide otras sigue la REGLA DE PIDE OTRAS. Si pide otra sin nombrar cuál, Pide otras: sí. Si nombra cuál, Pide otras: no y la SOLICITUD nombra esa unidad.
 - Respuestas vagas sin vehículo claro en conversación inicial:
   Si el cliente dice "sí por favor", "deseo información", "me interesa" o similar
   y no hay vehículo específico mencionado o confirmado,
@@ -161,8 +161,8 @@ Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (
 - Si pide otras opciones de la mostrada y no nombra otro tipo: Tipo de patio = el de ESA unidad. Un SUV no lista camionetas. Una camioneta no lista SUV.
 - Tipo de patio: no si nombra marca, modelo o color y ya no sigue el tipo anterior (un Chevrolet / un blanco no hereda hatchback). La SOLICITUD nombra esa marca o unidad.
 - Tipo de patio: no si sigue con la unidad ya mostrada y no cambió de tipo, o el turno no pide tipo (dirección, horario).
-- Un tipo o marca nueva es cambio: Pide otras: sí si deja la unidad mostrada.
-- Si el turno anterior listó unidades de una marca y AHORA nombra otra (aunque mal escrita): Pide otras: sí. SOLICITUD: esa marca nueva. No sigas el listado anterior.
+- Un tipo nuevo sin nombrar una unidad (SUV, camioneta, sedán): Pide otras: sí. SOLICITUD: listar de ese tipo.
+- Si nombra otra marca o modelo (aunque mal escrito): Vehículo y SOLICITUD: esa. Pide otras: no. No sigas la unidad ni el listado anterior.
 
 REGLA DE ASIENTOS (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide una cantidad de plazas / espacio para gente?
@@ -218,7 +218,7 @@ Si hay RESUMEN DEL TURNO ANTERIOR con un vehículo, ese es el carro que el clien
 Si corrige lo que el bot mostró, Vehículo y SOLICITUD quedan en lo que ÉL pidió, no en la unidad ofrecida.
 Un modelo parecido de la misma marca no es el mismo: no lo sustituyas.
 Falta vehículo: no. No escribas que hay que preguntarle qué carro.
-Solo sueltas ese vehículo si nombra otro, o si el turno no es de un carro (horario, dirección).
+Si nombra otro carro, Vehículo es ese y Pide otras: no (no es catálogo). Si pide otra sin nombrar el reemplazo, Pide otras: sí.
 
 REGLA DE FALTA VEHÍCULO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aún no hay uno (ni lo nombró, ni sigue con el ya mostrado)?

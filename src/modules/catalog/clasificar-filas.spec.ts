@@ -811,6 +811,46 @@ describe('clasificar filas', () => {
     expect(missing.sendId).toBeNull();
   });
 
+  it('Peugeot 2008 es el modelo: no dice que no hay y manda esa ficha', () => {
+    const missing = formatMissingNamedModel(
+      '2008',
+      2008,
+      [
+        {
+          id: 'p2008-2022',
+          brand: 'peugeot',
+          model: '2008 fin',
+          year: 2022,
+          price: 18900,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+    );
+    expect(missing.text).not.toMatch(/no tenemos|No hay/i);
+    expect(missing.sendId).toBe('p2008-2022');
+  });
+
+  it('4Runner 2010 que no está sí dice que no hay y ofrece el 2004', () => {
+    const missing = formatMissingNamedModel(
+      '4 runner',
+      2010,
+      [
+        {
+          id: '4runner-2004',
+          brand: 'toyota',
+          model: '4 runner 4x2 t/a',
+          year: 2004,
+          price: 21400,
+          typeBody: 'jeep',
+        },
+      ],
+      false,
+    );
+    expect(missing.text).toMatch(/no tenemos 4 runner 2010/i);
+    expect(missing.sendId).toBe('4runner-2004');
+  });
+
   it('si el patio sí tiene ese año no dice que no hay', () => {
     const missing = formatMissingNamedModel(
       'dmax',
