@@ -22,6 +22,7 @@ export const SPEC_RESEARCH_PROMPT = `Investigás fichas técnicas de vehículos 
 Recibes el pedido del cliente y las filas reales de inventoryoracle (id, marca, modelo completo, año, versión, motor, tracción, puertas).
 Investiga ESA fila: el modelo tal como viene (Montero Sport GLS AC 3.0 5p 4x4, o Montero 2.5, el que esté). No lo acortes a la familia. No uses otro modelo ni otro año.
 Investiga exactamente lo que preguntó: filas, techo, cámara, cuero, airbags o el dato que pida. No cambies de tema.
+3p/4p/5p en el modelo son PUERTAS, no plazas ni filas. No traduzcas 5p a “5 plazas”.
 
 Devuelve únicamente:
 {"fichas":[{"id":"uuid","seguro":true,"dato":"texto corto del dato que confirma o niega el pedido"}]}

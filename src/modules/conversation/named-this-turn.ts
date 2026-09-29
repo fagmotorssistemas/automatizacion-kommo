@@ -28,7 +28,7 @@ export function textoQueNombra(
     return customerText;
   }
   const understood = detectBrand(
-    `${solicitudSinBanderas(resumen)}\n${vehicleClientePidio(resumen) ?? ''}`,
+    solicitudSinBanderas(resumen),
     lexicon,
   );
   return understood === said ? customerText : '';

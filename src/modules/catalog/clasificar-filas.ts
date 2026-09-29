@@ -71,6 +71,12 @@ function isDriveToken(part: string): boolean {
   return /^(?:4x[24]|x[24]|4wd|awd)$/i.test(part);
 }
 
+/** Segunda palabra de línea: Montero Sport ≠ Montero 5p. */
+const LINE_SUFFIX = new Set(['sport', 'fe', 'cruiser', 'trail']);
+
+/** Del 2010 en adelante se ofrece. Un 2016 no es antiguo. */
+const ANIO_VIGENTE_DESDE = 2010;
+
 export function modelFamily(model: string): string {
   const normalized = normalizeModelText(model);
   const skip = new Set(['new', 'ac', 'all', 'gran', 'next']);
@@ -87,9 +93,57 @@ export function modelFamily(model: string): string {
     ) {
       return next;
     }
+    if (next && LINE_SUFFIX.has(next)) {
+      return `${token} ${next}`;
+    }
     return token;
   }
   return parts.find((part) => /^[a-z]\d{1,3}$/i.test(part)) ?? '';
+}
+
+function isCurrentYear(year: number | null | undefined): boolean {
+  return year != null && year >= ANIO_VIGENTE_DESDE;
+}
+
+/**
+ * Sport y Montero 5p no son el mismo carro. Si hay línea específica vigente,
+ * no se junta el viejo con el mismo primer token (A76430).
+ */
+export function tightenNamedLines(cars: StockCar[]): StockCar[] {
+  if (cars.length <= 1) {
+    return cars;
+  }
+  const groups = new Map<string, StockCar[]>();
+  for (const car of cars) {
+    const fam = modelFamily(car.model);
+    if (!fam) {
+      continue;
+    }
+    groups.set(fam, [...(groups.get(fam) ?? []), car]);
+  }
+  if (groups.size <= 1) {
+    return cars;
+  }
+  const families = [...groups.keys()];
+  const prefixes = families.filter((fam) =>
+    families.some((other) => other !== fam && other.startsWith(`${fam} `)),
+  );
+  if (prefixes.length === 0) {
+    return cars;
+  }
+  let kept = cars;
+  for (const prefix of prefixes) {
+    const longer = families
+      .filter((fam) => fam.startsWith(`${prefix} `))
+      .flatMap((fam) => groups.get(fam) ?? []);
+    const bare = groups.get(prefix) ?? [];
+    const longerCurrent = longer.filter((car) => isCurrentYear(car.year));
+    const bareCurrent = bare.filter((car) => isCurrentYear(car.year));
+    if (longerCurrent.length > 0 && bareCurrent.length === 0) {
+      kept = kept.filter((car) => modelFamily(car.model) !== prefix);
+    }
+  }
+  return kept.length > 0 ? kept : cars;
 }
 
 /** Unidades que el último mensaje del bot realmente nombró (año/km/color), no toda la línea. */
@@ -401,9 +455,6 @@ export function describeUnit(car: StockCar, includePrice = false): string {
   return `${UNIT_FIELD_LEGEND}\n${fields.join(' | ')}`;
 }
 
-/** Del 2010 en adelante se ofrece. Un 2016 no es antiguo. */
-const ANIO_VIGENTE_DESDE = 2010;
-
 export function carsFromYearOnward<T extends { year?: number | null }>(
   cars: T[],
   minYear: number,
@@ -481,8 +532,9 @@ export function formatNamedUnits(
   listedUnits: StockCar[];
   choseFromShown?: boolean;
 } {
-  if (cars.length === 1) {
-    const car = cars[0];
+  const units = tightenNamedLines(cars);
+  if (units.length === 1) {
+    const car = units[0];
     const unitPrice =
       car.price && car.price > 0 ? Math.round(car.price) : null;
     return {
@@ -497,14 +549,32 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".${
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
-      listedUnits: cars,
+      listedUnits: units,
       choseFromShown: true,
     };
   }
 
+  const lines = new Set(
+    units.map((car) => modelFamily(car.model)).filter(Boolean),
+  );
+  if (lines.size > 1) {
+    return {
+      text: `Hay ${units.length} líneas distintas, no el mismo carro. Nombra CADA una con SU ficha (año, color, km, placa). Pregunta cuál. PROHIBIDO copiar los datos de una a la otra. vehiculo null.
+${units.map((car) => describeUnit(car, includePrice)).join('\n')}${
+        includePrice
+          ? '\nPidió los valores: di el $ de inventario de CADA ficha. PROHIBIDO redondear o inventar.'
+          : ''
+      }`,
+      holdVehicle: true,
+      sendId: null,
+      unitPrice: null,
+      listedUnits: units,
+    };
+  }
+
   return {
-    text: `De este modelo hay ${cars.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
-${cars.map((car) => describeUnit(car, includePrice)).join('\n')}${
+    text: `De este modelo hay ${units.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
+${units.map((car) => describeUnit(car, includePrice)).join('\n')}${
       includePrice
         ? '\nPidió los valores: di el $ de inventario de CADA ficha. PROHIBIDO redondear o inventar.'
         : ''
@@ -512,7 +582,7 @@ ${cars.map((car) => describeUnit(car, includePrice)).join('\n')}${
     holdVehicle: true,
     sendId: null,
     unitPrice: null,
-    listedUnits: cars,
+    listedUnits: units,
   };
 }
 

@@ -56,6 +56,22 @@ function mentionIsRejected(text: string, index: number): boolean {
   );
 }
 
+/** La ficha puede ser “montero sport”; el cliente a veces solo dijo “Montero”. */
+function familyFromModelHit(
+  text: string,
+  hit: { name: string; index: number },
+): string {
+  const inventory = modelFamily(hit.name);
+  if (!inventory) {
+    return '';
+  }
+  const said = modelFamily(text.slice(hit.index, hit.index + hit.name.length));
+  if (said && (said === inventory || inventory.startsWith(`${said} `))) {
+    return said;
+  }
+  return inventory;
+}
+
 function lastModelHit(
   text: string,
   lexicon: VehicleLexicon,
@@ -63,7 +79,7 @@ function lastModelHit(
   let named: { brand: string; family: string; index: number } | null = null;
   let numeric: { brand: string; family: string; index: number } | null = null;
   for (const hit of fuzzyModelHits(text, lexicon)) {
-    const family = modelFamily(hit.name);
+    const family = familyFromModelHit(text, hit);
     if (!family || isDriveFamily(family)) {
       continue;
     }

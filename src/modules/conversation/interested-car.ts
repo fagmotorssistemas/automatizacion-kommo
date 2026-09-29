@@ -79,6 +79,29 @@ export function askedMatchesShownModel(askedFamily: string, carModel: string): b
   );
 }
 
+/** Nombró otra marca, otra línea o otro año que la unidad ya mostrada. */
+export function customerNamedAnotherShownCar(
+  text: string,
+  car: { brand: string; model: string; year?: number | null } | null,
+  lexicon: VehicleLexicon = emptyLexicon(),
+): boolean {
+  if (!car || !text.trim()) {
+    return false;
+  }
+  const brand = detectBrand(text, lexicon);
+  if (brand && brand !== car.brand.trim().toLowerCase()) {
+    return true;
+  }
+  const asked = detectNamedModelAsk(text, lexicon);
+  if (asked?.family && !askedMatchesShownModel(asked.family, car.model)) {
+    return true;
+  }
+  if (asked?.year && car.year && asked.year !== car.year) {
+    return true;
+  }
+  return false;
+}
+
 /** Misma línea del hilo. Null = no nombró modelo (sigue en esa). Otro año sí es otra. */
 export function sameShownUnitAsk(
   asked: { family: string; year?: number | null } | null,

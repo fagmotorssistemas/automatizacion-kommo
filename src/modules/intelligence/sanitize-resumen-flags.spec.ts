@@ -2,6 +2,8 @@ import {
   sanitizeInventedResumenFlags,
   textAsksForHours,
   textAsksForLocation,
+  textAsksForSeats,
+  textAsksForTresFilas,
 } from './sanitize-resumen-flags';
 
 describe('sanitizeInventedResumenFlags', () => {
@@ -63,5 +65,43 @@ describe('sanitizeInventedResumenFlags', () => {
     expect(
       textAsksForLocation('Hermoso el precio en donde estan ubicados'),
     ).toBe(true);
+  });
+
+  it('sí por favor no inventa 7 plazas ni 3 filas', () => {
+    expect(textAsksForSeats('Sí, por favor')).toBeNull();
+    expect(textAsksForTresFilas('Sí, por favor')).toBe(false);
+    expect(textAsksForSeats('Montero Sport GLS AC 3.0 5p 4x4')).toBeNull();
+    const out = sanitizeInventedResumenFlags(
+      [
+        'SOLICITUD ACTUAL:',
+        'Cliente quiere más información del Montero 5p.',
+        'Asientos: 7',
+        'Tres filas: sí',
+      ].join('\n'),
+      'Sí, por favor',
+    );
+    expect(out).toMatch(/Asientos: no/i);
+    expect(out).toMatch(/Tres filas: no/i);
+    expect(out).not.toMatch(/Asientos: 7/i);
+  });
+
+  it('si pidió 7 asientos la bandera se queda y el 5p no manda', () => {
+    expect(textAsksForSeats('tiene 7 asientos?')).toBe(7);
+    const out = sanitizeInventedResumenFlags(
+      'SOLICITUD ACTUAL:\nValidar.\nAsientos: 5\nTres filas: sí',
+      'tiene 7 asientos?',
+    );
+    expect(out).toMatch(/Asientos: 7/i);
+    expect(out).toMatch(/Tres filas: no/i);
+  });
+
+  it('3 filas se queda si lo dijo', () => {
+    expect(textAsksForTresFilas('Es de 3 filas ?')).toBe(true);
+    const out = sanitizeInventedResumenFlags(
+      'SOLICITUD ACTUAL:\nValidar filas.\nTres filas: sí\nAsientos: 7',
+      'Es de 3 filas ?',
+    );
+    expect(out).toMatch(/Tres filas: sí/i);
+    expect(out).toMatch(/Asientos: no/i);
   });
 });

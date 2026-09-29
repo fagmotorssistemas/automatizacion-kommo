@@ -18,6 +18,8 @@ describe('large passenger', () => {
     ).toBe(true);
     expect(parsePassengerAsk('furgonetas de 17 o 20 pasajeros')).toBe(20);
     expect(parsePassengerAsk('Necesito para 7 personas')).toBe(7);
+    expect(parsePassengerAsk('montero sport gls ac 3.0 5p 4x4')).toBeNull();
+    expect(parsePassengerAsk('Sí, por favor')).toBeNull();
     expect(asksForLargePassengerSpace('cuánto cuesta el Picanto')).toBe(false);
   });
 

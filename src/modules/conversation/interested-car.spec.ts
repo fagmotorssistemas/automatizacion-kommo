@@ -1,4 +1,5 @@
 import {
+  customerNamedAnotherShownCar,
   followsShownCar,
   formatInterestedCar,
   historyPresentedFicha,
@@ -37,6 +38,37 @@ const picanto = {
 };
 
 describe('vehículo de interés', () => {
+  it.each([
+    {
+      shown: sportage,
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+    },
+    {
+      shown: explorer,
+      text: 'Buenas noches precio del vehículo creta',
+    },
+    {
+      shown: sportage,
+      text: 'Me interesa el Kia Rio',
+    },
+    {
+      shown: {
+        inventoryId: 'sf-2015',
+        brand: 'hyundai',
+        model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+        year: 2015,
+      },
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+    },
+  ])('nombró otro carro que el mostrado: $text', ({ shown, text }) => {
+    expect(
+      customerNamedAnotherShownCar(text, shown, TEST_LEXICON),
+    ).toBe(true);
+    expect(
+      customerNamedAnotherShownCar('Sí, por favor', shown, TEST_LEXICON),
+    ).toBe(false);
+  });
+
   it('el hilo sigue aunque no use este/precio/automático', () => {
     expect(
       followsShownCar({

@@ -32,6 +32,22 @@ describe('textoQueNombra', () => {
   it('sin marca en el texto no toca nada', () => {
     expect(textoQueNombra(RESUMEN_SIGUE, 'Gracias', TEST_LEXICON)).toBe('Gracias');
   });
+
+  it('A70877: el vehículo viejo del resumen no tapa el Santa Fe', () => {
+    const resumen = [
+      'Vehículo: Kia Sportage R GTI LX 2019',
+      'SOLICITUD ACTUAL:',
+      'Cliente quiere información sobre el Hyundai Santa Fe 2018 y solicita fotos.',
+      'Pide otras: no',
+    ].join('\n');
+    expect(
+      textoQueNombra(
+        resumen,
+        'Hola. Me interesa el Hyundai Santa Fe 2018',
+        TEST_LEXICON,
+      ),
+    ).toBe('Hola. Me interesa el Hyundai Santa Fe 2018');
+  });
 });
 
 describe('resumenBrandFitsShown', () => {

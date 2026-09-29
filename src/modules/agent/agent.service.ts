@@ -206,6 +206,7 @@ import {
   formatInterestedCar,
   historyPresentedFicha,
   askedMatchesShownModel,
+  customerNamedAnotherShownCar,
   refersToInterestedCar,
   vehicleLabelFitsCar,
 } from '../conversation/interested-car';
@@ -660,7 +661,7 @@ export class AgentService {
         }));
     const asientos = resumenAsientos(resumen);
     const asientosRevision =
-      asientos != null && !tresFilas
+      asientos != null
         ? await this.reviewAsientos(interested, asientos, askedPrice)
         : null;
     const lastOfferText = lastOfferAssistantText(history);
@@ -795,6 +796,15 @@ export class AgentService {
       })
     ) {
       stayOnShown = true;
+    }
+    if (
+      customerNamedAnotherShownCar(
+        input.customerText,
+        interested,
+        lexicon,
+      )
+    ) {
+      stayOnShown = false;
     }
     const priceObjection =
       resumenIsPriceObjection(resumen) ||
@@ -3240,84 +3250,158 @@ ${missing.text}`,
   }
 
   /**
-   * El analizador pidió N plazas: primero la unidad mostrada.
-   * Solo si ESA no las tiene se nombran otras con ese dato en patio.
+   * El analizador pidió N plazas: primero la ficha de la unidad del hilo.
+   * 5p son puertas. Sin dato de ficha se dice no consta; no se inventa.
    */
   private async reviewAsientos(
     interested: InterestedCarSnapshot | null,
     min: number,
     includePrice: boolean,
   ): Promise<BrandReview> {
-    const shownSeats = interested
-      ? await this.seatsOfShown(interested)
-      : null;
-    if (interested && shownSeats != null && shownSeats >= min) {
+    const doorsRule =
+      '3p/4p/5p del modelo son PUERTAS, no plazas. PROHIBIDO decir 5 plazas por un 5p. Si no hay ficha: "no consta". No afirmes capacidad sin ficha.';
+    if (!interested) {
       return {
-        text: `ASIENTOS: la unidad ya mostrada (${interested.brand} ${interested.model}) SÍ tiene ${shownSeats} plazas (pidió ${min}). Dilo. Quédate en ESTA. PROHIBIDO listar otras. inventory_id=${interested.inventoryId}`,
-        holdVehicle: true,
-        sendId: interested.inventoryId,
-        unitPrice:
-          interested.price && interested.price > 0
-            ? Math.round(interested.price)
-            : null,
-      };
-    }
-    const patio = await this.catalog.listAvailableExcept('_');
-    const pool = pickCarsWithMinSeats(
-      patio.filter((car) => car.id !== interested?.inventoryId),
-      min,
-    );
-    const shownLine = interested
-      ? shownSeats != null
-        ? `ASIENTOS: la mostrada (${interested.brand} ${interested.model}) tiene ${shownSeats} plazas, NO las ${min} que pidió. Dilo primero.`
-        : `ASIENTOS: en la mostrada (${interested.brand} ${interested.model}) no consta el dato de plazas. No lo inventes.`
-      : `ASIENTOS: pidió ${min} plazas.`;
-    if (pool.length === 0) {
-      return {
-        text: `${shownLine}
-No hay en patio otra unidad con ${min}+ plazas cargadas. Dilo. PROHIBIDO pickup, D-Max o F150. vehiculo null.`,
+        text: `ASIENTOS: pidió ${min} plazas. No hay unidad del hilo para investigar. Pregunta de cuál carro. ${doorsRule} vehiculo null.`,
         holdVehicle: true,
         sendId: null,
-        switchedModel: true,
       };
     }
-    const named = formatNamedUnits(pool.length > 6 ? pool.slice(0, 6) : pool, includePrice);
-    return {
-      ...named,
-      switchedModel: true,
-      text: `${shownLine}
+    const looked = await this.seatsLookupOfShown(interested);
+    const sendId =
+      looked.stock.id && looked.stock.id !== 'shown'
+        ? looked.stock.id
+        : interested.inventoryId || null;
+    const label = `${interested.brand} ${interested.model}`;
+    const unitPrice =
+      interested.price && interested.price > 0
+        ? Math.round(interested.price)
+        : null;
+    if (looked.seats != null && looked.seats >= min) {
+      return {
+        text: `ASIENTOS: la unidad ya mostrada (${label}) SÍ tiene ${looked.seats} plazas (pidió ${min}).${looked.dato ? ` Dato de ficha: ${looked.dato}.` : ''} Dilo. Quédate en ESTA. PROHIBIDO listar otras. ${doorsRule} inventory_id=${sendId ?? interested.inventoryId}`,
+        holdVehicle: true,
+        sendId,
+        unitPrice,
+      };
+    }
+    if (looked.seats != null && looked.seats < min) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      const pool = pickCarsWithMinSeats(
+        patio.filter((car) => car.id !== looked.stock.id),
+        min,
+      );
+      const shownLine = `ASIENTOS: la mostrada (${label}) tiene ${looked.seats} plazas, NO las ${min} que pidió.${looked.dato ? ` Ficha: ${looked.dato}.` : ''} Dilo primero. ${doorsRule}`;
+      if (pool.length === 0) {
+        return {
+          text: `${shownLine}
+No hay otra en patio con ${min}+ plazas en ficha. No inventes. ${doorsRule}`,
+          holdVehicle: true,
+          sendId,
+          unitPrice,
+        };
+      }
+      const named = formatNamedUnits(
+        pool.length > 6 ? pool.slice(0, 6) : pool,
+        includePrice,
+      );
+      return {
+        ...named,
+        switchedModel: true,
+        text: `${shownLine}
 Después nombra SOLO estas, que SÍ traen ${min}+ plazas en patio. Di las plazas. PROHIBIDO pickup/camioneta. PROHIBIDO listar una sin ese dato.
 ${named.text}`,
+      };
+    }
+    const missing = looked.dato
+      ? `ASIENTOS: se investigó la ficha de ${label}. ${looked.dato}. Dilo: no consta. ${doorsRule}`
+      : `ASIENTOS: se investigó la ficha de ${label} y no hay dato de plazas. Dilo: no consta en ficha. ${doorsRule}`;
+    return {
+      text: `${missing}
+inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
+      holdVehicle: true,
+      sendId,
+      unitPrice,
     };
   }
 
-  private async seatsOfShown(
+  private async resolveShownStock(
     car: InterestedCarSnapshot,
-  ): Promise<number | null> {
+  ): Promise<StockCar> {
     const listed = car.brand
       ? await this.catalog.listByBrand(car.brand)
       : [];
-    const fromPatio = listed.find((item) => item.id === car.inventoryId);
-    const fromField = seatsOfCar(
-      fromPatio?.passengerCapacity ?? car.passengerCapacity,
-    );
-    if (fromField != null) {
-      return fromField;
+    if (car.inventoryId) {
+      const byId = listed.find((item) => item.id === car.inventoryId);
+      if (byId) {
+        return byId;
+      }
     }
-    const stock: StockCar = fromPatio ?? {
-      id: car.inventoryId,
+    const family = modelFamily(car.model);
+    const sameLine = listed.filter((item) => {
+      const itemFam = modelFamily(item.model);
+      const same =
+        (family && itemFam === family) ||
+        textMentionsModel(item.model, car.model);
+      if (!same) {
+        return false;
+      }
+      if (car.year != null && item.year != null) {
+        return item.year === car.year;
+      }
+      return true;
+    });
+    const current = preferCurrentYears(sameLine, car.year);
+    if (current[0]) {
+      return current[0];
+    }
+    return {
+      id: car.inventoryId || 'shown',
       brand: car.brand,
       model: car.model,
       year: car.year,
       price: car.price,
       typeBody: car.typeBody ?? null,
+      color: car.color,
+      mileage: car.mileage,
+      transmission: car.transmission,
       passengerCapacity: car.passengerCapacity
         ? String(car.passengerCapacity)
         : null,
+      plateShort: car.plateShort,
     };
+  }
+
+  private async seatsLookupOfShown(car: InterestedCarSnapshot): Promise<{
+    seats: number | null;
+    dato: string | null;
+    stock: StockCar;
+  }> {
+    const stock = await this.resolveShownStock(car);
+    const fromField = seatsOfCar(
+      stock.passengerCapacity ?? car.passengerCapacity,
+    );
+    if (fromField != null) {
+      return { seats: fromField, dato: null, stock };
+    }
     const facts = await this.collectSpecFacts('asientos', [stock]);
-    const hit = facts.find((fact) => fact.id === car.inventoryId && fact.seguro);
-    return hit ? seatsFromDato(hit.dato) : null;
+    const hit =
+      facts.find((fact) => fact.id === stock.id) ??
+      facts.find((fact) => fact.id === car.inventoryId) ??
+      facts[0];
+    if (!hit) {
+      return { seats: null, dato: null, stock };
+    }
+    if (!hit.seguro) {
+      return { seats: null, dato: hit.dato || 'no consta', stock };
+    }
+    return { seats: seatsFromDato(hit.dato), dato: hit.dato, stock };
+  }
+
+  private async seatsOfShown(
+    car: InterestedCarSnapshot,
+  ): Promise<number | null> {
+    return (await this.seatsLookupOfShown(car)).seats;
   }
 
   /** Dato de ficha de la unidad ya mostrada: investiga ese modelo y año. */

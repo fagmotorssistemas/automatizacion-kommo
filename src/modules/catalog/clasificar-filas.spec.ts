@@ -335,6 +335,9 @@ describe('clasificar filas', () => {
     expect(modelFamily('explorer xlt')).toBe('explorer');
     expect(modelFamily('optra advance 1.8l')).toBe('optra');
     expect(modelFamily('i10 gls')).toBe('i10');
+    expect(modelFamily('montero sport gls ac 3.0 5p 4x4')).toBe('montero sport');
+    expect(modelFamily('montero 5p')).toBe('montero');
+    expect(modelFamily('santa fe dm 7pas ac 2.4 5p 4x2')).toBe('santa fe');
   });
 
   it('cs/cd y c/d se leen del modelo, no se inventan', () => {
@@ -573,6 +576,73 @@ describe('clasificar filas', () => {
     );
     expect(sinKm.text).toMatch(/aún no cargado/i);
     expect(sinKm.text).not.toMatch(/, 0 km/);
+  });
+
+  it('Montero Sport vigente no se junta con un Montero 1984', () => {
+    const sport: StockCar = {
+      id: 'e5847771-sport-2022',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+      plateShort: 'P4',
+    };
+    const viejo: StockCar = {
+      id: 'f0e62a53-montero-1984',
+      brand: 'mitsubishi',
+      model: 'montero 5p',
+      year: 1984,
+      price: 6500,
+      typeBody: 'jeep',
+      color: 'plateado',
+      mileage: 200000,
+      plateShort: 'P8',
+    };
+    const named = formatNamedUnits([sport, viejo], false);
+    expect(named.sendId).toBe(sport.id);
+    expect(named.holdVehicle).toBe(false);
+    expect(named.listedUnits).toHaveLength(1);
+    expect(named.text).toMatch(/una sola unidad/i);
+    expect(named.text).not.toMatch(/2 unidades/i);
+    expect(named.text).not.toContain(viejo.id);
+    expect(named.text).not.toMatch(/año=1984/);
+  });
+
+  it('dos líneas vigentes de Montero se nombran distintas, no se clonan', () => {
+    const sport: StockCar = {
+      id: 'sport-2022',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+      plateShort: 'P4',
+    };
+    const actual: StockCar = {
+      id: 'montero-2016',
+      brand: 'mitsubishi',
+      model: 'montero 5p',
+      year: 2016,
+      price: 18900,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 98000,
+      plateShort: 'P8',
+    };
+    const named = formatNamedUnits([sport, actual], false);
+    expect(named.sendId).toBeNull();
+    expect(named.holdVehicle).toBe(true);
+    expect(named.text).toMatch(/líneas distintas/i);
+    expect(named.text).toMatch(/2022/);
+    expect(named.text).toMatch(/2016/);
+    expect(named.text).toContain('P4');
+    expect(named.text).toContain('P8');
+    expect(named.text).not.toMatch(/este modelo hay 2/i);
   });
 
   it('4p es puertas y no se pasa como transmisión', () => {

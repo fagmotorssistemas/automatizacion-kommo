@@ -34,4 +34,5 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'ram', model: 'ram 1500 laramie 4x4' },
   { brand: 'fiat', model: '500 lounge ac 1.4 3p 4x2 tm' },
   { brand: 'mitsubishi', model: 'montero sport gls ac 3.0 5p 4x4' },
+  { brand: 'mitsubishi', model: 'montero 5p' },
 ]);

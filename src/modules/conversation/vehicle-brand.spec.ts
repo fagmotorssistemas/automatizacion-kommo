@@ -92,6 +92,20 @@ describe('marca y tres filas', () => {
       year: null,
     });
     expect(
+      detectNamedModelAsk('Hola. Me interesa el Mitsubishi Montero', TEST_LEXICON),
+    ).toEqual({
+      brand: 'mitsubishi',
+      family: 'montero',
+      year: null,
+    });
+    expect(
+      detectNamedModelAsk('Hola. Me interesa el Montero Sport', TEST_LEXICON),
+    ).toEqual({
+      brand: 'mitsubishi',
+      family: 'montero sport',
+      year: null,
+    });
+    expect(
       detectNamedModelAsk('Hola, algún sz pero 2020 a 2022', TEST_LEXICON),
     ).toEqual({
       brand: '',

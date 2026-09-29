@@ -1,3 +1,5 @@
+import { parsePassengerAsk } from '../conversation/large-passenger';
+
 function fold(text: string): string {
   return text
     .toLowerCase()
@@ -33,6 +35,21 @@ function forceFlagNo(resumen: string, label: string): string {
   );
 }
 
+function replaceFlag(resumen: string, label: string, value: string): string {
+  return resumen.replace(new RegExp(`(${label}):\\s*.+`, 'gi'), `$1: ${value}`);
+}
+
+/** 7 asientos / 7 plazas. El 5p del modelo son puertas, no cuenta. */
+export function textAsksForSeats(text: string): number | null {
+  return parsePassengerAsk(text);
+}
+
+/** 3 filas / tercera fila. Pedir 7 asientos no es esto. */
+export function textAsksForTresFilas(text: string): boolean {
+  const n = fold(text);
+  return /\b(?:3|tres)\s+filas?\b|\btercera\s+fila\b/.test(n);
+}
+
 /**
  * El analizador no puede inventar banderas. Si el mensaje no las pidió, quedan no.
  */
@@ -46,6 +63,14 @@ export function sanitizeInventedResumenFlags(
   }
   if (!textAsksForHours(customerText)) {
     out = forceFlagNo(out, 'Pide horario');
+  }
+  const seats = textAsksForSeats(customerText);
+  out =
+    seats != null
+      ? replaceFlag(out, 'Asientos', String(seats))
+      : replaceFlag(out, 'Asientos', 'no');
+  if (!textAsksForTresFilas(customerText)) {
+    out = forceFlagNo(out, 'Tres filas');
   }
   return out;
 }

@@ -4249,12 +4249,212 @@ describe('AgentService', () => {
           year: 2022,
           typeBody: 'camioneta',
         },
+        {
+          id: 'montero-1984',
+          brand: 'mitsubishi',
+          model: 'montero 5p',
+          year: 1984,
+          typeBody: 'jeep',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42074953',
+      text: 'Hola. Me interesa el Mitsubishi Montero',
+      id: 'e5847771-9c0b-4ef8-bb6d-6bb9bd380a11',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'f0e62a53-montero-1984',
+          brand: 'mitsubishi',
+          model: 'montero 5p',
+          year: 1984,
+          typeBody: 'jeep',
+        },
       ],
       expectId: true,
     },
     {
       lead: '42074887',
       text: '¡Hola! Quiero más información',
+      id: 'no-debe',
+      brand: 'kia',
+      model: 'sportage r gti',
+      year: 2019,
+      typeBody: 'jeep',
+      extras: [],
+      expectId: false,
+    },
+    {
+      lead: '42075909',
+      text: 'Hola. Me interesa el Fiat 500 lounge si',
+      id: 'aa00fed0-3337-4274-9575-8cc3bc66718c',
+      brand: 'fiat',
+      model: '500 lounge ac 1.4 3p 4x2 tm',
+      year: 2017,
+      typeBody: 'hatchback',
+      extras: [
+        {
+          id: 'fiat-argo',
+          brand: 'fiat',
+          model: 'argo drive',
+          year: 2022,
+          typeBody: 'hatchback',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42075907',
+      text: 'Hola, quiero más información del Nissan Xtrail 2016',
+      id: '62434e00-2a0e-4795-a4c9-fd544fe2c1af',
+      brand: 'nissan',
+      model: 'x-trail sense',
+      year: 2016,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'sentra-1',
+          brand: 'nissan',
+          model: 'sentra exclusive',
+          year: 2020,
+          typeBody: 'sedan',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42076009',
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'creta-x',
+          brand: 'hyundai',
+          model: 'creta ac 1.5 5p 4x2 tm',
+          year: 2022,
+          typeBody: 'suv',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42076049',
+      text: 'Buenas noches precio del vehículo creta',
+      id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      typeBody: 'suv',
+      extras: [
+        {
+          id: 'santa-x',
+          brand: 'hyundai',
+          model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+          year: 2018,
+          typeBody: 'jeep',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42075315',
+      text: 'Hola. Me interesa el Chevrolet D-max CRDI 2023',
+      id: 'c110ef68-28b0-4a7b-84a8-e8619e4c2114',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2023,
+      typeBody: 'camioneta',
+      extras: [
+        {
+          id: 'aveo-dmax',
+          brand: 'chevrolet',
+          model: 'aveo ls ac 1.6',
+          year: 2018,
+          typeBody: 'sedan',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42075389',
+      text: 'Hola. Me interesa el Peugeot 2008 2022',
+      id: 'p2008-lead',
+      brand: 'peugeot',
+      model: '2008 fin',
+      year: 2022,
+      typeBody: 'suv',
+      extras: [
+        {
+          id: 'p3008-x',
+          brand: 'peugeot',
+          model: '3008n',
+          year: 2022,
+          typeBody: 'suv',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42075221',
+      text: 'Hola. Me interesa el Peugeot 3008',
+      id: 'p3008-lead',
+      brand: 'peugeot',
+      model: '3008n',
+      year: 2022,
+      typeBody: 'suv',
+      extras: [],
+      expectId: true,
+    },
+    {
+      lead: '40226143',
+      text: 'Vi tu anuncio en Instagram. Me interesa Ram 700 2023',
+      id: 'c2633734-4541-468e-a0ba-cb1ef2b383a1',
+      brand: 'ram',
+      model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+      year: 2023,
+      typeBody: 'camioneta',
+      extras: [
+        {
+          id: 'ram-1500-ig',
+          brand: 'ram',
+          model: 'ram 1500 laramie 4x4',
+          year: 2022,
+          typeBody: 'camioneta',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42075339',
+      text: '¿Cuál es el precio de la Nissan X-Trail?',
+      id: '62434e00-2a0e-4795-a4c9-fd544fe2c1af',
+      brand: 'nissan',
+      model: 'x-trail sense',
+      year: 2016,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'sentra-2',
+          brand: 'nissan',
+          model: 'sentra exclusive',
+          year: 2020,
+          typeBody: 'sedan',
+        },
+      ],
+      expectId: true,
+    },
+    {
+      lead: '42076115',
+      text: 'Cuanto cuesta el carrito',
       id: 'no-debe',
       brand: 'kia',
       model: 'sportage r gti',
@@ -4387,6 +4587,42 @@ describe('AgentService', () => {
       year: 2012,
       typeBody: 'sedan',
     },
+    {
+      name: 'Santa Fe 2018',
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      id: 'santa-fe-1',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      typeBody: 'jeep',
+      extras: [
+        {
+          id: 'creta-old',
+          brand: 'hyundai',
+          model: 'creta ac 1.5 5p 4x2 tm',
+          year: 2022,
+          typeBody: 'suv',
+        },
+      ],
+    },
+    {
+      name: 'D-max 2023 Instagram',
+      text: 'Vi tu anuncio. Me interesa el Chevrolet D-max CRDI 2023',
+      id: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+      year: 2023,
+      typeBody: 'camioneta',
+    },
+    {
+      name: 'Xtrail info',
+      text: 'Hola, quiero más información del Nissan Xtrail 2016',
+      id: 'xtrail-2016',
+      brand: 'nissan',
+      model: 'x-trail sense',
+      year: 2016,
+      typeBody: 'jeep',
+    },
   ])('$name manda el id de esa unidad, no se corta', async (row) => {
     catalog.listByBrand.mockResolvedValue([
       ...(row.extras ?? []),
@@ -4426,6 +4662,185 @@ describe('AgentService', () => {
     for (const extra of row.extras ?? []) {
       expect(system).not.toContain(`inventory_id=${extra.id}`);
     }
+  });
+
+  it.each([
+    {
+      lead: '40770859',
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'd38ea60d-9b1e-490d-8b45-790a09e819ee',
+        brand: 'suzuki',
+        model: 'grand vitara sz next ac 2.0 5p 4x2',
+        year: 2015,
+      },
+    },
+    {
+      lead: 'nuevo-explorer-a-creta',
+      text: 'Buenas noches precio del vehículo creta',
+      id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      typeBody: 'suv',
+      old: {
+        inventoryId: '479b66bd-350c-48c5-bf76-d480223572ae',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+      },
+    },
+    {
+      lead: 'nuevo-vitara-a-fiat',
+      text: 'Hola. Me interesa el Fiat 500 lounge',
+      id: 'aa00fed0-3337-4274-9575-8cc3bc66718c',
+      brand: 'fiat',
+      model: '500 lounge ac 1.4 3p 4x2 tm',
+      year: 2017,
+      typeBody: 'hatchback',
+      old: {
+        inventoryId: 'd38ea60d-9b1e-490d-8b45-790a09e819ee',
+        brand: 'suzuki',
+        model: 'grand vitara sz ac 2.0',
+        year: 2015,
+      },
+    },
+    {
+      lead: 'nuevo-explorer-a-ram',
+      text: 'Vi tu anuncio en Instagram. Me interesa Ram 700 2023',
+      id: 'c2633734-4541-468e-a0ba-cb1ef2b383a1',
+      brand: 'ram',
+      model: 'ram 700 slt ac 1.4 cs 4x2 tm',
+      year: 2023,
+      typeBody: 'camioneta',
+      old: {
+        inventoryId: '479b66bd-350c-48c5-bf76-d480223572ae',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+      },
+    },
+    {
+      lead: '41788215',
+      text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
+      brand: 'hyundai',
+      model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+      year: 2018,
+      typeBody: 'jeep',
+      old: {
+        inventoryId: 'f690857b-48e8-4ee4-92ff-a89e2d43c622',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+        year: 2019,
+      },
+    },
+    {
+      lead: 'sportage-a-rio',
+      text: 'Hola. Me interesa el Kia Rio',
+      id: 'rio-1',
+      brand: 'kia',
+      model: 'rio lx',
+      year: 2022,
+      typeBody: 'sedan',
+      old: {
+        inventoryId: 'f690857b-48e8-4ee4-92ff-a89e2d43c622',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+        year: 2019,
+      },
+    },
+    {
+      lead: 'xtrail-a-creta',
+      text: 'Me interesa el Hyundai Creta',
+      id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      typeBody: 'suv',
+      old: {
+        inventoryId: '62434e00-2a0e-4795-a4c9-fd544fe2c1af',
+        brand: 'nissan',
+        model: 'x-trail sense',
+        year: 2016,
+      },
+    },
+  ])('$lead con carro ya mostrado «$text» igual pega el id', async (row) => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: row.old.inventoryId,
+      brand: row.old.brand,
+      model: row.old.model,
+      year: row.old.year,
+      price: 13800,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: `Estimado, tenemos disponible un ${row.old.brand} ${row.old.model} ${row.old.year} color blanco.`,
+      },
+    ]);
+    catalog.listByBrand.mockImplementation(async (brand: string) => {
+      const cars = [
+        {
+          id: row.id,
+          brand: row.brand,
+          model: row.model,
+          year: row.year,
+          price: 18990,
+          typeBody: row.typeBody,
+          color: 'azul',
+          mileage: 70000,
+        },
+        {
+          id: row.old.inventoryId,
+          brand: row.old.brand,
+          model: row.old.model,
+          year: row.old.year,
+          price: 13800,
+          typeBody: 'jeep',
+          color: 'blanco',
+          mileage: 80000,
+        },
+      ];
+      return cars.filter((car) => car.brand === brand);
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'RESUMEN PREVIO:',
+          `Vehículo: ${row.old.brand} ${row.old.model} ${row.old.year}`,
+          'SOLICITUD ACTUAL:',
+          `Cliente quiere información sobre ${row.text}.`,
+          'Pide precio: no',
+          'Pide otras: no',
+          'Caja de compra: no',
+          'Falta vehículo: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: `Tenemos el ${row.model}.`,
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: row.lead,
+      customerText: row.text,
+    });
+
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe(row.id);
+    expect(result?.reply.meta.vehiculo?.inventory_id).not.toBe(
+      row.old.inventoryId,
+    );
   });
 
   it('del 2015 y luego Optra sí exige ese año', async () => {
@@ -7387,6 +7802,180 @@ Falta vehículo: sí`,
     expect(system).toMatch(/palisade limited/i);
     expect(system).not.toMatch(/d-max crdi/i);
     expect(system).not.toMatch(/f150 lariat/i);
+  });
+
+  it('A76430 sí por favor no inventa 7 plazas del 5p', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+        brand: 'mitsubishi',
+        model: 'montero sport gls ac 3.0 5p 4x4',
+        year: 2022,
+        price: 45800,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 75258,
+        passengerCapacity: null,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere más información del Montero Sport 5p.\nAsientos: 7\nTres filas: no\nPide otras: no\nPide precio: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Con gusto le doy más detalles del Montero Sport 2022.',
+        meta: {
+          vehiculo: { inventory_id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c' },
+        },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42074953',
+      customerText: 'Sí, por favor',
+    });
+
+    expect(openai.researchSpecs).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toContain('ASIENTOS:');
+    expect(system).not.toMatch(/plazas cargadas/i);
+  });
+
+  it('A76430 si pregunta asientos investiga la ficha y no usa 5p', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+        brand: 'mitsubishi',
+        model: 'montero sport gls ac 3.0 5p 4x4',
+        year: 2022,
+        price: 45800,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 75258,
+        passengerCapacity: null,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si el Montero tiene 7 asientos.\nAsientos: 7\nTres filas: no\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [
+          {
+            id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+            seguro: true,
+            dato: '7 pasajeros, 3 filas',
+          },
+        ],
+      }),
+    );
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí, el Montero Sport 2022 tiene 7 asientos.',
+        meta: {
+          vehiculo: { inventory_id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c' },
+        },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42074953',
+      customerText: 'tiene 7 asientos?',
+    });
+
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/SÍ tiene 7 plazas/i);
+    expect(system).toMatch(/7 pasajeros, 3 filas/i);
+    expect(system).toContain('ASIENTOS:');
+    expect(system).not.toMatch(/plazas cargadas/i);
+    expect(system).toMatch(/PUERTAS/i);
+  });
+
+  it('A76430 si la ficha no consta no dice 5 plazas', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+      brand: 'mitsubishi',
+      model: 'montero sport gls ac 3.0 5p 4x4',
+      year: 2022,
+      price: 45800,
+      typeBody: 'jeep',
+      color: 'negro',
+      mileage: 75258,
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+        brand: 'mitsubishi',
+        model: 'montero sport gls ac 3.0 5p 4x4',
+        year: 2022,
+        price: 45800,
+        typeBody: 'jeep',
+        color: 'negro',
+        mileage: 75258,
+        passengerCapacity: null,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta asientos del Montero.\nAsientos: 7\nTres filas: no\nPide otras: no\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.researchSpecs.mockResolvedValue(
+      JSON.stringify({
+        fichas: [
+          {
+            id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c',
+            seguro: false,
+            dato: 'no consta',
+          },
+        ],
+      }),
+    );
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En la ficha no consta el número de plazas.',
+        meta: {
+          vehiculo: { inventory_id: 'e5847771-a4f9-4aeb-92b0-a94f8fce2d5c' },
+        },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42074953',
+      customerText: 'tiene 7 asientos?',
+    });
+
+    expect(openai.researchSpecs).toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/no consta/i);
+    expect(system).not.toMatch(/plazas cargadas/i);
+    expect(system).toMatch(/PUERTAS/i);
   });
 
   it('listo después de confirmar la visita no la repite', async () => {
