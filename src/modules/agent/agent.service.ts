@@ -294,6 +294,7 @@ import {
   turnIsSellingTheirCar,
 } from './su-carro';
 import {
+  applyInboundTomaPhotos,
   formatTomaPedido,
   mergeTomaChecklist,
   parseTomaChecklistFromResumen,
@@ -559,9 +560,12 @@ export class AgentService {
       await this.conversation.saveCashBudget(input.contactId, topeNow);
     }
     const esToma = resumenEsToma(resumen);
-    const tomaChecklist = mergeTomaChecklist(
-      rememberedToma,
-      parseTomaChecklistFromResumen(resumen, lexicon),
+    const tomaChecklist = applyInboundTomaPhotos(
+      mergeTomaChecklist(
+        rememberedToma,
+        parseTomaChecklistFromResumen(resumen, lexicon),
+      ),
+      input.customerText,
     );
     if (tomaChecklist && esToma) {
       await this.conversation.saveTomaChecklist(

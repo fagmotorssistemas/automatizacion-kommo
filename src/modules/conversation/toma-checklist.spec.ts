@@ -1,6 +1,8 @@
 import { TEST_LEXICON } from './test-lexicon';
 import {
+  applyInboundTomaPhotos,
   formatTomaPedido,
+  inboundTomaPhotosReceived,
   mergeTomaChecklist,
   missingTomaSlots,
   parseHaveFacts,
@@ -178,5 +180,53 @@ Toma pendiente: no
     expect(text).toMatch(/color del Dongfeng SX5/);
     expect(text).not.toMatch(/máximo 2:.*primera letra/);
     expect(text).toMatch(/PROHIBIDO placa, fotos o monto/);
+  });
+
+  it('el JSON de visión cuenta como fotos recibidas', () => {
+    const vision =
+      '{ "marca": "Hyundai", "modelo": "no identificado", "tipo": "SUV", "color": "negro", "placa": "YCA841AT", "intencion": "VENDER", "confianza_marca": "alta", "razonamiento": "El cliente desea vender su vehículo, y se ha analizado la foto enviada sin necesidad de solicitar más imágenes." }';
+    expect(inboundTomaPhotosReceived(vision)).toBe(true);
+    expect(inboundTomaPhotosReceived('Cañajo')).toBe(false);
+    expect(
+      inboundTomaPhotosReceived(
+        'Unable to open this message. Ask the contact to send it in a supported WhatsApp format.',
+      ),
+    ).toBe(false);
+    const marked = applyInboundTomaPhotos(
+      {
+        have: {
+          marca: 'Hyundai',
+          modelo: 'Santa Fe',
+          anio: '2007',
+          km: 'sin dato',
+          color: 'azul',
+        },
+        pending: ['fotos'],
+      },
+      vision,
+    );
+    expect(marked?.have.fotos).toBe('recibidas');
+    expect(marked?.pending).toEqual([]);
+  });
+
+  it('con identidad lista pide fotos solo si aún no llegaron', () => {
+    const identity = {
+      marca: 'Hyundai',
+      modelo: 'Santa Fe',
+      anio: '2007',
+      km: 'sin dato',
+      color: 'azul',
+    };
+    const sinFotos = formatTomaPedido({ have: identity, pending: [] });
+    expect(sinFotos).toMatch(/mandar fotos/);
+    expect(sinFotos).not.toMatch(/fotos YA recibidas/);
+
+    const conFotos = formatTomaPedido({
+      have: { ...identity, fotos: 'recibidas' },
+      pending: [],
+    });
+    expect(conFotos).toMatch(/fotos YA recibidas/);
+    expect(conFotos).toMatch(/PROHIBIDO pedir más fotos/);
+    expect(conFotos).not.toMatch(/mandar fotos/);
   });
 });

@@ -338,6 +338,41 @@ function mergeCar(prev: TomaCar, next: TomaCar): TomaCar {
   };
 }
 
+/** Fotos que mandó el cliente (visión), no las del patio. */
+export function inboundTomaPhotosReceived(text: string): boolean {
+  if (!text.trim()) {
+    return false;
+  }
+  const venderJson =
+    /"intencion"\s*:\s*"VENDER"/i.test(text) && /"marca"\s*:/i.test(text);
+  const visionSaidEnough =
+    /analiz[oó] la foto enviada|ya se analiz[oó] la foto|no (?:es )?necesario (?:pedir|solicitar) m[aá]s im[aá]genes/i.test(
+      text,
+    );
+  return venderJson || visionSaidEnough;
+}
+
+function markFotosReceived(car: TomaCar): TomaCar {
+  return {
+    have: { ...car.have, fotos: car.have.fotos || 'recibidas' },
+    pending: car.pending.filter((slot) => slot !== 'fotos'),
+  };
+}
+
+export function applyInboundTomaPhotos(
+  checklist: TomaChecklist | null,
+  customerText: string,
+): TomaChecklist | null {
+  if (!checklist || !inboundTomaPhotosReceived(customerText)) {
+    return checklist;
+  }
+  return asChecklist(tomaCars(checklist).map(markFotosReceived));
+}
+
+function allCarsHaveFotos(cars: TomaCar[]): boolean {
+  return cars.length > 0 && cars.every((car) => Boolean(car.have.fotos));
+}
+
 export function mergeTomaChecklist(
   prev: TomaChecklist | null,
   next: TomaChecklist | null,
@@ -411,7 +446,9 @@ Pide SOLO lo que falte, máximo 2 datos. No repitas lo que ya dijo. Si no tiene 
    IDENTIDAD FALTA: ${faltaId.map((slot) => SLOT_LABEL[slot]).join(', ') || 'nada'}`;
   });
   const next = identityDone
-    ? `Identidad de ${cars.length} carro${cars.length > 1 ? 's' : ''} lista. Confirma que con eso avanzamos al avalúo. UNA pregunta: si puede traerlos o mandar fotos. PROHIBIDO placa y monto ahora. PROHIBIDO recitar año/km/color.`
+    ? allCarsHaveFotos(cars)
+      ? `Identidad de ${cars.length} carro${cars.length > 1 ? 's' : ''} lista y fotos YA recibidas. Confirma que avanzamos al avalúo. PROHIBIDO pedir más fotos o "fotos adicionales". Si acaso, pregunta si puede TRAER el carro. PROHIBIDO placa y monto ahora. PROHIBIDO recitar año/km/color.`
+      : `Identidad de ${cars.length} carro${cars.length > 1 ? 's' : ''} lista. Confirma que con eso avanzamos al avalúo. UNA pregunta: si puede traerlos o mandar fotos. PROHIBIDO placa y monto ahora. PROHIBIDO recitar año/km/color.`
     : `Pide SOLO esto, máximo 2: ${ask.join(', ')}
 PROHIBIDO placa, fotos o monto mientras falte marca/modelo/año/km/color de alguno.
 PROHIBIDO "primera letra de ." — si algún día pides placa, di "la primera letra de la placa".`;

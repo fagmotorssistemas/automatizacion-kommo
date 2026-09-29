@@ -1014,6 +1014,54 @@ describe('AgentService', () => {
     expect(openai.complete.mock.calls[0][1]).toMatch(/CHECKLIST TOMA YA GUARDADO/);
   });
 
+  it('A76481: fotos de toma que ya llegaron no se vuelven a pedir', async () => {
+    conversation.loadTomaChecklist.mockResolvedValue({
+      have: {
+        marca: 'Hyundai',
+        modelo: 'Santa Fe',
+        anio: '2007',
+        km: 'sin dato',
+        color: 'azul',
+      },
+      pending: ['fotos'],
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere continuar con la venta de su Hyundai Santa Fe 2007 y confirma que no se necesitan más fotos.\nToma: sí\nToma ficha: Hyundai Santa Fe 2007\nToma ya: marca=Hyundai; modelo=Santa Fe; año=2007; km=sin dato; color=azul\nToma falta: no\nToma pendiente: fotos\nCaja de compra: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["tomavehicular"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Con las fotos que nos envió avanzamos al avalúo de su Santa Fe 2007. ¿Puede traerlo a la concesionaria?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42076135',
+      customerText:
+        'Cañajo { "marca": "Hyundai", "modelo": "no identificado", "tipo": "SUV", "color": "negro", "placa": "YCA841AT", "intencion": "VENDER", "confianza_marca": "alta", "razonamiento": "El cliente desea vender su vehículo, y se ha analizado la foto enviada sin necesidad de solicitar más imágenes." }',
+    });
+
+    expect(conversation.saveTomaChecklist).toHaveBeenCalledWith(
+      '42076135',
+      expect.objectContaining({
+        have: expect.objectContaining({
+          marca: 'Hyundai',
+          modelo: 'Santa Fe',
+          anio: '2007',
+          fotos: 'recibidas',
+        }),
+        pending: [],
+      }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/fotos YA recibidas/);
+    expect(system).toMatch(/PROHIBIDO pedir más fotos/);
+    expect(system).not.toMatch(/mandar fotos/);
+  });
+
   it('en toma de dos carros no mezcla ficha ni pide placa/fotos/monto', async () => {
     openai.complete
       .mockResolvedValueOnce(
