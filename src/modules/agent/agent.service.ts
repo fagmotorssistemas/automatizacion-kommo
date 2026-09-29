@@ -2360,7 +2360,7 @@ PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presenta
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(shown) ?? kindPool,
         listedUnits: shown,
-        photoQueue: toPhotoQueue(shown),
+        photoQueue: toPhotoQueue(shown, 'ficha'),
       };
     }
     if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
@@ -3325,7 +3325,7 @@ ${missing.text}`,
         switchedModel: true,
         vehicleKind: input.kind,
         listedUnits: cars,
-        photoQueue: toPhotoQueue(cars),
+        photoQueue: toPhotoQueue(cars, 'ficha'),
       };
     }
     return {

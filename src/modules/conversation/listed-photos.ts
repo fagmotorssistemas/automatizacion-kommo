@@ -386,10 +386,15 @@ export function pickListedUnit(
   return hits.length === 1 ? hits[0] : null;
 }
 
-export function toPhotoQueue(cars: StockCar[]): PhotoQueueItem[] {
+/** `corta` cuando ya vio la ficha y pide fotos. `ficha` al presentarlas. */
+export function toPhotoQueue(
+  cars: StockCar[],
+  label: 'corta' | 'ficha' = 'corta',
+): PhotoQueueItem[] {
   return cars.slice(0, MAX_PHOTO_PACKS).map((car) => ({
     inventoryId: car.id,
-    label: shortUnitLabel(car),
+    label:
+      label === 'ficha' ? formatCustomerUnitSentence(car) : shortUnitLabel(car),
   }));
 }
 

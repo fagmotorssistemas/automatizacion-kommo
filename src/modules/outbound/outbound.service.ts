@@ -82,7 +82,9 @@ export class OutboundService {
     if (queue.length > 1) {
       const intro = reply.mensaje.trim();
       const sendIntro =
-        Boolean(intro) && !/^le mando las fotos de cada una/i.test(intro);
+        Boolean(intro) &&
+        !/^le mando las fotos de cada una/i.test(intro) &&
+        !/^estas son otras opciones\./i.test(intro);
       if (sendIntro && this.outboundConfig.shadowMode) {
         this.logger.log(
           `SHADOW: listado antes del catálogo lead=${leadId}\n${intro}`,

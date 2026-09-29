@@ -9,6 +9,7 @@ import {
   looksLikeUnitList,
   pickListedUnit,
   shortUnitLabel,
+  toPhotoQueue,
   wantsPhotosOfListed,
   formatCustomerUnitSentence,
   formatOtrasOptionsMessage,
@@ -567,5 +568,9 @@ describe('listed photos', () => {
     expect(text).toContain('\n\n');
     expect(text).toMatch(/\?\s*$/);
     expect(text.split('\n\n').length).toBeGreaterThanOrEqual(3);
+    expect(toPhotoQueue([yuan])[0].label).toBe('Yuan 2026 plomo');
+    expect(toPhotoQueue([yuan], 'ficha')[0].label).toBe(
+      'Byd Yuan 2026, plomo, automática, 25199 km.',
+    );
   });
 });

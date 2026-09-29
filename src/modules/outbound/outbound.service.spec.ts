@@ -1,5 +1,6 @@
 import { KOMMO_SALESBOT } from '../crm/kommo.constants';
 import { PHOTO_AFTER_TEXT_MS } from './outbound.constants';
+import { NO_PHOTOS_CUSTOMER_NOTICE } from './no-photos-notice';
 import { OutboundService } from './outbound.service';
 
 const UUID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -284,10 +285,11 @@ describe('OutboundService', () => {
     );
   });
 
-  it('otras opciones: manda el listado y después el catálogo', async () => {
-    catalog.resolvePhotoBots
-      .mockResolvedValueOnce([101])
-      .mockResolvedValueOnce([202]);
+  it('otras opciones: cada ficha, sin el bloque del listado', async () => {
+    catalog.resolvePhotoBots.mockResolvedValueOnce([101]).mockResolvedValueOnce([]);
+
+    const yuan = 'Byd Yuan 2026, plomo, automática, 25199 km.';
+    const sportage = 'Kia Sportage 2019, blanco, manual.';
 
     await service.dispatch(
       '41807269',
@@ -306,30 +308,26 @@ describe('OutboundService', () => {
         packGapMs: 0,
         photoAfterTextMs: 0,
         photoQueue: [
-          { inventoryId: UUID, label: 'Yuan 2026 plomo' },
+          { inventoryId: UUID, label: yuan },
           {
             inventoryId: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
-            label: 'Sportage 2019 blanco',
+            label: sportage,
           },
         ],
       },
     );
 
-    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
-      1,
+    expect(crm.setRespuestaIa).not.toHaveBeenCalledWith(
       '41807269',
       expect.stringContaining('Estas son otras opciones.'),
     );
+    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(1, '41807269', yuan);
     expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
       2,
       '41807269',
-      'Yuan 2026 plomo',
+      `${sportage}\n\n${NO_PHOTOS_CUSTOMER_NOTICE}`,
     );
-    expect(crm.setRespuestaIa).toHaveBeenNthCalledWith(
-      3,
-      '41807269',
-      'Sportage 2019 blanco',
-    );
+    expect(crm.runSalesbot).toHaveBeenCalledWith(101, '41807269');
   });
 
   it('si pide fotos otra vez, sí las manda aunque ya las haya visto', async () => {
