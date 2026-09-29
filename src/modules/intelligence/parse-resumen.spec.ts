@@ -17,6 +17,7 @@ import {
   resumenCajaCompra,
   resumenCabina,
   resumenTopeContado,
+  resumenPidePresupuesto,
   resumenFaltaVehiculo,
   resumenPideHorario,
   resumenAsientos,
@@ -372,6 +373,46 @@ describe('resumenTopeContado', () => {
     expect(parseTopeAmount('23.000')).toBe(23000);
     expect(parseTopeAmount('10 mil')).toBe(10000);
     expect(parseTopeAmount('2012')).toBeNull();
+  });
+});
+
+describe('resumenPidePresupuesto', () => {
+  it('es ver qué cabe, no un tope copiado en un seguimiento', () => {
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente quiere ver qué cabe en 10000.\nTope de contado: 10000',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente quiere SUV automática que no supere 23000.\nPide otras: sí\nTope de contado: 23000',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente pregunta si el precio es negociable.\nPide negociar: sí\nPide otras: no\nTope de contado: 10000',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente pide la ubicación.\nPide ubicación: sí\nPide otras: no\nTope de contado: 10000',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nPide otras: no\nTope de contado: 10000',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nTope de contado: 10000',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente pide crédito de ESA unidad.\nPide crédito: sí\nPide otras: no\nTope de contado: 10000',
+      ),
+    ).toBe(false);
   });
 });
 

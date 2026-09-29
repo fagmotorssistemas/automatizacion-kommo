@@ -2641,6 +2641,197 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/di el \$ de inventario primero/i);
   });
 
+  it('un tope viejo no reabre catálogo si pregunta si es negociable', async () => {
+    conversation.loadCashBudget.mockResolvedValue(10000);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'vitara-2015',
+      brand: 'suzuki',
+      model: 'grand vitara sz next ac 2.0 5p 4x2',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'La Suzuki Grand Vitara SZ Next AC 2.0 5p 4x2 2015 está en $13,800. Este valor se mantiene porque el vehículo está en buen estado, con documentos y traspaso en regla, listo para entrega inmediata.',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'montero-1984',
+        brand: 'mitsubishi',
+        model: 'montero 5p',
+        year: 1984,
+        price: 8900,
+        typeBody: 'jeep',
+        color: 'plateado',
+      },
+      {
+        id: 'vitara-2015',
+        brand: 'suzuki',
+        model: 'grand vitara sz next ac 2.0 5p 4x2',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si el precio de ESA unidad es negociable.\nPide precio: no\nObjeción de precio: sí\nPide negociar: sí\nPide otras: no\nTope de contado: 10000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["objeciones"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'La Grand Vitara 2015 está en excelente estado, con documentos en regla.',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'El precio es negociable',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/no podemos ofrecer descuento/i);
+    expect(result?.reply.mensaje).not.toMatch(/Montero|10 mil|presupuesto de contado/i);
+    expect(conversation.saveCashBudget).not.toHaveBeenCalled();
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ NEGOCIAR/i);
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/PRESUPUESTO DE CONTADO/i);
+    expect(system).not.toMatch(/PRESUPUESTO: lista las unidades/i);
+    expect(openai.complete.mock.calls[0][1]).toMatch(
+      /NO es el pedido de este turno salvo que el cliente lo vuelva a pedir ahora/,
+    );
+  });
+
+  it('un tope viejo no reabre catálogo si pregunta dónde queda', async () => {
+    conversation.loadCashBudget.mockResolvedValue(10000);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'vitara-2015',
+      brand: 'suzuki',
+      model: 'grand vitara sz next ac 2.0 5p 4x2',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Por este medio no podemos ofrecer descuento ni negociar el valor. Le invitamos a venir a la concesionaria para ver la unidad y hablarlo en persona con un asesor; ahí vemos cómo ayudarle.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide la ubicación de la concesionaria.\nPide ubicación: sí\nPide otras: no\nTope de contado: 10000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estamos en Av. España 6-73 y Sevilla, Cuenca.',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Donde queda el concesionario',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/Av\. España/i);
+    expect(result?.reply.mensaje).not.toMatch(/Montero|10 mil|presupuesto de contado/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ UBICACIÓN/i);
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/PRESUPUESTO DE CONTADO/i);
+  });
+
+  it('un tope viejo no reabre catálogo si pide el precio de esa unidad', async () => {
+    conversation.loadCashBudget.mockResolvedValue(10000);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'vitara-2015',
+      brand: 'suzuki',
+      model: 'grand vitara sz next ac 2.0 5p 4x2',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Le presento la Suzuki Grand Vitara SZ Next 2015, automática, 4x2, color blanco.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nPide otras: no\nTope de contado: 10000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Grand Vitara 2015 está en $13800.',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'Cuál es el precio',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/13800|13,800/);
+    expect(result?.reply.mensaje).not.toMatch(/Montero|presupuesto de contado/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/PRESUPUESTO DE CONTADO/i);
+  });
+
+  it('un tope viejo no reabre catálogo si pregunta el km de esa unidad', async () => {
+    conversation.loadCashBudget.mockResolvedValue(10000);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'vitara-2015',
+      brand: 'suzuki',
+      model: 'grand vitara sz next ac 2.0 5p 4x2',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'La Suzuki Grand Vitara SZ Next 2015 está en $13,800.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta cuántos km tiene ESA unidad.\nPide otras: no\nTope de contado: 10000',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El kilometraje de esa Grand Vitara aún no está cargado.',
+        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'cuántos km tiene?',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/Montero|presupuesto de contado/i);
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
+    expect(system).not.toMatch(/PRESUPUESTO DE CONTADO/i);
+  });
+
   it('no pide entrada para dar la dirección ni confirma ese candado', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'tunland-1',

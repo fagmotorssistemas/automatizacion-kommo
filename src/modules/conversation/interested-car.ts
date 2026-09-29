@@ -38,6 +38,7 @@ import {
   resumenCabina,
   resumenHasPendingDoubt,
   resumenPideOtras,
+  resumenPidePresupuesto,
   resumenStaysOnShownUnit,
   solicitudSinBanderas,
   vehicleClientePidio,
@@ -237,7 +238,11 @@ export function leftShownCar(input: ShownCarContext): boolean {
     return true;
   }
   const budget = resumenTopeContado(resumen);
-  if (budget && (!car.price || budget < car.price)) {
+  if (
+    resumenPidePresupuesto(resumen) &&
+    budget &&
+    (!car.price || budget < car.price)
+  ) {
     return true;
   }
   if (

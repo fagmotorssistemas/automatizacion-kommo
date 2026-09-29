@@ -30,7 +30,9 @@ describe('buildResumenInput', () => {
         customerText: 'la última',
         cashBudget: 23000,
       }),
-    ).toMatch(/TOPE DE CONTADO YA GUARDADO: 23000/);
+    ).toMatch(
+      /TOPE DE CONTADO YA GUARDADO \(contexto de turnos previos; NO es el pedido de este turno salvo que el cliente lo vuelva a pedir ahora\): 23000/,
+    );
   });
 
   it('pasa el checklist de toma ya guardado al analizador', () => {

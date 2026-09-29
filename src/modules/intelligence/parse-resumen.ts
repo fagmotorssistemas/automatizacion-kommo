@@ -527,6 +527,60 @@ export function resumenTopeContado(resumen: string): number | null {
   return parseTopeAmount(match[1]);
 }
 
+/** Sigue en la unidad mostrada: no es ver qué cabe en un tope. */
+export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
+  if (resumenPideOtras(resumen)) {
+    return false;
+  }
+  if (resumenStaysOnShownUnit(resumen)) {
+    return true;
+  }
+  return (
+    resumenPideNegociar(resumen) ||
+    resumenIsPriceObjection(resumen) ||
+    resumenAsksForLocation(resumen) ||
+    resumenPideHorario(resumen) ||
+    resumenAsksForListedPrice(resumen) ||
+    resumenAsksForCredit(resumen) ||
+    resumenAsksForPhotos(resumen) ||
+    resumenHasPendingDoubt(resumen) ||
+    resumenIsCourtesy(resumen) ||
+    resumenIsThreadAck(resumen) ||
+    resumenPrefiereContado(resumen) ||
+    resumenAceptaCredito(resumen)
+  );
+}
+
+function solicitudPideVerTope(resumen: string): boolean {
+  const s = fold(solicitudSinBanderas(resumen) || '');
+  if (!s) {
+    return false;
+  }
+  return (
+    /que cabe/.test(s) ||
+    /que hay por/.test(s) ||
+    /en ese tope/.test(s) ||
+    /presupuesto/.test(s) ||
+    /no (?:supere|pase|exceda)/.test(s) ||
+    /dispone de/.test(s) ||
+    /(?:tengo|tiene|hasta|unos)\s+\d/.test(s)
+  );
+}
+
+/**
+ * ESTE turno pide ver qué cabe en un tope. Un tope copiado de turnos
+ * previos no cuenta si el hilo sigue en la unidad mostrada.
+ */
+export function resumenPidePresupuesto(resumen: string): boolean {
+  if (!resumenTopeContado(resumen)) {
+    return false;
+  }
+  if (resumenSigueEnUnidadMostrada(resumen)) {
+    return false;
+  }
+  return resumenPideOtras(resumen) || solicitudPideVerTope(resumen);
+}
+
 function tomaFichaLine(resumen: string): string | null {
   const match = resumen.match(/toma\s+ficha:\s*(.+?)(?:\n|$)/i);
   if (!match) {

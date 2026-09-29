@@ -173,6 +173,8 @@ import {
   resumenTresFilas,
   resumenTipoPatio,
   resumenTopeContado,
+  resumenPidePresupuesto,
+  resumenSigueEnUnidadMostrada,
   resumenEsToma,
   resumenTomaFicha,
   stripTomaFacts,
@@ -560,8 +562,9 @@ export class AgentService {
       resumenTipoPatio(resumen),
     );
     const topeNow = resumenTopeContado(resumen);
+    const pidePresupuesto = resumenPidePresupuesto(resumen);
     const cashBudget = topeNow ?? rememberedBudget;
-    if (topeNow) {
+    if (pidePresupuesto && topeNow) {
       await this.conversation.saveCashBudget(input.contactId, topeNow);
     }
     const esToma = resumenEsToma(resumen);
@@ -626,7 +629,7 @@ export class AgentService {
       resumenAceptaCredito(resumen) &&
       (historyAskedIfApplies(history) || historyHasShownCuota(history));
     const askedCredit =
-      topeNow ||
+      pidePresupuesto ||
       aceptaVerSiAplica ||
       resumenRechazaAplicar(resumen) ||
       resumenPrefiereContado(resumen)
@@ -679,8 +682,14 @@ export class AgentService {
       brandSaidNow && shownBrandEarly && brandSaidNow !== shownBrandEarly,
     );
     const stayFollowUp =
-      (askedPrice || askedLocation || hasShownDoubt) &&
-      !lastAssistantListed &&
+      (askedPrice ||
+        askedLocation ||
+        hasShownDoubt ||
+        resumenSigueEnUnidadMostrada(resumen)) &&
+      (!lastAssistantListed ||
+        askedLocation ||
+        resumenPideNegociar(resumen) ||
+        resumenPideHorario(resumen)) &&
       (!resumenPideOtras(resumen) || askedPrice) &&
       !otherBrandNow;
     if (stayFollowUp) {
@@ -721,7 +730,7 @@ export class AgentService {
         ? false
         : (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)) &&
             !resumenPideOtras(resumen) &&
-            !resumenTopeContado(resumen)
+            !pidePresupuesto
           ? true
           : followsShownCar({
               text: input.customerText,
@@ -798,6 +807,20 @@ export class AgentService {
         lexicon,
         pedido,
       })
+    ) {
+      stayOnShown = true;
+    }
+    if (
+      interested &&
+      resumenSigueEnUnidadMostrada(resumen) &&
+      !resumenPideOtras(resumen) &&
+      !acceptedOtherOffer &&
+      !otherBrandNow &&
+      !askedOtherColor &&
+      (!lastAssistantListed ||
+        askedLocation ||
+        resumenPideNegociar(resumen) ||
+        resumenPideHorario(resumen))
     ) {
       stayOnShown = true;
     }
@@ -1279,7 +1302,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             ? 'YA hubo cuota. Lee el RESUMEN: qué pide AHORA. No pidas cédula si no aceptó ver si aplica.'
             : resumenPrefiereContado(resumen) && !confirmingCashOrDelivery
               ? 'El RESUMEN dice que prefiere de contado. PROHIBIDO crédito, entrada o cuota. El sistema pregunta cuál de las unidades ya mostradas le gusta. Quédate en esas. No insistas con financiamiento.'
-              : topeNow
+            : pidePresupuesto && !stayOnShown
                 ? 'PRESUPUESTO: lista las unidades que caben. El sistema pregunta si quieren crédito o contado. PROHIBIDO armar cuota. PROHIBIDO pregunta de visita en este turno.'
                 : '';
     const anuncioHint = adVehicle
@@ -1545,7 +1568,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parsed.mensaje = appendFinancingDecline(parsed.mensaje);
       }
       const listedBudgetNow =
-        Boolean(topeNow) && revision.text.includes('PRESUPUESTO DE CONTADO');
+        pidePresupuesto &&
+        !stayOnShown &&
+        revision.text.includes('PRESUPUESTO DE CONTADO');
       if (
         shouldAskBudgetFinancing({
           listedBudgetNow,
@@ -1865,7 +1890,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : null;
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras = resumenPideOtras(resumen);
-    const cashBudgetEarly = asked ? null : cashBudget;
+    const cashBudgetEarly =
+      asked || staysOnShown || !resumenPidePresupuesto(resumen)
+        ? null
+        : cashBudget;
     const wantsListedPrices = includePrice && listedFollowUp;
     const yearPick = yearSaidNow;
     const colorPick = detectColorInText(customerText);

@@ -43,7 +43,9 @@ export function buildResumenInput(input: {
     parts.push(`CHECKLIST TOMA YA GUARDADO:\n${tomaPrev}`);
   }
   if (input.cashBudget != null && input.cashBudget > 0) {
-    parts.push(`TOPE DE CONTADO YA GUARDADO: ${input.cashBudget}`);
+    parts.push(
+      `TOPE DE CONTADO YA GUARDADO (contexto de turnos previos; NO es el pedido de este turno salvo que el cliente lo vuelva a pedir ahora): ${input.cashBudget}`,
+    );
   }
   if (input.previousResumen?.trim()) {
     parts.push(`RESUMEN DEL TURNO ANTERIOR:\n${input.previousResumen.trim()}`);

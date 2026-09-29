@@ -191,6 +191,46 @@ describe('vehículo de interés', () => {
     ).toBe(true);
     expect(
       followsShownCar({
+        text: 'El precio es negociable',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta si el precio de ESA unidad es negociable.\nPide negociar: sí\nPide otras: no\nTope de contado: 10000',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'Donde queda el concesionario',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pide la ubicación de la concesionaria.\nPide ubicación: sí\nPide otras: no\nTope de contado: 10000',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'Cuál es el precio',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nPide otras: no\nTope de contado: 10000',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'cuántos km tiene?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta cuántos km tiene ESA unidad.\nPide otras: no\nTope de contado: 10000',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'ok',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente sigue con ESA unidad.\nPide otras: no\nTope de contado: 10000',
+        car: { ...sportage, price: 22900 },
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
         text: 'sí, esa',
         resumen: 'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.',
         car: sportage,

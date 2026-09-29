@@ -153,11 +153,47 @@ describe('buildTurnPlan', () => {
     expect(result.otras?.otroColor).toBe(true);
   });
 
-  it('un tope menor al precio de la unidad: busca otras', () => {
+  it('tope menor + pide otras: busca otras', () => {
     const result = plan({
-      resumen: resumen('Cliente tiene 12000.', { 'Tope de contado': '12000' }),
+      resumen: resumen('Cliente tiene 12000.', {
+        'Pide otras': 'sí',
+        'Tope de contado': '12000',
+      }),
     });
     expect(result.accion).toBe('OTRAS');
+  });
+
+  it('tope viejo + negociar: sigue en la unidad, no reabre presupuesto', () => {
+    const result = plan({
+      resumen: resumen('Cliente pregunta si el precio es negociable.', {
+        'Pide negociar': 'sí',
+        'Tope de contado': '10000',
+      }),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['negociar']);
+  });
+
+  it('tope viejo + precio de esa unidad: sigue, no reabre presupuesto', () => {
+    const result = plan({
+      resumen: resumen('Cliente quiere el precio de ESA unidad.', {
+        'Pide precio': 'sí',
+        'Tope de contado': '10000',
+      }),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['precio']);
+  });
+
+  it('tope viejo + ubicación: sigue, no reabre presupuesto', () => {
+    const result = plan({
+      resumen: resumen('Cliente pide la ubicación.', {
+        'Pide ubicación': 'sí',
+        'Tope de contado': '10000',
+      }),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['ubicacion']);
   });
 
   it('el bot acaba de listar y no pide otras: elige de la lista', () => {

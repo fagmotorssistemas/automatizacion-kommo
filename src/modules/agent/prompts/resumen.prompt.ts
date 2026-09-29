@@ -223,11 +223,12 @@ Lee el sentido. Si el turno trae más de un pedido (ubicación, información, pr
 - Si hay unidad en el hilo o nombró un carro, "información" es de ESA unidad: Falta vehículo: no.
 
 REGLA DE TOPE DE CONTADO (OBLIGATORIA):
-Lee el sentido, no una frase fija. ¿Este turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?
-- Tope de contado: el monto (23000, 23.000, 10 mil) SOLO si pide ver qué cabe en ese dinero, o que no lo supere.
-- Tope de contado: no si el número es entrada, cuota, plazo, el precio de una unidad ya mostrada, o no habló de techo.
-- Si viene TOPE DE CONTADO YA GUARDADO y este turno no cambia el techo, repite ese mismo monto.
-- La SOLICITUD debe decir que quiere unidades en ese tope. No lo conviertas en crédito.
+Lee el sentido, no una frase fija. ¿ESTE turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?
+- Tope de contado: el monto (23000, 23.000, 10 mil) SOLO si AHORA pide ver qué cabe en ese dinero, o que no lo supere, o elige de las unidades ya listadas en ese tope.
+- Tope de contado: no si el número es entrada, cuota, plazo, el precio de una unidad ya mostrada, o este turno no habló de techo.
+- Si viene TOPE DE CONTADO YA GUARDADO, es contexto de turnos previos. NO lo copies a Tope de contado ni reescribas la SOLICITUD como si quisiera unidades en ese tope, salvo que ESTE turno vuelva a pedir ver qué cabe, que no lo supere, o elija de esa lista.
+- Si ESTE turno es de la unidad mostrada (precio, km, fotos, crédito, negociar, ubicación, duda, visita, horario, cortesía), Tope de contado: no. Pide otras: no. La SOLICITUD es ESA pregunta, no un catálogo por presupuesto.
+- La SOLICITUD solo habla de unidades en ese tope si ESO es lo que pide ahora. No lo conviertas en crédito.
 
 REGLA DE CAJA DE COMPRA (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿La transmisión que mencionó es del carro que nos VENDE/deja, o del que quiere COMPRAR en patio?
