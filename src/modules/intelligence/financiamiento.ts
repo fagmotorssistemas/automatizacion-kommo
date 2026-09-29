@@ -81,3 +81,29 @@ export function calcularFinanciamientoBancario(data: FinanciamientoInput): strin
       'Este valor es referencial y usa una tasa de interés promedio del mercado (no la tasa real del banco). El monto final, la tasa, el plazo y las condiciones los define directamente el banco o cooperativa. Un asesor se comunicará con usted.',
   });
 }
+
+function formatUsd(amount: number, decimals = 0): string {
+  return `$${amount.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })}`;
+}
+
+/** Frase al cliente con la cuota bancaria. Null si faltan datos. */
+export function formatFinancingQuote(data: {
+  precio: number;
+  entrada: number;
+  anos: number;
+}): string | null {
+  const parsed = JSON.parse(
+    calcularFinanciamientoBancario({
+      precio: data.precio,
+      entrada_cliente: data.entrada,
+      anos: data.anos,
+    }),
+  ) as { error?: boolean; cuota_aprox?: number; meses?: number };
+  if (parsed.error || parsed.cuota_aprox == null || parsed.meses == null) {
+    return null;
+  }
+  return `Con una entrada de ${formatUsd(data.entrada)} y financiamiento a ${parsed.meses} meses, la cuota aproximada es ${formatUsd(parsed.cuota_aprox, 2)}. Este valor es referencial, con tasa promedio del mercado; el banco o cooperativa definirán el monto final y condiciones.`;
+}

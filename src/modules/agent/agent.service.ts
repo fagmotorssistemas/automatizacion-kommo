@@ -12,6 +12,7 @@ import {
   calcularFinanciamiento,
   calcularFinanciamientoBancario,
   FinanciamientoInput,
+  formatFinancingQuote,
 } from '../intelligence/financiamiento';
 import {
   cedulaFromThread,
@@ -263,16 +264,19 @@ import {
   appendApplyAsk,
   appendFinancingDataAsk,
   appendFinancingDecline,
+  financingInputsFromThread,
   gaveFinancingInputs,
   historyAskedFinancingData,
   historyAskedIfApplies,
   historyHasShownCuota,
+  mergeFinancingQuote,
   replyAsksFinancingData,
   replyShowsCuota,
   shouldAskFinancingData,
   shouldAskIfApplies,
   shouldEncourageAfterDecline,
   stripGestionarOffer,
+  stripPrematureApplyAsk,
   stripPrematureIdentityAsk,
 } from '../conversation/financing-data';
 import {
@@ -630,9 +634,14 @@ export class AgentService {
       confirmingCashOrDelivery
         ? false
         : mentionsPrice;
+    const financingInputsNow = gaveFinancingInputs(
+      input.customerText,
+      resumen,
+    );
     const aceptaVerSiAplica =
       resumenAceptaCredito(resumen) &&
-      (historyAskedIfApplies(history) || historyHasShownCuota(history));
+      (historyAskedIfApplies(history) || historyHasShownCuota(history)) &&
+      !financingInputsNow;
     const askedCredit =
       pidePresupuesto ||
       aceptaVerSiAplica ||
@@ -1155,7 +1164,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         : interested?.price &&
             interested.price > 0 &&
             sameShownUnit &&
-            (stayOnShown || Boolean(revision.sendId))
+            (stayOnShown || Boolean(revision.sendId) || askedCredit)
           ? Math.round(interested.price)
           : null;
     const askedThisUnitPrice =
@@ -1308,7 +1317,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         ? 'YA TENEMOS LA CÉDULA. PROHIBIDO pedirla otra vez.'
         : historyHasShownCuota(history) &&
             resumenAceptaCredito(resumen) &&
-            !historyAskedFinancingData(history)
+            !historyAskedFinancingData(history) &&
+            !financingInputsNow
           ? 'El RESUMEN dice que acepta ver si aplica. El sistema pegará cédula, nombre y de dónde es. No adelantes esas preguntas. PROHIBIDO “gestionar esto”.'
           : resumenRechazaAplicar(resumen)
             ? 'El RESUMEN dice que no quiere ver si aplica. El sistema pega un mensaje para que no se vaya. Sigue con el carro. PROHIBIDO insistir con cédula.'
@@ -1528,7 +1538,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         keepPrice:
           quotingListedSet ||
           (unitPrice != null &&
-            (canQuotePrice || listedPrice != null || confirmingCashOrDelivery)),
+            (canQuotePrice ||
+              listedPrice != null ||
+              confirmingCashOrDelivery ||
+              askedCredit)),
         keepPlateShort: askedPlate || firstPresentation,
       });
       if (cleaned !== parsed.mensaje || (!canQuotePrice && messageLeaksPrice(parsed.mensaje))) {
@@ -1549,11 +1562,36 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ) {
         parsed.mensaje = dropRepeatedListedPrice(parsed.mensaje, unitPrice);
       }
-      const showedCuotaNow =
-        parsed.meta.cuotaMostrada || replyShowsCuota(parsed.mensaje);
-      if (showedCuotaNow) {
+      const quoteBits = financingInputsFromThread(
+        input.customerText,
+        resumen,
+        history,
+      );
+      if (
+        askedCredit &&
+        unitPrice != null &&
+        quoteBits.entrada != null &&
+        quoteBits.anos != null &&
+        !replyShowsCuota(parsed.mensaje)
+      ) {
+        const quote = formatFinancingQuote({
+          precio: unitPrice,
+          entrada: quoteBits.entrada,
+          anos: quoteBits.anos,
+        });
+        if (quote) {
+          parsed.mensaje = mergeFinancingQuote(parsed.mensaje, quote);
+          parsed.meta.cuotaMostrada = true;
+        }
+      }
+      if (!hasCedula) {
         parsed.mensaje = stripPrematureIdentityAsk(parsed.mensaje);
       }
+      if (!replyShowsCuota(parsed.mensaje) && !parsed.meta.cuotaMostrada) {
+        parsed.mensaje = stripPrematureApplyAsk(parsed.mensaje);
+      }
+      const showedCuotaNow =
+        parsed.meta.cuotaMostrada || replyShowsCuota(parsed.mensaje);
       if (
         shouldAskIfApplies({
           showedCuotaNow,
@@ -1569,6 +1607,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           aceptaCredito: resumenAceptaCredito(resumen),
           hasCedula,
           reply: parsed.mensaje,
+          showedCuotaNow,
         })
       ) {
         parsed.mensaje = appendFinancingDataAsk(parsed.mensaje);

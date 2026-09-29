@@ -257,10 +257,10 @@ export function textAsksForCredit(text: string): boolean {
   }
   const n = fold(stripResumenFlags(text));
   return (
-    /\b(credito|financiamiento|cuota|entrada|plazo|inicial|proforma|mensual(?:idad)?)\b/.test(
+    /\b(credito|financiamiento|cuota|entrada|plazo|inicial|proforma|mensual(?:idad)?|letras?)\b/.test(
       n,
     ) ||
-    /\b\d+\s*an[io]s\b/.test(n)
+    /\b\d+\s*(?:an[io]s|meses)\b/.test(n)
   );
 }
 

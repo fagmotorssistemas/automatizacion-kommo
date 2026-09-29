@@ -1,6 +1,7 @@
 import {
   calcularFinanciamiento,
   calcularFinanciamientoBancario,
+  formatFinancingQuote,
 } from './financiamiento';
 
 describe('financiamiento', () => {
@@ -31,5 +32,17 @@ describe('financiamiento', () => {
     expect(result.camino).toBe('B');
     expect(result.meses).toBe(36);
     expect(result.cuota_aprox).toEqual(expect.any(Number));
+  });
+
+  it('arma la frase de cuota con entrada y meses', () => {
+    const quote = formatFinancingQuote({
+      precio: 22990,
+      entrada: 8000,
+      anos: 4,
+    });
+    expect(quote).toMatch(/entrada de \$8,000/i);
+    expect(quote).toMatch(/48 meses/i);
+    expect(quote).toMatch(/cuota aproximada es \$\d+\.\d{2}/i);
+    expect(quote).not.toMatch(/^y financiamiento/i);
   });
 });

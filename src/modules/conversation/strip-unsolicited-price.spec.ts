@@ -103,6 +103,15 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/Dmax 2020/i);
   });
 
+  it('si recorta el $ de la entrada no deja “y financiamiento…”', () => {
+    const clean = stripUnsolicitedPriceAndPlate(
+      'Con una entrada de $8000 y financiamiento a 48 meses para el Hyundai Santa Fe 2018.',
+    );
+    expect(clean).not.toMatch(/^y financiamiento/i);
+    expect(clean).toMatch(/financiamiento a 48 meses/i);
+    expect(clean).toMatch(/Santa Fe 2018/i);
+  });
+
   it('quita “precio de $13800” en la primera ficha', () => {
     const clean = stripUnsolicitedPriceAndPlate(
       'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km, transmisión 4x2 y precio de $13800. Aquí tiene también las fotos del vehículo.',

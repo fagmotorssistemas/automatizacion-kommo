@@ -152,6 +152,9 @@ describe('contado y crédito', () => {
     ).toBe(true);
     expect(textAsksForCredit('2 mil de entrada')).toBe(true);
     expect(textAsksForCredit('Para 6 años')).toBe(true);
+    expect(textAsksForCredit('sacar en 48 meses a como salen las letras')).toBe(
+      true,
+    );
     expect(
       textAsksForCredit(
         'Para 5 años Melo haces proforma aver cuánto me cay de mensual',

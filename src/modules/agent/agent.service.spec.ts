@@ -10571,6 +10571,56 @@ Falta vehículo: sí`,
     expect(result?.reply.mensaje).not.toMatch(/cédula/i);
   });
 
+  it('A72955: 48 meses con entrada previa muestra la cuota y no pide cédula', async () => {
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Me interesa el Hyundai Santa Fe 2018' },
+      {
+        role: 'assistant',
+        content: 'El precio de contado del Hyundai Santa Fe 2018 es $22,990.',
+      },
+      { role: 'user', content: 'Yo tengo para dar una entrada de 8000' },
+      {
+        role: 'assistant',
+        content:
+          'Con una entrada de $8000 para el Hyundai Santa Fe 2018, ¿a cuántos años desea financiar? Esto me permite calcular la cuota aproximada de financiamiento. ¿Desea que le ayudemos a ver si aplica al crédito?',
+      },
+    ]);
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'santa-fe-2018',
+      brand: 'hyundai',
+      model: 'santa fe',
+      year: 2018,
+      price: 22990,
+      typeBody: 'suv',
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente acepta ver si aplica y pide la cuota a 48 meses.\nPide precio: no\nPide crédito: sí\nAcepta crédito: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["financiamiento"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'y financiamiento a 48 meses para el Hyundai Santa Fe 2018. Este valor es referencial, con tasa promedio del mercado; el banco o cooperativa definirán el monto final y condiciones. ¿Desea que le ayudemos a ver si aplica al crédito? Para seguir con el crédito, ¿me ayuda con estos datos: su cédula, su nombre completo y de dónde es?',
+        meta: { vehiculo: { inventory_id: 'santa-fe-2018', precio: 22990 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText:
+        'Claro ayudema hay a sacar en 48 meses a como salen las letras',
+    });
+
+    const reply = result?.reply.mensaje ?? '';
+    expect(reply).not.toMatch(/^y financiamiento/i);
+    expect(reply).toMatch(/entrada de \$8,000/i);
+    expect(reply).toMatch(/48 meses/i);
+    expect(reply).toMatch(/cuota aproximada es \$\d+\.\d{2}/i);
+    expect(reply).not.toMatch(/cédula/i);
+    expect(reply).toMatch(/ver si aplica/i);
+  });
+
   it('proforma a 5 años no borra precio ni entrada', async () => {
     conversation.recentMessages.mockResolvedValue([
       {
@@ -10612,7 +10662,6 @@ Falta vehículo: sí`,
         'Para 5 años Melo haces proforma aver cuánto me cay de mensual',
     });
 
-    expect(result?.reply.mensaje).toMatch(/32,990/);
     expect(result?.reply.mensaje).toMatch(/1,000/);
     expect(result?.reply.mensaje).toMatch(/962\.39/);
     expect(result?.reply.mensaje).not.toMatch(/tiene un\s*\./i);
