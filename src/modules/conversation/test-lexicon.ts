@@ -21,6 +21,7 @@ export const TEST_LEXICON: VehicleLexicon = buildLexicon([
   { brand: 'hyundai', model: 'tucson gl' },
   { brand: 'hyundai', model: 'kona gl' },
   { brand: 'hyundai', model: 'creta ac 1.5 5p 4x2 tm' },
+  { brand: 'hyundai', model: 'santa fe dm 7pas ac 2.4 5p 4x2' },
   { brand: 'ford', model: 'explorer xlt' },
   { brand: 'ford', model: 'f-150' },
   { brand: 'volkswagen', model: 't-cross' },

@@ -3861,6 +3861,93 @@ describe('AgentService', () => {
     expect(system).not.toMatch(/No hay otra del mismo tipo/i);
   });
 
+  it('40770859: Santa Fe 2018 no pierde el UUID por una Vitara vieja', async () => {
+    const santaId = '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c';
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'd38ea60d-9b1e-490d-8b45-790a09e819ee',
+      brand: 'suzuki',
+      model: 'grand vitara sz next ac 2.0 5p 4x2',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockImplementation(async (brand: string) => {
+      if (brand === 'hyundai') {
+        return [
+          {
+            id: santaId,
+            brand: 'hyundai',
+            model: 'santa fe dm 7pas ac 2.4 5p 4x2',
+            year: 2018,
+            price: 22990,
+            typeBody: 'jeep',
+            color: 'azul',
+            mileage: 124923,
+          },
+          {
+            id: 'kona-2022',
+            brand: 'hyundai',
+            model: 'kona gls ac 1.6 5p 4x2 ta hybrid',
+            year: 2022,
+            price: 21990,
+            typeBody: 'jeep',
+            color: 'azul',
+            mileage: 54694,
+          },
+          {
+            id: 'creta-2022',
+            brand: 'hyundai',
+            model: 'creta ac 1.5 5p 4x2 tm',
+            year: 2022,
+            price: 22990,
+            typeBody: 'jeep',
+            color: 'blanco',
+            mileage: 69344,
+          },
+        ];
+      }
+      return [];
+    });
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'RESUMEN PREVIO:',
+          'Vehículo: No aplica',
+          'Contexto: Primera interacción',
+          '',
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere información sobre el Hyundai Santa Fe 2018 y solicita fotos.',
+          'Pide precio: no',
+          'Pide otras: no',
+          'Caja de compra: no',
+          'Falta vehículo: no',
+          'Tipo de patio: suv',
+          'Toma: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos un Hyundai Santa Fe DM 7pas 2018 azul, 124923 km. Aquí tiene las fotos.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '52606245',
+      customerText: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: santaId }),
+    );
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c/);
+    expect(system).not.toMatch(/solo dijo la marca/i);
+  });
+
   it('42074903: Ram 700 2023 manda el UUID para fotos', async () => {
     const ramId = 'c7b85a94-0ac1-415c-aeec-e3c682a8603e';
     catalog.listByBrand.mockResolvedValue([

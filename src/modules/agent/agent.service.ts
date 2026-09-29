@@ -1816,10 +1816,16 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const staysOnShown = resumenStaysOnShownUnit(resumen);
     const nombraAhora = textoQueNombra(resumen, customerText, lexicon);
     const brandSaidInTurn = detectBrand(nombraAhora, lexicon);
-    const namesBrandNow = Boolean(brandSaidInTurn);    const fromText =
-      staysOnShown && (reference?.inventoryId || reference?.family)
-        ? null
-        : detectNamedModelAsk(nombraAhora, lexicon);
+    const namesBrandNow = Boolean(brandSaidInTurn);
+    const detectedAsk = detectNamedModelAsk(nombraAhora, lexicon);
+    const stillOnShownAsk =
+      staysOnShown &&
+      Boolean(reference?.inventoryId || reference?.family) &&
+      resumenBrandFitsShown(resumen, reference?.brand, lexicon) &&
+      (!detectedAsk?.family ||
+        !reference?.family ||
+        detectedAsk.family === reference.family);
+    const fromText = stillOnShownAsk ? null : detectedAsk;
     const fromSolicitud =
       cajaCompra === 'no' || (namesBrandNow && !fromText)
         ? null
