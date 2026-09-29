@@ -112,6 +112,7 @@ import {
   dropRepeatedListedPrice,
   ensureListedSetPrices,
   hasLoadedPrice,
+  type ListedSetUnit,
   messageLeaksPrice,
   parsePricedUnitsFromReview,
   stripUnsolicitedPriceAndPlate,
@@ -1111,13 +1112,13 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
     const priceAlreadySaid =
       unitPrice != null &&
       entregadoEnHilo(history, { unitPrice }).precio != null;
-    const toListedUnit = (car: StockCar) => ({
+    const toListedUnit = (car: StockCar): ListedSetUnit => ({
       year: car.year,
       color: car.color,
       mileage: car.mileage,
       price: Math.round(car.price as number),
     });
-    let listedSet = (revision.listedUnits ?? [])
+    let listedSet: ListedSetUnit[] = (revision.listedUnits ?? [])
       .filter((car) => hasLoadedPrice(car.price))
       .map(toListedUnit);
     if (listedSet.length === 0) {
