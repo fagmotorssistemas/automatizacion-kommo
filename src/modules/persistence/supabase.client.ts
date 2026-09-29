@@ -30,6 +30,9 @@ import {
   omitLeadIdentityFields,
 } from './lead-columns';
 
+/** Solo se ofrece lo que está físicamente en patio. `otro` y `taller` no entran. */
+const SOLO_EN_PATIO = 'patio';
+
 function mapStockRow(row: {
   id?: unknown;
   brand?: unknown;
@@ -269,6 +272,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, plate_short, bot_id',
       )
       .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO)
       .neq('brand', brand.trim().toLowerCase())
       .order('price', { ascending: true });
 
@@ -312,6 +316,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         'id, brand, model, year, price, type_body, color, version, mileage, transmission, fuel_type, passenger_capacity, doors_count, drive_type, vin, plate_short, bot_id',
       )
       .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO)
       .ilike('brand', brand.trim())
       .order('price', { ascending: true });
 
@@ -331,7 +336,8 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     const { data, error } = await client
       .from('inventoryoracle')
       .select('brand, model')
-      .eq('status', 'disponible');
+      .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO);
     if (error) {
       this.logger.warn(`GET inventoryoracle nombres: ${error.message}`);
       throw error;
@@ -394,6 +400,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       .select('bot_id')
       .eq('id', rawId)
       .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO)
       .maybeSingle();
 
     if (error) {
@@ -471,7 +478,8 @@ export class SupabasePersistenceClient implements SupabaseGateway {
         'id, brand, model, year, price, type_body, mileage, color, plate_short, transmission',
       )
       .in('id', ids)
-      .eq('status', 'disponible');
+      .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO);
 
     if (carError) {
       this.logger.warn(`GET inventoryoracle interés: ${carError.message}`);
@@ -576,6 +584,7 @@ export class SupabasePersistenceClient implements SupabaseGateway {
       .select('id')
       .eq('id', inventoryId)
       .eq('status', 'disponible')
+      .eq('location', SOLO_EN_PATIO)
       .maybeSingle();
     if (stockError) {
       this.logger.warn(`GET inventoryoracle alta interés: ${stockError.message}`);

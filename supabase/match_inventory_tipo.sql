@@ -21,6 +21,7 @@ from inventoryoracle_embeddings e
 join inventoryoracle i on i.id = e.inventory_id
 where
   i.status = 'disponible'
+  and i.location = 'patio'
   and (
     coalesce(filter->>'marca', '') = ''
     or lower(i.brand) = lower(filter->>'marca')
