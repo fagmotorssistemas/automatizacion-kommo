@@ -37,6 +37,7 @@ function resumen(
     'Pide crédito': 'no',
     'Pide otro color': 'no',
     'Pide otras': 'no',
+    'Pide ficha': 'no',
     'Falta vehículo': 'no',
     'Tipo de patio': 'suv',
     'Pide horario': 'no',
@@ -82,6 +83,16 @@ describe('buildTurnPlan', () => {
     });
     expect(result.accion).toBe('SEGUIR_UNIDAD');
     expect(result.seguir).toEqual(['precio']);
+  });
+
+  it('pide ficha: sigue en la unidad y el tema es ficha', () => {
+    const result = plan({
+      resumen: resumen('Cliente quiere la ficha de ESA unidad.', {
+        'Pide ficha': 'sí',
+      }),
+    });
+    expect(result.accion).toBe('SEGUIR_UNIDAD');
+    expect(result.seguir).toEqual(['ficha']);
   });
 
   it('precio + ubicación: sigue en la unidad con los dos temas', () => {

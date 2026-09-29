@@ -6,6 +6,7 @@ import {
   resumenAsksForListedPrice,
   resumenAsksForOtherColor,
   resumenAsksForPhotos,
+  resumenPideFicha,
   resumenAsksForLocation,
   resumenHasPendingDoubt,
   resumenIsCourtesy,
@@ -248,6 +249,26 @@ describe('historyHasListedPrice', () => {
       historyHasListedPrice([
         { role: 'user', content: 'El precio muy alto' },
       ]),
+    ).toBe(false);
+  });
+});
+
+describe('resumenPideFicha', () => {
+  it('lee la bandera del analizador, no la frase del cliente', () => {
+    expect(
+      resumenPideFicha(
+        'SOLICITUD ACTUAL:\nCliente quiere de nuevo la información de la Ford Explorer.\nPide ficha: sí\nPide otras: no',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPideFicha(
+        'SOLICITUD ACTUAL:\nCliente quiere de nuevo la información de la Ford Explorer.\nPide ficha: no\nPide otras: no',
+      ),
+    ).toBe(false);
+    expect(
+      resumenPideFicha(
+        'SOLICITUD ACTUAL:\nCliente pregunta cuántos km tiene ESA unidad.\nPide ficha: no',
+      ),
     ).toBe(false);
   });
 });

@@ -141,6 +141,7 @@ function stripResumenFlags(text: string): string {
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
+    .replace(/pide\s+ficha:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/cabina:\s*(simple|doble|no)/gi, '')
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
@@ -276,6 +277,11 @@ export function resumenAsksForPhotos(resumen: string): boolean {
     ) ||
     /\b(?:fotos?|videos?)\s+(?:o\s+(?:fotos?|videos?)\s+)?del\b/.test(solicitud)
   );
+}
+
+/** El analizador: quiere la ficha / los datos de ESA unidad. Lo decide por sentido. */
+export function resumenPideFicha(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+ficha') === true;
 }
 
 /** El resumen marca si pidió verla / la dirección. Sin bandera no es ubicación. */
@@ -543,6 +549,7 @@ export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
     resumenAsksForListedPrice(resumen) ||
     resumenAsksForCredit(resumen) ||
     resumenAsksForPhotos(resumen) ||
+    resumenPideFicha(resumen) ||
     resumenHasPendingDoubt(resumen) ||
     resumenIsCourtesy(resumen) ||
     resumenIsThreadAck(resumen) ||
@@ -667,6 +674,7 @@ export function resumenIsThreadAck(resumen: string): boolean {
     resumenIsFarewell(resumen) ||
     flagSiNo(resumen, 'pide\\s+precio') === true ||
     flagSiNo(resumen, 'pide\\s+cr[eé]dito') === true ||
+    resumenPideFicha(resumen) ||
     resumenAsksForPhotos(resumen) ||
     resumenAceptaCredito(resumen) ||
     resumenRechazaAplicar(resumen)

@@ -3,6 +3,7 @@ import {
   followsShownCar,
   formatInterestedCar,
   historyPresentedFicha,
+  isFichaRecoveryPing,
   leftShownCar,
   refersToInterestedCar,
   sameShownUnitAsk,
@@ -600,6 +601,11 @@ describe('vehículo de interés', () => {
         ],
         'tunland tm',
       ),
+    ).toBe(false);
+    expect(
+      isFichaRecoveryPing(
+        'Javier, ¿le gustó la Ford Explorer XLT 2018 que le envié o hay algo que le detiene? Escríbame si prefiere que le busque otra opción o más detalles.',
+      ),
     ).toBe(true);
     expect(
       historyPresentedFicha(
@@ -610,6 +616,20 @@ describe('vehículo de interés', () => {
     expect(
       historyPresentedFicha([], 'tunland tm', 'Fotos enviadas. Cliente pide precio.'),
     ).toBe(true);
+  });
+
+  it('si pide la ficha de nuevo suelta la ficha completa, no km+mecánico', () => {
+    const text = formatInterestedCar(
+      { ...explorer, mileage: 113692, color: 'plateado', transmission: 'automatica' },
+      false,
+      { replayFicha: true },
+    );
+    expect(text).toMatch(/PIDIÓ DE NUEVO LA FICHA/i);
+    expect(text).toContain('color=plateado');
+    expect(text).toContain('caja=automática');
+    expect(text).toContain('km=113692');
+    expect(text).toMatch(/PROHIBIDO “tenemos disponible”/i);
+    expect(text).not.toMatch(/La ficha YA se presentó/i);
   });
 
   it('si ya se dio la ficha el precio va justificado, no se vuelve a listar', () => {

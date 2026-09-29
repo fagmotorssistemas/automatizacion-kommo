@@ -179,6 +179,7 @@ import {
   resumenTomaFicha,
   stripTomaFacts,
   resumenAsksForLocation,
+  resumenPideFicha,
   resumenPrefiereContado,
   resumenAsksForImmediateDelivery,
   resumenRechazaAplicar,
@@ -718,6 +719,7 @@ export class AgentService {
       interested?.model,
       resumen,
     );
+    const replayFicha = Boolean(interested) && resumenPideFicha(resumen);
     // Un «gracias» no acepta «le busco otra opción» si el resumen dice Pide otras: no.
     const acceptedOtherOffer =
       (resumenPideOtras(resumen) ||
@@ -905,7 +907,7 @@ export class AgentService {
         text: `EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS (${interested.brand} ${interested.model}).
 inventory_id=${interested.inventoryId}
 Lee el RESUMEN y el HISTORIAL: eso dice qué quiere ahora. Contesta eso sobre ESTA unidad.
-${fichaAlreadyGiven ? 'La ficha YA se presentó. PROHIBIDO volver a abrir con “tenemos disponible” ni repetir color, caja, tracción o placa. Responde solo lo que pregunta ahora.' : ''}
+${replayFicha ? 'PIDIÓ DE NUEVO LA INFORMACIÓN de ESA unidad. Vuelve a dar la ficha completa (año, color, km, caja, tracción). Tono de asesor que retoma: claro, cercano, vendedor. PROHIBIDO “tenemos disponible”, “estimado”, abrir como primer contacto. PROHIBIDO responder solo con km y mecánico. PROHIBIDO precio salvo que el resumen lo pida.' : fichaAlreadyGiven ? 'La ficha YA se presentó. PROHIBIDO volver a abrir con “tenemos disponible” ni repetir color, caja, tracción o placa. Responde solo lo que pregunta ahora.' : ''}
 No reabras inventario ni uses buscarvehiuclo. No digas "no está" ni "lo más cercano".
 No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.`,
         holdVehicle: false,
@@ -1057,15 +1059,18 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               !financingFollowUp,
             {
               skipMileageCare:
+                replayFicha ||
                 historySaidMileageCare(history) ||
                 objectionOnShown ||
                 justifyPriceAfterFicha ||
                 financingFollowUp ||
                 askedPrice,
               slimAfterFicha:
-                justifyPriceAfterFicha ||
-                financingFollowUp ||
-                (stayOnShown && fichaAlreadyGiven),
+                !replayFicha &&
+                (justifyPriceAfterFicha ||
+                  financingFollowUp ||
+                  (stayOnShown && fichaAlreadyGiven)),
+              replayFicha,
               creditFollowUp: financingFollowUp,
               afterFicha:
                 askedPrice && askedLocation

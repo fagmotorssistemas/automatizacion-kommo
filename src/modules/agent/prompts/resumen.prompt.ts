@@ -77,12 +77,12 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE CAMBIO DE VEHÍCULO (OBLIGATORIA):
 Una sola lectura del turno, por el sentido, sin exigir una frase concreta: ¿sigue con la unidad ya mostrada, o ya no la quiere y pide otra?
 Pedir otra unidad ES cambiar de vehículo. Pide otras sale de esa lectura. La SOLICITUD y la bandera dicen lo mismo.
-- Sigue con la mostrada (el valor, el km, la visita, dónde verla, el crédito, confirmar esa, un detalle de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
+- Sigue con la mostrada (el valor, el km, la visita, dónde verla, el crédito, confirmar esa, un detalle de esa, la ficha de esa, si ESA tiene N asientos): Pide otras: no. SOLICITUD: sigue con ESA unidad.
 - Ya no quiere la mostrada y pide otra (la otra del mismo hilo, otra del mismo modelo, u otra del patio): Pide otras: sí. SOLICITUD: quiere otra unidad, no la que ya se mostró. Aunque siga en la misma marca o el mismo modelo, si rechazó la unidad que se acaba de confirmar, ya no es esa.
 - Rechazar el crédito, la visita o un dato de la misma unidad no cambia de vehículo. Pide otras: no.
 - Si el turno anterior ofreció alternativas y ahora acepta verlas, Pide otras: sí.
@@ -131,6 +131,7 @@ Rechaza aplicar: sí|no
 Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
+Pide ficha: sí|no
 Caja de compra: automática|manual|no
 Cabina: simple|doble|no
 Tope de contado: [23000 o no]
@@ -193,6 +194,13 @@ Si viene la sección YA ENTREGADO EN EL HILO, esas piezas ya las tiene el client
 - Preguntar de nuevo por una pieza (aunque diga «otra vez», «cuánto era», «recuérdeme», «no me acuerdo») SÍ es pedirla: pon su bandera en sí.
 - Si la pieza NO está en la sección, no se ha entregado: pídela por sentido como siempre.
 
+REGLA DE PIDE FICHA (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿ESTE turno pide los datos / la ficha de ESA unidad ya en el hilo (la mostrada o de la que el bot acaba de hablar), no un solo detalle?
+Pone Pide ficha: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
+- Pide ficha: sí si quiere que le den o le vuelvan a dar la ficha de ESA: año, color, km, caja, tracción. Da igual cómo lo pida. Aunque el hilo solo tenga un “le envié, ¿le gustó?” y aún no se haya dado la ficha. SOLICITUD: quiere la ficha de ESA unidad. Pide otras: no. Falta vehículo: no. No es otra unidad. No es solo km. No es precio. No es fotos.
+- Pide ficha: no si pregunta UN detalle (km, color, caja), el precio, fotos, ubicación, crédito, o si no hay unidad en el hilo (eso es Falta vehículo o un pedido de patio).
+- Pide ficha: no si es el primer pedido de un carro que aún no está en el hilo: eso se busca, no es ficha de ESA.
+
 REGLA DE UBICACIÓN (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno quiere saber dónde ver, visitar o revisar ESA unidad (o la casa)?
 Pone Pide ubicación: sí o no SIEMPRE. El sistema no adivina sin esa bandera.
@@ -220,14 +228,14 @@ Lee el sentido, no una frase fija. ¿Este turno necesita un carro de patio y aú
 REGLA DE VARIOS PEDIDOS (OBLIGATORIA):
 Lee el sentido. Si el turno trae más de un pedido (ubicación, información, precio, crédito…), la SOLICITUD ACTUAL los nombra todos y cada uno lleva su bandera. Una bandera no apaga a otra.
 - Pide información de un carro sin nombrarlo (y sin unidad en el hilo) Y pide la dirección/ubicación: Pide ubicación: sí y Falta vehículo: sí. SOLICITUD: quiere la ubicación y más información, pero no especificó qué carro; hay que preguntarle. Pide otras: no.
-- Si hay unidad en el hilo o nombró un carro, "información" es de ESA unidad: Falta vehículo: no.
+- Si hay unidad en el hilo o nombró un carro, "información" es de ESA unidad: Falta vehículo: no. Si hay unidad en el hilo y el sentido es la ficha de ESA, Pide ficha: sí.
 
 REGLA DE TOPE DE CONTADO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿ESTE turno pone un techo de dinero para el carro que quiere VER/COMPRAR de patio (contado)?
 - Tope de contado: el monto (23000, 23.000, 10 mil) SOLO si AHORA pide ver qué cabe en ese dinero, o que no lo supere, o elige de las unidades ya listadas en ese tope.
 - Tope de contado: no si el número es entrada, cuota, plazo, el precio de una unidad ya mostrada, o este turno no habló de techo.
 - Si viene TOPE DE CONTADO YA GUARDADO, es contexto de turnos previos. NO lo copies a Tope de contado ni reescribas la SOLICITUD como si quisiera unidades en ese tope, salvo que ESTE turno vuelva a pedir ver qué cabe, que no lo supere, o elija de esa lista.
-- Si ESTE turno es de la unidad mostrada (precio, km, fotos, crédito, negociar, ubicación, duda, visita, horario, cortesía), Tope de contado: no. Pide otras: no. La SOLICITUD es ESA pregunta, no un catálogo por presupuesto.
+- Si ESTE turno es de la unidad mostrada (precio, km, fotos, ficha, crédito, negociar, ubicación, duda, visita, horario, cortesía), Tope de contado: no. Pide otras: no. La SOLICITUD es ESA pregunta, no un catálogo por presupuesto.
 - La SOLICITUD solo habla de unidades en ese tope si ESO es lo que pide ahora. No lo conviertas en crédito.
 
 REGLA DE CAJA DE COMPRA (OBLIGATORIA):

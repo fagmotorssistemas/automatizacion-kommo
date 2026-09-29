@@ -357,6 +357,29 @@ export function followsShownCar(input: ShownCarContext): boolean {
   return !leftShownCar(input);
 }
 
+function foldAsk(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Ping de post-fotos: dice que envió, no trae la ficha. */
+export function isFichaRecoveryPing(content: string): boolean {
+  const n = foldAsk(content);
+  const ping =
+    /le (?:gusto|parecio)/.test(n) ||
+    /hay algo que le detiene/.test(n) ||
+    /le busque otra opcion/.test(n);
+  const claimsSent = /le envie/.test(n);
+  const hasCard =
+    /tenemos disponible/.test(n) ||
+    /transmision/.test(n) ||
+    /aqu[ií] (?:tiene|tiene tambien) las fotos/.test(n) ||
+    /color\s+\w+.{0,40}\d{3,6}\s*km/.test(n);
+  return (ping || claimsSent) && !hasCard;
+}
+
 /** El bot ya mandó la ficha de ESA unidad (historial o resumen). */
 export function historyPresentedFicha(
   history: { role: string; content: string }[] | undefined,
@@ -365,7 +388,7 @@ export function historyPresentedFicha(
 ): boolean {
   if (
     resumen &&
-    /fotos (?:enviadas|ya)|ficha (?:ya )?(?:enviada|mostrada)|ya (?:le )?(?:mostr|envi)/i.test(
+    /ficha (?:ya )?(?:enviada|mostrada)|fotos enviadas|fotos ya/i.test(
       resumen,
     )
   ) {
@@ -378,11 +401,15 @@ export function historyPresentedFicha(
     if (item.role !== 'assistant' || !textMentionsModel(item.content, model)) {
       return false;
     }
+    if (isFichaRecoveryPing(item.content)) {
+      return false;
+    }
     return (
-      /\b\d{3,6}\s*km\b/i.test(item.content) ||
-      /tenemos disponible|aqu[ií] (?:tiene(?: tambi[eé]n)? )?las fotos|le envi[eé] fotos|fotos del veh[ií]culo/i.test(
+      /tenemos disponible|aqu[ií] (?:tiene(?: tambi[eé]n)? )?las fotos|fotos del veh[ií]culo/i.test(
         item.content,
-      )
+      ) ||
+      (/\b\d{3,6}\s*km\b/i.test(item.content) &&
+        /color|transmisi[oó]n|autom[aá]tica|manual|4x[24]/i.test(item.content))
     );
   });
 }
@@ -393,6 +420,7 @@ export function formatInterestedCar(
   options?: {
     skipMileageCare?: boolean;
     slimAfterFicha?: boolean;
+    replayFicha?: boolean;
     creditFollowUp?: boolean;
     afterFicha?: 'price' | 'location' | 'doubt' | 'both' | 'facts';
   },
@@ -406,6 +434,33 @@ export function formatInterestedCar(
     !includePrice && car.price && car.price > 0
       ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
       : '';
+  if (options?.replayFicha) {
+    const tipo = kindFromTypeBody(car.typeBody);
+    const tipoLine = tipo
+      ? `\nTipo de este carro: ${tipo}.`
+      : '';
+    const plate = sanitizePlateShort(car.plateShort);
+    const caja = unitCaja(car);
+    const puertas = unitDoors(car);
+    const traccion = unitDrive(car);
+    const facts = [
+      car.mileage && car.mileage > 0
+        ? `km=${Math.round(car.mileage)}`
+        : 'km=aún no cargado (NO digas 0 km; el dato no está en patio)',
+      car.color ? `color=${car.color}` : '',
+      `caja=${caja ?? 'sin dato'}`,
+      puertas != null ? `puertas=${puertas}` : '',
+      `tracción=${traccion ?? 'sin dato'}`,
+      plate ? `plate_short=${plate}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return `VEHÍCULO DE INTERÉS (pidió de nuevo la información)
+${car.brand} ${car.model}${year}${shown}
+inventory_id=${car.inventoryId}${interno}${tipoLine}
+${facts}
+PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km, caja, tracción). Tono de asesor que retoma el hilo: claro, cercano, vendedor. PROHIBIDO “tenemos disponible”, “estimado”, abrir como si fuera el primer contacto. PROHIBIDO responder solo con km y mecánico. PROHIBIDO precio salvo que el resumen lo pida. Placa solo si preguntó o la ficha trae plate_short.`;
+  }
   if (options?.slimAfterFicha) {
     const after = options?.afterFicha;
     const km =

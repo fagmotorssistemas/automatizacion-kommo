@@ -2477,6 +2477,55 @@ describe('AgentService', () => {
     expect(persistence.saveChosenInterestedCar).not.toHaveBeenCalled();
   });
 
+  it('A73538: pedir de nuevo la info tras un “le envié, ¿le gustó?” vuelve a dar la ficha, no km+mecánico', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'explorer-2018',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4',
+      year: 2018,
+      price: 18900,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 107740,
+      transmission: 'automatica',
+    });
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Javier, ¿le gustó la Ford Explorer XLT 2018 que le envié o hay algo que le detiene? Escríbame si prefiere que le busque otra opción o más detalles.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere de nuevo la información de la Ford Explorer.\nPide precio: no\nPide otras: no\nPide ficha: sí\nFalta vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Con gusto, Javier. La Ford Explorer XLT 2018 es automática 4x4, color blanco, con 107740 km, un SUV cuidado y listo para entrega.',
+        meta: { vehiculo: { inventory_id: 'explorer-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A73538',
+      customerText:
+        'Saludos\nMe uedes volver passr la información de la ford si son tan amables\nPor fsvor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PIDIÓ DE NUEVO LA FICHA|pidió de nuevo la información/i);
+    expect(system).toMatch(/color=blanco/i);
+    expect(system).toMatch(/PROHIBIDO “tenemos disponible”/i);
+    expect(system).not.toMatch(/La ficha YA se presentó/i);
+    expect(system).not.toMatch(/PRIMERA PRESENTACIÓN\. PROHIBIDO decir el precio/i);
+    expect(result?.reply.mensaje).toMatch(/Explorer/i);
+    expect(result?.reply.mensaje).not.toMatch(/tenemos disponible/i);
+    expect(result?.reply.mensaje).not.toMatch(/mecánico/i);
+  });
+
   it('precio y ciudad: sale el valor y no el mecánico', async () => {
     conversation.recentMessages.mockResolvedValue([
       {

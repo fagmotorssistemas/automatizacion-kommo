@@ -26,6 +26,7 @@ import {
   resumenPideHorario,
   resumenPideNegociar,
   resumenPideOtras,
+  resumenPideFicha,
   resumenStaysOnShownUnit,
   resumenTipoPatio,
   resumenTopeContado,
@@ -75,6 +76,7 @@ export type SeguirTema =
   | 'duda'
   | 'credito'
   | 'fotos'
+  | 'ficha'
   | 'cortesia'
   | 'acuse'
   | 'seguimiento';
@@ -140,6 +142,9 @@ function seguirTemas(resumen: string): SeguirTema[] {
   }
   if (resumenAsksForPhotos(resumen)) {
     temas.push('fotos');
+  }
+  if (resumenPideFicha(resumen)) {
+    temas.push('ficha');
   }
   if (temas.length > 0) {
     return temas;
