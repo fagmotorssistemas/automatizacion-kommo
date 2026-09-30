@@ -1,7 +1,7 @@
 import {
   detectAskedCab,
   detectAskedDrive,
-  textMentionsModel,
+  rowMentionsFamily,
   unitCab,
   unitDrive,
   type StockCar,
@@ -100,7 +100,7 @@ function coincide(
     sumar('marca', car.brand.trim().toLowerCase() === hechos.brand);
   }
   if (hechos.family) {
-    sumar('modelo', textMentionsModel(car.model, hechos.family));
+    sumar('modelo', rowMentionsFamily(car.model, hechos.family));
   }
   if (hechos.year != null) {
     sumar('año', car.year === hechos.year);

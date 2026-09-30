@@ -2,8 +2,8 @@ import {
   carsShownInText,
   detectAskedCab,
   detectAskedDrive,
-  modelFamily,
   prettyFamily,
+  rowMentionsFamily,
   textMentionsModel,
   normalizeModelText,
   type CabCode,
@@ -292,12 +292,7 @@ export function askedOutsideListed(
   if (!family || listed.length === 0) {
     return false;
   }
-  const wanted = modelFamily(family);
-  return !listed.some(
-    (car) =>
-      textMentionsModel(car.model, family) ||
-      modelFamily(car.model) === wanted,
-  );
+  return !listed.some((car) => rowMentionsFamily(car.model, family));
 }
 
 /** Pidió otra marca: el listado anterior ya no manda. */

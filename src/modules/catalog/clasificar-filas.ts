@@ -271,6 +271,15 @@ export function textMentionsModel(text: string, model: string): boolean {
   return new RegExp(`\\b${family}\\b`, 'i').test(normalized);
 }
 
+/** Patio: 3008n es la línea 3008. `\b3008\b` no pega dentro de 3008n. */
+export function rowMentionsFamily(model: string, family: string): boolean {
+  const wanted = modelFamily(family);
+  if (!wanted) {
+    return false;
+  }
+  return textMentionsModel(model, family) || modelFamily(model) === wanted;
+}
+
 export function userNamedModel(texts: string[], cars: { model: string }[]): boolean {
   const blob = texts.join('\n');
   return cars.some((car) => textMentionsModel(blob, car.model));
@@ -617,11 +626,7 @@ export function kindFromStockFamily(
   if (!wanted) {
     return null;
   }
-  const hit = cars.find(
-    (car) =>
-      textMentionsModel(car.model, family) ||
-      modelFamily(car.model) === wanted,
-  );
+  const hit = cars.find((car) => rowMentionsFamily(car.model, family));
   return hit ? kindFromTypeBody(hit.typeBody) : null;
 }
 
@@ -835,7 +840,7 @@ export function pickClosestToMissingModel(
     if (excluded.has(car.id)) {
       return false;
     }
-    if (except?.family && textMentionsModel(car.model, except.family)) {
+    if (except?.family && rowMentionsFamily(car.model, except.family)) {
       return false;
     }
     if (
@@ -923,10 +928,7 @@ function sameAskedUnit(
       return false;
     }
   }
-  return (
-    textMentionsModel(car.model, family) ||
-    modelFamily(car.model) === modelFamily(family)
-  );
+  return rowMentionsFamily(car.model, family);
 }
 
 /** No hay el modelo (o el año) pedido: primero dilo, después ofrece otra. */
