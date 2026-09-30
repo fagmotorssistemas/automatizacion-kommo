@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AgentTurnResult } from '../agent/parse-agent-output';
 import { AgentService } from '../agent/agent.service';
+import { stayFieldsForRunLog } from '../conversation/otro-vehiculo';
 import { ConversationService } from '../conversation/conversation.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { OutboundService } from '../outbound/outbound.service';
@@ -258,13 +259,14 @@ export class InboxFlushRunner {
       return null;
     }
 
+    const stay = this.agentService.takeStayDecision?.(data.contactId) ?? null;
     await this.runLog.record({
       ...ctx,
       step: 'agent',
       status: 'ok',
       reason: 'respuesta_generada',
       detail: {
-        resumen: turn.resumen.slice(0, 500),
+        resumen: turn.resumen.slice(0, 2000),
         mensaje: turn.reply.mensaje.slice(0, 1000),
         inventoryId: turn.reply.meta.vehiculo?.inventory_id ?? null,
         imgPrefix: turn.reply.img_prefix,
@@ -272,6 +274,15 @@ export class InboxFlushRunner {
         plan: turn.plan ?? null,
         // Lo que el bot ya había entregado en el hilo (registro que ve el resumen).
         entregado: turn.entregado ?? null,
+        numerosCorregidos: turn.numerosCorregidos ?? [],
+        regenerado: turn.regenerado ?? false,
+        hechos: turn.hechos ?? [],
+        unidadesContexto: turn.unidadesContexto ?? [],
+        ...stayFieldsForRunLog(stay),
+        ...(turn.faltaAclararNoExiste
+          ? { faltaAclararNoExiste: turn.faltaAclararNoExiste }
+          : {}),
+        texto: customerText.slice(0, 500),
       },
     });
 

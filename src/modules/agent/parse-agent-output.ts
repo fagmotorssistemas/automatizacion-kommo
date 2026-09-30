@@ -1,5 +1,7 @@
 import type { EntregadoEnHilo } from '../conversation/entregado-en-hilo';
 import type { TurnPlanLog } from '../intelligence/turn-plan';
+import type { UnidadContexto } from './unidades-contexto';
+import type { CorreccionNumero } from './validar-numeros';
 
 export type AgentVehicleMeta = {
   inventory_id?: string;
@@ -36,6 +38,13 @@ export type AgentTurnResult = {
   plan?: TurnPlanLog;
   /** Piezas que el bot ya había entregado en el hilo al empezar el turno. */
   entregado?: EntregadoEnHilo;
+  numerosCorregidos?: CorreccionNumero[];
+  regenerado?: boolean;
+  hechos?: Array<{ id: string; km: number | null; precio: number | null }>;
+  /** Unidades cuya ficha o datos vio el modelo en este turno. Solo id y origen. */
+  unidadesContexto?: UnidadContexto[];
+  /** El turno pedía aclarar que ese año no hay y la respuesta no lo dijo. */
+  faltaAclararNoExiste?: { pedido: string; ofrecido: string };
 };
 
 const EMPTY_META: AgentMeta = {
