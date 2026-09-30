@@ -7,6 +7,27 @@ import {
 } from '../catalog/clasificar-filas';
 import { colorMatches } from './vehicle-brand';
 import { gearboxLabel, gearboxOf, type Gearbox } from './gearbox';
+import { kindFromTypeBody, type VehicleKind } from './vehicle-kind';
+
+function tipoLabel(kind: VehicleKind | string | null | undefined): string {
+  if (kind === 'suv') {
+    return 'SUV';
+  }
+  if (kind === 'sedan') {
+    return 'sedán';
+  }
+  if (kind === 'hatchback') {
+    return 'hatchback';
+  }
+  if (kind === 'camioneta') {
+    return 'camioneta';
+  }
+  return kind?.trim() || 'unidad';
+}
+
+function tipoOf(car: StockCar): string {
+  return tipoLabel(kindFromTypeBody(car.typeBody) ?? car.typeBody);
+}
 
 export type FactMissKind =
   | 'año'
@@ -78,6 +99,8 @@ export function formatFactMissInstruction(input: {
   shown: StockCar | null;
   alts: StockCar[];
   includePrice: boolean;
+  askedKind?: VehicleKind | string | null;
+  widenedToSuv?: boolean;
 }): {
   text: string;
   holdVehicle: boolean;
@@ -90,7 +113,21 @@ export function formatFactMissInstruction(input: {
   const alts = input.alts.filter(
     (car) => !input.shown || car.id !== input.shown.id,
   );
-  const lines = alts.map((car) => describeUnit(car, input.includePrice));
+  const askedKind =
+    input.askedKind ??
+    (input.shown
+      ? kindFromTypeBody(input.shown.typeBody) ?? input.shown.typeBody
+      : null);
+  const askedTipo = tipoLabel(askedKind);
+  const altTipos = [...new Set(alts.map((car) => tipoOf(car)))];
+  const typeShifted =
+    Boolean(input.widenedToSuv) ||
+    (Boolean(askedKind) &&
+      alts.some((car) => tipoOf(car).toLowerCase() !== askedTipo.toLowerCase()));
+  const lines = alts.map((car) => {
+    const tipo = tipoOf(car);
+    return `${describeUnit(car, input.includePrice)} | tipo=${tipo}`;
+  });
   const shownLine = input.shown
     ? describeUnit(input.shown, input.includePrice)
     : '';
@@ -102,6 +139,10 @@ export function formatFactMissInstruction(input: {
 
   const shownNote = input.shown
     ? `El ${familia} que tenemos es ${shownDiff}. Menciónalo aclarando la diferencia: ${shownLine}.`
+    : '';
+
+  const typeNote = typeShifted
+    ? `No tenemos ${askedTipo} con ${input.askedLabel} como el ${familia}; tenemos estos ${altTipos.join(', ')}: ${alts.map((car) => `${car.brand} ${modelFamily(car.model) || car.model} (${tipoOf(car)})`).join(', ')}. PROHIBIDO presentarlas como ${askedTipo} si no lo son. El tipo real de cada una está en tipo=.`
     : '';
 
   if (alts.length === 0) {
@@ -124,6 +165,7 @@ ${lines.join('\n')}`;
 
   return {
     text: `${lead}
+${typeNote}
 ${offer}
 ${shownNote}`.trim(),
     holdVehicle: alts.length > 1,

@@ -1664,6 +1664,261 @@ describe('AgentService', () => {
     expect(system).toMatch(/dmax-2023|2023/);
   });
 
+  const resumenPicanto1646 = `RESUMEN PREVIO:
+Vehículo: Kia picanto {KIA PICANTO 2023}
+Contexto: Cliente pidió información y fotos de Kia picanto {KIA PICANTO 2023}
+
+SOLICITUD ACTUAL:
+Cliente quiere saber si hay Kia picanto 2023 color blanco con caja manual disponible.
+Pide precio: no
+Pide crédito: no
+Pide otro color: no
+Objeción de precio: no
+Acepta crédito: no
+Rechaza aplicar: no
+Prefiere contado: no
+Pide negociar: no
+Pide otras: no
+Otro vehículo: no
+Pide ficha: no
+Caja de compra: manual
+Cabina: no
+Tracción pedida: no
+Color pedido: blanco
+Tope de contado: no
+Falta vehículo: no
+Tipo de patio: hatchback
+Pide horario: no
+Pide ubicación: no
+Asientos: no
+Tres filas: no
+Toma: no
+Toma ficha: no
+Toma ya: no
+Toma falta: no
+Toma pendiente: no
+Tiene duda: sí
+Es despedida: no`;
+
+  it('16:46 resumen real: no hay Picanto manual, ofrece fiat500 y menciona el automático', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    conversation.loadVehicleKind.mockResolvedValue('hatchback');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+      {
+        id: 'sportage-1',
+        brand: 'kia',
+        model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+        year: 2019,
+        price: 22900,
+        typeBody: 'jeep',
+        color: 'plateado',
+      },
+      {
+        id: 'sportage-2',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0 5p 4x2',
+        year: 2019,
+        price: 21900,
+        typeBody: 'jeep',
+        color: 'rojo',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'fiat500',
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 13990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ]);
+    openai.embed.mockResolvedValue([0.2]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'sportage-1',
+          metadata: {
+            brand: 'kia',
+            model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+            year: 2019,
+            type: 'jeep',
+            inventory_id: 'sportage-1',
+            price: 22900,
+          },
+        },
+        {
+          id: 'sportage-2',
+          metadata: {
+            brand: 'kia',
+            model: 'sportage r gti ac 2.0 5p 4x2',
+            year: 2019,
+            type: 'jeep',
+            inventory_id: 'sportage-2',
+            price: 21900,
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(resumenPicanto1646)
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay Picanto 2023 blanco manual. En manual está el Fiat 500. El Picanto que tenemos es automático.',
+        meta: { vehiculo: { inventory_id: 'fiat500' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '25660880',
+      customerText: 'Por fa caja manual blanco habrá',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/PROHIBIDO decir que no hay/i);
+    expect(system).toMatch(/no tenemos el picanto con manual|NO está en patio/i);
+    expect(system).toMatch(/fiat500/i);
+    expect(system).toMatch(/automátic/i);
+    expect(system).toMatch(/picanto/i);
+  });
+
+  it('hatchback manual: sin hatch manual, ofrece SUV y prohíbe presentarlo como hatchback', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    conversation.loadVehicleKind.mockResolvedValue('hatchback');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'sportage-tm',
+        brand: 'kia',
+        model: 'sportage r gti ac 2.0 5p 4x2 tm',
+        year: 2019,
+        price: 17000,
+        typeBody: 'jeep',
+        color: 'rojo',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Picanto hatchback manual.\nCaja de compra: manual\nTipo de patio: hatchback\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No hay hatchback manual. Hay un Sportage SUV manual.',
+        meta: { vehiculo: { inventory_id: 'sportage-tm' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'hatch-suv',
+      customerText: 'Por fa caja manual',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/suv/i);
+    expect(system).toMatch(/sportage-tm/i);
+    expect(system).toMatch(/PROHIBIDO presentarlas como hatchback/i);
+    expect(system).toMatch(/tipo=SUV/i);
+  });
+
+  it('D-Max doble cabina 4x4: no hay esa combinación, ofrece doble cabina 4x4 parecida', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-cs',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+      year: 2020,
+      price: 21900,
+      typeBody: 'cabina simple',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-cs',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+        year: 2020,
+        price: 21900,
+        typeBody: 'cabina simple',
+        color: 'blanco',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'hilux-cd-4x4',
+        brand: 'toyota',
+        model: 'hilux 2.4 cd 4x4 tm diesel',
+        year: 2021,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta por cabina y tracción de la D-Max.\nCabina: doble\nTracción pedida: 4x4\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay D-Max doble cabina 4x4. Hay una Hilux doble cabina 4x4.',
+        meta: { vehiculo: { inventory_id: 'hilux-cd-4x4' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'dmax-cd-4x4',
+      customerText: 'D-Max doble cabina 4x4',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/no tenemos|NO está en patio/i);
+    expect(system).toMatch(/hilux-cd-4x4/i);
+    expect(system).toMatch(/4x4/i);
+    expect(system).not.toMatch(/PROHIBIDO decir que no hay/i);
+  });
+
   it('Costo del 4Runner ya mostrado dice el $ de patio, no que no está cargado', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'runner-2004',

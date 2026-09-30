@@ -2287,42 +2287,43 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       referencePrice: shown.price ?? null,
     };
     let alts: StockCar[] = [];
+    let pick: ReturnType<typeof pickSimilarMatching> = null;
     if (kind === 'transmisión' && input.asked.gearbox) {
-      alts =
-        pickGearboxAlternatives({
-          cars: patio,
-          gearbox: input.asked.gearbox,
-          ...similar,
-        })?.cars ?? [];
+      pick = pickGearboxAlternatives({
+        cars: patio,
+        gearbox: input.asked.gearbox,
+        ...similar,
+      });
+      alts = pick?.cars ?? [];
     } else if (kind === 'cabina' || kind === 'tracción') {
       const offer = pickCabDriveOffer(
         patio,
         input.asked.cab ?? null,
         input.asked.drive ?? null,
       );
-      alts =
-        pickSimilarMatching({
-          cars: offer.cars,
-          matches: () => true,
-          ...similar,
-        })?.cars ?? offer.cars.slice(0, 3);
+      pick = pickSimilarMatching({
+        cars: offer.cars,
+        matches: () => true,
+        ...similar,
+      });
+      alts = pick?.cars?.length ? pick.cars : offer.cars.slice(0, 3);
     } else if (kind === 'color' && input.asked.color) {
       const askedColor = input.asked.color;
-      alts =
-        pickSimilarMatching({
-          cars: patio,
-          matches: (car) =>
-            Boolean(car.color && colorMatches(car.color, askedColor)),
-          ...similar,
-        })?.cars ?? [];
+      pick = pickSimilarMatching({
+        cars: patio,
+        matches: (car) =>
+          Boolean(car.color && colorMatches(car.color, askedColor)),
+        ...similar,
+      });
+      alts = pick?.cars ?? [];
     } else if (kind === 'año' && input.asked.year != null) {
       const year = input.asked.year;
-      alts =
-        pickSimilarMatching({
-          cars: patio,
-          matches: (car) => car.year === year,
-          ...similar,
-        })?.cars ?? [];
+      pick = pickSimilarMatching({
+        cars: patio,
+        matches: (car) => car.year === year,
+        ...similar,
+      });
+      alts = pick?.cars ?? [];
     }
     alts = alts.filter((car) => car.id !== shown.id);
     const askedLabel = askedFactLabel(kind, input.asked);
@@ -2334,6 +2335,9 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       shown,
       alts,
       includePrice: input.includePrice,
+      askedKind:
+        kindFromTypeBody(shown.typeBody) ?? input.kindForAsk,
+      widenedToSuv: pick?.widenedToSuv ?? false,
     });
     const yearPedido = input.asked.year;
     const noCoincideAnio =
@@ -2353,8 +2357,9 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
           }
         : undefined;
     const send = patio.find((car) => car.id === formatted.sendId) ?? shown;
+    const choseFromShown = alts.length === 0 && Boolean(formatted.sendId);
     const unitPrice =
-      formatted.sendId && send.price && send.price > 0
+      choseFromShown && send.price && send.price > 0
         ? Math.round(send.price)
         : null;
     return {
@@ -2365,7 +2370,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       listedUnits: formatted.listedUnits,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(alts.length > 0 ? alts : [shown]),
-      choseFromShown: alts.length === 0 && Boolean(formatted.sendId),
+      choseFromShown,
       ...(noCoincideAnio ? { noCoincideAnio } : {}),
       ...(noCoincideDato ? { noCoincideDato } : {}),
     };
@@ -3028,6 +3033,39 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     const alreadyOffered = carsShownInHistory(history, listed, resumen);
     const pricePool =
       pedidoPinned && listed.length > 0 ? listed : alreadyOffered;
+    if (!yearOnward && reference?.inventoryId) {
+      const shown =
+        listed.find((car) => car.id === reference.inventoryId) ??
+        listed.find((car) =>
+          reference.family
+            ? rowMentionsFamily(car.model, reference.family)
+            : false,
+        );
+      if (shown) {
+        const askedFamily = asked?.family;
+        const flagMiss =
+          stayMotivo === 'caja' ||
+          stayMotivo === 'cabina' ||
+          stayMotivo === 'traccion' ||
+          stayMotivo === 'otro_color';
+        const sameLine =
+          Boolean(askedFamily) &&
+          askedMatchesShownModel(askedFamily, shown.model);
+        if (flagMiss || sameLine) {
+          const miss = mismatchesOf(shown, askedFacts);
+          if (miss.length > 0) {
+            return this.reviewFactMiss({
+              shown,
+              mismatches: miss,
+              asked: askedFacts,
+              includePrice,
+              listed,
+              kindForAsk,
+            });
+          }
+        }
+      }
+    }
     if (!asked && wantsListedPrices && pricePool.length > 0) {
       const named = formatNamedUnits(pricePool, true);
       const one = pricePool.length === 1;
