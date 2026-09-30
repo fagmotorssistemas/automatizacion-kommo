@@ -777,6 +777,96 @@ describe('mismaUnidadPorFila y evidenciaReal', () => {
   });
 });
 
+describe('evidenciaReal exige solo lo nuevo del valor', () => {
+  const dmax2023: InterestedCarSnapshot = {
+    inventoryId: 'dmax-2023',
+    brand: 'chevrolet',
+    model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+    year: 2023,
+    price: 28990,
+  };
+  const sportage2022: InterestedCarSnapshot = {
+    ...sportage,
+    inventoryId: 'sp-2022',
+    model: 'sportage lx',
+    year: 2022,
+  };
+
+  it('a) D-Max 2023 y «tendrá del 2019 de la misma?» suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: 'tendrá del 2019 de la misma?',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente pregunta si hay D-max 2019.\nPide otras: no',
+          'D-Max 2019',
+        ),
+        car: dmax2023,
+      }),
+    ).toEqual({ stay: false, motivo: 'otro_anio_version_color' });
+  });
+
+  it('b) Sportage y «quiero visitar esta unidad» con Aveo sigue', () => {
+    expect(
+      decideStayOnShown({
+        text: 'quiero visitar esta unidad',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente quiere visitar.\nPide otras: no',
+          'Aveo',
+        ),
+        car: sportage,
+      }),
+    ).toEqual({ stay: true, motivo: 'sin_evidencia' });
+  });
+
+  it('c) D-Max 2022, bot ofreció Premiere 2020 y el cliente dice sí: suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: 'sí',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente acepta la Premiere 2020.\nPide otras: no',
+          'Premiere 2020',
+        ),
+        car: dmax,
+        history: [
+          {
+            role: 'assistant',
+            content: 'una Premiere 2020',
+          },
+        ],
+      }),
+    ).toEqual({ stay: false, motivo: 'otro_anio_version_color' });
+  });
+
+  it('d) Sportage 2022 y «tienen del 2020?» suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: 'tienen del 2020?',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente pregunta Sportage 2020.\nPide otras: no',
+          'Sportage 2020',
+        ),
+        car: sportage2022,
+      }),
+    ).toEqual({ stay: false, motivo: 'otro_anio_version_color' });
+  });
+
+  it('e) Sportage 2022 y «precio?» con Otro vehículo Sportage 2022 sigue', () => {
+    expect(
+      evidenciaReal('Sportage 2022', 'precio?', '', sportage2022),
+    ).toBe(false);
+    expect(
+      decideStayOnShown({
+        text: 'precio?',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente pide el precio.\nPide precio: sí\nPide otras: no',
+          'Sportage 2022',
+        ),
+        car: sportage2022,
+      }).stay,
+    ).toBe(true);
+  });
+});
+
 describe('debeConsultarRpcOtro', () => {
   it('consulta si hay otro con evidencia y no es la misma por fila', () => {
     expect(debeConsultarRpcOtro(dmax, 'Santa Fe', true, false)).toBe(true);

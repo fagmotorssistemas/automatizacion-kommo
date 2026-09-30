@@ -895,7 +895,7 @@ export class AgentService {
     const evidencia = Boolean(
       otro &&
         interested &&
-        evidenciaReal(otro, input.customerText, ultimosBot),
+        evidenciaReal(otro, input.customerText, ultimosBot, interested),
     );
     const mismaPorFila = Boolean(
       otro && interested && mismaUnidadPorFila(otro, interested),

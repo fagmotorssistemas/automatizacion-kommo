@@ -278,8 +278,7 @@ function evidenciaTokens(valor: string): string[] {
   return tokensDe(valor).filter((token) => token.length >= 2 || /^\d+$/.test(token));
 }
 
-function cubreFuente(valor: string, fuente: string): boolean {
-  const valToks = evidenciaTokens(valor);
+function cubreTokens(valToks: string[], fuente: string): boolean {
   if (valToks.length === 0) {
     return false;
   }
@@ -299,6 +298,47 @@ function cubreFuente(valor: string, fuente: string): boolean {
   return valToks.every((token) => srcGlued.includes(token));
 }
 
+function esVersionPegada(token: string, parts: string[]): boolean {
+  if (token.length < 3) {
+    return false;
+  }
+  let acc = '';
+  for (const part of parts) {
+    acc += part;
+    if (acc === token) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Marca, familia, tokens largos del modelo, versión pegada y año de la fila. */
+function tokenEsDelMostrado(
+  token: string,
+  car: { brand: string; model: string; year?: number | null },
+): boolean {
+  const brandToks = tokensDe(car.brand);
+  const modelToks = tokensDe(car.model);
+  const family = normalizeModelText(modelFamily(car.model));
+  const gluedFamily = family.replace(/[^a-z0-9]/g, '');
+  if (car.year != null && token === String(car.year)) {
+    return true;
+  }
+  const owned = new Set(
+    [...brandToks, ...modelToks.filter((part) => part.length >= 3), family, gluedFamily].filter(
+      (part) => part.length >= 2,
+    ),
+  );
+  if (owned.has(token)) {
+    return true;
+  }
+  return (
+    esVersionPegada(token, modelToks) ||
+    esVersionPegada(token, brandToks) ||
+    esVersionPegada(token, [...brandToks, ...modelToks])
+  );
+}
+
 function textosBot(fuente: TextosBot): string[] {
   const lista = Array.isArray(fuente) ? [...fuente] : [fuente];
   return lista.slice(-3);
@@ -308,11 +348,21 @@ export function evidenciaReal(
   valor: string,
   customerText: string,
   lastAssistantText: TextosBot,
+  car?: { brand: string; model: string; year?: number | null } | null,
 ): boolean {
-  if (cubreFuente(valor, customerText)) {
+  let valToks = evidenciaTokens(valor);
+  if (car) {
+    valToks = valToks.filter((token) => !tokenEsDelMostrado(token, car));
+    if (valToks.length === 0) {
+      return false;
+    }
+  }
+  if (cubreTokens(valToks, customerText)) {
     return true;
   }
-  return textosBot(lastAssistantText).some((texto) => cubreFuente(valor, texto));
+  return textosBot(lastAssistantText).some((texto) =>
+    cubreTokens(valToks, texto),
+  );
 }
 
 /** 10 min: si el flush no lee, no se queda en el Map. */
@@ -406,7 +456,17 @@ export function fila1Nueva(input: Fila1NuevaInput): {
   if (!otro) {
     return { suelta: false, motivo: 'sin_otro' };
   }
-  if (!evidenciaReal(otro, input.customerText, input.lastAssistantText)) {
+  if (
+    !evidenciaReal(
+      otro,
+      input.customerText,
+      input.lastAssistantText,
+      input.car,
+    )
+  ) {
+    if (mismaUnidadPorFila(otro, input.car)) {
+      return { suelta: false, motivo: 'misma_por_fila' };
+    }
     return { suelta: false, motivo: 'sin_evidencia' };
   }
   if (askedOtherUnitFacts(otro, input.car)) {
