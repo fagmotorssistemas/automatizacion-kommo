@@ -68,7 +68,10 @@ import {
   type ContextoNumeros,
   type CorreccionNumero,
 } from './validar-numeros';
-import { armarUnidadesContexto } from './unidades-contexto';
+import {
+  armarUnidadesContexto,
+  type UnidadContexto,
+} from './unidades-contexto';
 import {
   asksAnyBrand,
   detectVehicleKind,
@@ -358,8 +361,8 @@ import {
 } from '../conversation/toma-checklist';
 
 function unidadesParaTurno(
-  unidades: { id: string; origen: string }[],
-): { unidadesContexto: { id: string; origen: string }[] } | Record<string, never> {
+  unidades: UnidadContexto[],
+): { unidadesContexto: UnidadContexto[] } | Record<string, never> {
   return unidades.length ? { unidadesContexto: unidades } : {};
 }
 
