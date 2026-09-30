@@ -195,6 +195,8 @@ const conversations: {
     input: {
       text: 'y el c 300 2025?',
       pedido: 'Mercedes C 300 2025',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente pregunta el C 300 2025.\nPide otras: no\nOtro vehículo: c 300 2025',
       history: fichaC300,
       car: c300,
       lexicon: mercedesLexicon,
@@ -206,6 +208,8 @@ const conversations: {
     stay: false,
     input: {
       text: 'mejor una Hilux',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere una Hilux.\nPide otras: no\nOtro vehículo: Hilux',
       history: fichaC300,
       car: c300,
       lexicon: TEST_LEXICON,
@@ -217,6 +221,8 @@ const conversations: {
     stay: false,
     input: {
       text: 'tienen tucson?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente pregunta por tucson.\nPide otras: no\nOtro vehículo: Tucson',
       history: fichaSportage,
       car: sportage,
       lexicon: TEST_LEXICON,
@@ -277,6 +283,8 @@ const conversations: {
     stay: false,
     input: {
       text: 'y el seltos?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente pregunta por seltos.\nPide otras: no\nOtro vehículo: Seltos',
       history: fichaSportage,
       car: sportage,
       lexicon: TEST_LEXICON,

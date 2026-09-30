@@ -83,8 +83,25 @@ export function parseResumen(resumen: string): ParsedResumen {
   return {
     vehiculo: vehiculoMatch?.[1]?.trim() || null,
     contexto: contextoMatch?.[1]?.trim() || null,
-    solicitudActual: solicitudMatch?.[1]?.trim() || null,
+    solicitudActual: stripOtroVehiculoLine(solicitudMatch?.[1]?.trim() || '') || null,
   };
+}
+
+/** Lee "Otro vehículo: X" del resumen crudo. null si falta, está vacío o es "no". */
+export function resumenOtroVehiculo(resumen: string): string | null {
+  const match = resumen.match(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*(.+?)(?:\n|$)/i);
+  if (!match) {
+    return null;
+  }
+  const raw = match[1].trim();
+  if (!raw || /^no$/i.test(raw)) {
+    return null;
+  }
+  return raw;
+}
+
+function stripOtroVehiculoLine(text: string): string {
+  return text.replace(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*.*/gi, '').trim();
 }
 
 function fold(text: string): string {
@@ -153,6 +170,7 @@ function stripResumenFlags(text: string): string {
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
+    .replace(/otro\s+veh[ií]culo:\s*[^\n]*/gi, '')
     .replace(/pide\s+ficha:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/cabina:\s*(simple|doble|no)/gi, '')
@@ -545,14 +563,8 @@ export function resumenTopeContado(resumen: string): number | null {
   return parseTopeAmount(match[1]);
 }
 
-/** Sigue en la unidad mostrada: no es ver qué cabe en un tope. */
-export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
-  if (resumenPideOtras(resumen)) {
-    return false;
-  }
-  if (resumenStaysOnShownUnit(resumen)) {
-    return true;
-  }
+/** Este turno pide un dato de la unidad ya mostrada. No usa Pide otras: no. */
+export function resumenAsksAboutShownFacts(resumen: string): boolean {
   return (
     resumenPideNegociar(resumen) ||
     resumenIsPriceObjection(resumen) ||
@@ -568,6 +580,17 @@ export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
     resumenPrefiereContado(resumen) ||
     resumenAceptaCredito(resumen)
   );
+}
+
+/** Sigue en la unidad mostrada: no es ver qué cabe en un tope. */
+export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
+  if (resumenPideOtras(resumen)) {
+    return false;
+  }
+  if (resumenStaysOnShownUnit(resumen)) {
+    return true;
+  }
+  return resumenAsksAboutShownFacts(resumen);
 }
 
 function solicitudPideVerTope(resumen: string): boolean {

@@ -109,6 +109,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'Quería el precio del Nissan ok gracias',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el precio de un Nissan.\nOtro vehículo: Nissan',
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
@@ -116,6 +118,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'No me interesa el precio del Nissan',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente no le interesa el Nissan.\nOtro vehículo: Nissan',
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
@@ -123,6 +127,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'No me interesa el Kia, quiero el Nissan',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el Nissan.\nOtro vehículo: Nissan',
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
@@ -138,7 +144,7 @@ describe('vehículo de interés', () => {
       leftShownCar({
         text: 'Si el picanto es muy pequeño el Kia sonet me interesa del año 2021\nO 2022',
         resumen:
-          'SOLICITUD ACTUAL:\nCliente quiere información sobre un Kia Sonet año 2021 o 2022.',
+          'SOLICITUD ACTUAL:\nCliente quiere información sobre un Kia Sonet año 2021 o 2022.\nOtro vehículo: Kia Sonet',
         car: patioKia,
         lexicon: TEST_LEXICON,
       }),
@@ -146,6 +152,8 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'Si el picanto es muy pequeño el Kia sonet me interesa del año 2021\nO 2022',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere información sobre un Kia Sonet año 2021 o 2022.\nOtro vehículo: Kia Sonet',
         car: patioKia,
         lexicon: TEST_LEXICON,
       }),
@@ -154,10 +162,20 @@ describe('vehículo de interés', () => {
 
   it('se suelta si el mensaje o el resumen piden otro carro', () => {
     expect(
-      followsShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),
+      followsShownCar({
+        text: 'Hilux',
+        resumen: 'SOLICITUD ACTUAL:\nCliente quiere una Hilux.\nOtro vehículo: Hilux',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
     ).toBe(false);
     expect(
-      leftShownCar({ text: 'Hilux', car: sportage, lexicon: TEST_LEXICON }),
+      leftShownCar({
+        text: 'Hilux',
+        resumen: 'SOLICITUD ACTUAL:\nCliente quiere una Hilux.\nOtro vehículo: Hilux',
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
     ).toBe(true);
     expect(
       leftShownCar({
@@ -171,6 +189,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'Tiene el hyundai y 10',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta por hyundai.\nOtro vehículo: hyundai',
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
@@ -234,17 +254,65 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'sí, esa',
-        resumen: 'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.\nOtro vehículo: Hilux',
+        history: [
+          {
+            role: 'assistant',
+            content:
+              'Estimado, tenemos disponible una Toyota Hilux SR 2023 color plateado, con 13086 km.',
+          },
+        ],
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
     ).toBe(false);
     expect(
+      followsShownCar({
+        text: 'sí, esa',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere ver una Hilux.\nOtro vehículo: Hilux',
+        history: [
+          {
+            role: 'assistant',
+            content:
+              'Estimado, tenemos disponible un Kia Sportage R GTI 2019 color plateado.',
+          },
+        ],
+        car: sportage,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
       leftShownCar({
         text: 'Q otras tienen porfabor',
         resumen:
           'SOLICITUD ACTUAL:\nCliente quiere otras camionetas similares.\nPide otras: sí',
-        car: sportage,
+        history: [
+          {
+            role: 'assistant',
+            content:
+              'El Ford F150 Lariat 2018 color café está en nuestra concesionaria en Cuenca, Av. España 6-73 y Sevilla.',
+          },
+          {
+            role: 'assistant',
+            content:
+              'El Ford F150 Lariat 2018 color café con 49441 km es un carro cuidado y en buen estado.',
+          },
+          {
+            role: 'assistant',
+            content:
+              'Actualmente no tenemos Ford Super Duty 250 en nuestro inventario. Le puedo ayudar con más información sobre la Ford F150 Lariat 2018 color café que mencionamos anteriormente o mostrarle otras camionetas similares si lo desea.',
+          },
+        ],
+        car: {
+          inventoryId: '06852abe-5a25-41cb-ab8e-3f7a0cb72296',
+          brand: 'ford',
+          model: 'f150 lariat sc ecoboost ac 3.5 cd',
+          year: 2018,
+          price: 48990,
+          color: 'cafe',
+        },
       }),
     ).toBe(true);
     expect(
@@ -256,7 +324,12 @@ describe('vehículo de interés', () => {
       }),
     ).toBe(true);
     expect(
-      refersToInterestedCar('Gran vitara 3 puertas', explorer, TEST_LEXICON),
+      refersToInterestedCar(
+        'Gran vitara 3 puertas',
+        explorer,
+        TEST_LEXICON,
+        'SOLICITUD ACTUAL:\nCliente quiere una Gran vitara 3 puertas.\nOtro vehículo: Gran vitara',
+      ),
     ).toBe(false);
     const jetourT1 = {
       inventoryId: 't1-2026',
@@ -330,6 +403,8 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'el Sportage 2014 más barato',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pide el Sportage 2014.\nOtro vehículo: Sportage 2014',
         car: sportage,
         lexicon: TEST_LEXICON,
       }),
@@ -351,6 +426,8 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'estoy buscando la premiere 2020',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente busca la Premiere 2020.\nOtro vehículo: premiere 2020',
         car: dmax2022,
         lexicon: TEST_LEXICON,
       }),
@@ -359,7 +436,29 @@ describe('vehículo de interés', () => {
       followsShownCar({
         text: 'sí',
         resumen:
-          'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.',
+          'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente confirma la D-Max.\nOtro vehículo: no',
+        history: [
+          {
+            role: 'assistant',
+            content:
+              'Actualmente estábamos viendo la Chevrolet D-max CRDi 2.5 CD 4x4 2022 color vino. ¿Le gustaría más información o detalles sobre esta camioneta?',
+          },
+        ],
+        car: dmax2022,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBe(true);
+    expect(
+      followsShownCar({
+        text: 'sí',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.\nOtro vehículo: Premiere 2020',
+        history: [
+          {
+            role: 'assistant',
+            content: 'Tenemos disponible una Premiere 2020.',
+          },
+        ],
         car: dmax2022,
         lexicon: TEST_LEXICON,
       }),
@@ -523,6 +622,26 @@ describe('vehículo de interés', () => {
         lexicon: TEST_LEXICON,
         pedido: 'Peugeot 3008 2022',
         lastListed: true,
+      }).stay,
+    ).toBe(true);
+    expect(
+      leftShownCar({
+        text: 'cuántos km tiene?',
+        car: peugeot3008n,
+      }),
+    ).toBe(false);
+    expect(
+      leftShownCar({
+        text: '¿esta es automática?',
+        car: peugeot3008n,
+      }),
+    ).toBe(false);
+    expect(
+      leftShownCar({
+        text: 'Me interesa el Kia Sportage',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el Kia Sportage.\nOtro vehículo: Kia Sportage',
+        car: peugeot3008n,
       }),
     ).toBe(true);
   });
@@ -812,6 +931,8 @@ describe('vehículo de interés', () => {
       leftShownCar({
         text: 'Precio',
         pedido: label,
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pide el Sportage R automático plateado.\nOtro vehículo: Sportage R automático plateado',
         car: {
           inventoryId: 'rojo',
           brand: 'kia',

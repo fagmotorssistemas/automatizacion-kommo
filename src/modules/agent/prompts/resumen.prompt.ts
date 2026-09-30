@@ -7,7 +7,7 @@ ENTRADA:
 - Mensaje actual del cliente
 Si viene RESUMEN DEL TURNO ANTERIOR, no lo borres ni lo cambies por la unidad que el bot mostró.
 
-SALIDA (máx. 4 líneas):
+SALIDA:
 Debes devolver EXACTAMENTE el formato indicado abajo. No añadas líneas extra.
 
 REGLA CRITICA (OBLIGATORIA):
@@ -91,6 +91,11 @@ Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el
 - Si pide listado de la mostrada y no dice otro tipo: Tipo de patio = el de ESA (suv si era jeep/SUV). Camioneta no entra. No pongas Tipo de patio: no.
 
 REGLAS:
+- Pon un vehículo SOLO si el cliente, en ESTE mensaje, pide o pregunta por un vehículo distinto al mostrado.
+- Copia las palabras tal como las escribió el cliente. No corrijas, no completes, no agregues marca.
+- Si el cliente acepta ("sí", "ese", "dale") un vehículo que el bot le ofreció en su último mensaje, copia el nombre tal como lo escribió el bot.
+- "no" si habla de la unidad mostrada: precio, km, ficha, fotos, crédito, entrada, visita, horario, ubicación, dudas, ok, agradecimiento, o repite la misma unidad.
+- "no" si el vehículo es el del cliente para toma (eso va en Toma ficha).
 - Si la acción no requiere vehículo (dirección, horarios, visita, confirmación), NO mencionar vehículo. Excepción: si en el mismo turno también pide información o precio de un carro sin nombrarlo, aplica la REGLA DE VARIOS PEDIDOS.
 Pide horario: sí si pregunta si atienden, el horario o si están abiertos un día (hoy, mañana, sábado), aunque cancele una cita. SOLICITUD: canceló / pregunta si atienden ESE día. Pide otras: no. Falta vehículo: no. No es ver un carro ni cambiar de unidad.
 Pide horario: no si el turno es de un carro (precio, fotos, esa unidad) o si el sentido es ir a verla, no si abren.
@@ -134,6 +139,7 @@ Rechaza aplicar: sí|no
 Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
+Otro vehículo: [marca/modelo/año/versión copiado LITERAL] | no
 Pide ficha: sí|no
 Caja de compra: automática|manual|no
 Cabina: simple|doble|no

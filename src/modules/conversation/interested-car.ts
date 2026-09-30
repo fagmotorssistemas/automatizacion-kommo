@@ -21,7 +21,6 @@ import {
   detectTrimInText,
   modelPhraseMatchesCar,
   detectYearInText,
-  isDriveFamily,
   modelHasTrim,
 } from './vehicle-brand';
 import { detectGearbox, gearboxOf, stripGearboxWords } from './gearbox';
@@ -32,19 +31,18 @@ import {
   seatsOfCar,
 } from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
+import { fila1Nueva } from './otro-vehiculo';
 import {
+  resumenAsksAboutShownFacts,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
   resumenAsksForPhotos,
   resumenAsksForOtherColor,
   resumenCabina,
-  resumenCajaCompra,
   resumenHasPendingDoubt,
   resumenPideOtras,
   resumenPidePresupuesto,
-  resumenStaysOnShownUnit,
   solicitudSinBanderas,
-  vehicleClientePidio,
   textAsksForOtherColor,
 } from '../intelligence/parse-resumen';
 import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
@@ -61,6 +59,9 @@ export type ShownCarContext = {
   lexicon?: VehicleLexicon;
   /** Vehículo que el resumen ya tiene como pedido del cliente. */
   pedido?: string | null;
+  lastAssistantText?: string | readonly string[];
+  otroEsLaMostrada?: boolean | null;
+  otroOverride?: string | null;
 };
 
 /** El nombre pedido (T1, Getours T1) es la misma línea que ya está en patio. */
@@ -124,29 +125,12 @@ export function sameShownUnitAsk(
   return true;
 }
 
-function namedOtherUnit(
-  text: string,
-  car: InterestedCarSnapshot,
-  lexicon: VehicleLexicon,
-): boolean {
-  const asked = detectNamedModelAsk(text, lexicon);
-  if (!asked || isDriveFamily(asked.family)) {
-    return false;
-  }
-  if (askedMatchesShownModel(asked.family, car.model)) {
-    return Boolean(asked.year && car.year && asked.year !== car.year);
-  }
-  return true;
-}
-
 /** Otro año, versión o color: ya no es la unidad que mostramos. */
-function askedOtherUnitFacts(
+export function askedOtherUnitFacts(
   text: string,
   car: InterestedCarSnapshot,
-  lexicon?: VehicleLexicon,
 ): boolean {
-  const asked = detectNamedModelAsk(text, lexicon);
-  const year = asked ? asked.year : detectYearInText(text);
+  const year = detectYearInText(text);
   if (
     year &&
     car.year &&
@@ -213,114 +197,120 @@ function textAsksAboutShownDrive(text: string): boolean {
   );
 }
 
-/** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
-export function leftShownCar(input: ShownCarContext): boolean {
+/** “¿es automática?” pregunta por ESTA; “y en manual?” pide otra caja. */
+function textAsksAboutShownGearbox(text: string): boolean {
+  return /no era\b|\bes\s+(?:automatic|manual|mecanica)|\besta\s+es\s+(?:automatic|manual|mecanica)|\btiene\s+(?:caja\s+)?(?:automatic|manual|mecanica)/i.test(
+    foldAsk(text),
+  );
+}
+
+function lastAssistantFromContext(
+  input: ShownCarContext,
+): string | readonly string[] {
+  if (input.lastAssistantText != null) {
+    return input.lastAssistantText;
+  }
+  return (input.history ?? [])
+    .filter((item) => item.role === 'assistant')
+    .map((item) => item.content)
+    .slice(-3);
+}
+
+export function shownLeavesByFila1(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
+  }
+  return fila1Nueva({
+    resumen: input.resumen ?? '',
+    customerText: input.text,
+    lastAssistantText: lastAssistantFromContext(input),
+    car,
+    otroEsLaMostrada: input.otroEsLaMostrada ?? null,
+    otroOverride: input.otroOverride,
+  }).suelta;
+}
+
+function shownRowBrand(car: { brand: string }): string {
+  return normalizeModelText(car.brand);
+}
+
+/** El texto habla de ESTA fila (marca/modelo de la ficha). No usa el léxico. */
+function refersToShownRow(
+  text: string,
+  car: { brand: string; model: string },
+): boolean {
+  if (!text.trim()) {
+    return false;
+  }
+  if (textMentionsModel(text, car.model)) {
+    return true;
+  }
+  const n = normalizeModelText(text);
+  const brand = shownRowBrand(car);
+  const family = modelFamily(car.model);
+  if (!brand || !new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(n)) {
+    return false;
+  }
+  const nums = n.match(/\b\d{3,4}[a-z]?\b/g) ?? [];
+  return !nums.some((token) => {
+    if (token === family) {
+      return false;
+    }
+    if (/^(19|20)\d{2}$/.test(token) && token !== family) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function shownLeavesByColor(input: ShownCarContext): boolean {
+  return (
+    textAsksForOtherColor(input.text) ||
+    resumenAsksForOtherColor(input.resumen ?? '')
+  );
+}
+
+export function shownLeavesByOtras(input: ShownCarContext): boolean {
+  return (
+    resumenPideOtras(input.resumen ?? '') && !otrasDiferidas(input.text)
+  );
+}
+
+export function shownLeavesByTope(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
+  }
+  const resumen = input.resumen ?? '';
+  const budget = resumenTopeContado(resumen);
+  return Boolean(
+    resumenPidePresupuesto(resumen) &&
+      budget &&
+      (!car.price || budget < car.price),
+  );
+}
+
+export function shownLeavesByCaja(input: ShownCarContext): boolean {
   const car = input.car;
   if (!car) {
     return false;
   }
   const lexicon = input.lexicon ?? emptyLexicon();
-  const resumen = input.resumen ?? '';
-  // Lo que nombró ESTE turno lo dice el resumen si sigue en la unidad mostrada.
-  const nombra = textoQueNombra(resumen, input.text, lexicon);
-  // Del resumen se lee el pedido de ESTE turno (solicitud + vehículo), no el
-  // Contexto de turnos viejos: ahí una palabra suelta («otra opción») ensucia.
-  // La solicitud va al final: el modelo de ESTE turno gana sobre el
-  // Vehículo del resumen previo, que si no queda último y no suelta.
-  const solicitud = solicitudSinBanderas(resumen);
-  const pedidoResumen = solicitud
-    ? [vehicleClientePidio(resumen) ?? '', solicitud].filter(Boolean).join('\n')
-    : resumen;
-  if (
-    textAsksForOtherColor(input.text) ||
-    resumenAsksForOtherColor(resumen)
-  ) {
-    return true;
-  }
-  if (resumenPideOtras(resumen) && !otrasDiferidas(input.text)) {
-    return true;
-  }
-  const stays = resumenStaysOnShownUnit(resumen);
-  const sigueEnEsta =
-    stays &&
-    (resumenAsksForCredit(resumen) ||
-      resumenAsksForListedPrice(resumen) ||
-      resumenAsksForPhotos(resumen));
-  if (!stays && namedOtherUnit(nombra, car, lexicon)) {
-    return true;
-  }
-  const budget = resumenTopeContado(resumen);
-  if (
-    resumenPidePresupuesto(resumen) &&
-    budget &&
-    (!car.price || budget < car.price)
-  ) {
-    return true;
-  }
-  if (
-    !stays &&
-    resumenAsksForListedPrice(resumen) &&
-    input.history?.length
-  ) {
-    if (!historyPresentedFicha(input.history, car.model, input.resumen)) {
-      const last = [...input.history]
-        .reverse()
-        .find((item) => item.role === 'assistant');
-      if (last && !textMentionsModel(last.content, car.model)) {
-        return true;
-      }
-    }
-  }
-  if (
-    !sigueEnEsta &&
-    pedidoResumen &&
-    namedOtherUnit(pedidoResumen, car, lexicon)
-  ) {
-    return true;
-  }
-  if (
-    !sigueEnEsta &&
-    input.pedido &&
-    !vehicleLabelFitsCar(input.pedido, car, lexicon)
-  ) {
-    const asked = detectNamedModelAsk(input.pedido, lexicon);
-    if (
-      !sameShownUnitAsk(asked, car) ||
-      askedOtherUnitFacts(input.pedido, car, lexicon)
-    ) {
-      return true;
-    }
-  }
-  if (!sigueEnEsta && askedOtherUnitFacts(nombra, car, lexicon)) {
-    return true;
-  }
-  if (
-    !sigueEnEsta &&
-    pedidoResumen &&
-    askedOtherUnitFacts(pedidoResumen, car, lexicon)
-  ) {
-    return true;
-  }
-  const otherBrand = detectBrand(nombra, lexicon);
-  if (
-    otherBrand &&
-    otherBrand !== car.brand.trim().toLowerCase() &&
-    detectNamedModelAsk(nombra, lexicon)?.brand !==
-      car.brand.trim().toLowerCase()
-  ) {
-    return true;
-  }
-  const cajaFlag = resumenCajaCompra(resumen);
-  const box =
-    cajaFlag === 'no'
-      ? null
-      : cajaFlag === 'manual' || cajaFlag === 'automatica'
-        ? cajaFlag
-        : detectGearbox(input.text, lexicon);
+  const box = detectGearbox(input.text, lexicon);
   const shownBox = gearboxOf(car);
-  if (!sigueEnEsta && box && shownBox && box !== shownBox) {
-    return true;
+  return Boolean(
+    box && shownBox && box !== shownBox && !textAsksAboutShownGearbox(input.text),
+  );
+}
+
+export function shownLeavesByTipo(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
   }
+  const resumen = input.resumen ?? '';
+  const solicitud = solicitudSinBanderas(resumen);
   const shownKind = kindFromTypeBody(car.typeBody);
   const solicitudKind = solicitud ? detectVehicleKind(solicitud) : null;
   const textKind = detectVehicleKind(input.text);
@@ -335,38 +325,86 @@ export function leftShownCar(input: ShownCarContext): boolean {
   ) {
     return true;
   }
-  if (askedKind && shownKind && askedKind !== shownKind) {
-    return true;
+  return Boolean(askedKind && shownKind && askedKind !== shownKind);
+}
+
+export function shownLeavesByCabina(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
   }
   const askedCab =
     resumenCabina(input.resumen ?? '') ?? detectAskedCab(input.text);
   const shownCab = unitCab(car);
-  if (askedCab && shownCab && askedCab !== shownCab) {
-    return true;
+  return Boolean(askedCab && shownCab && askedCab !== shownCab);
+}
+
+export function shownLeavesByTraccion(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
   }
   const askedDrive = detectAskedDrive(
     `${input.text}\n${input.resumen ?? ''}`,
   );
   const shownDrive = unitDrive(car);
-  if (
+  return Boolean(
     askedDrive &&
-    (shownDrive === '4x2' || shownDrive === '4x4') &&
-    askedDrive !== shownDrive &&
-    !resumenHasPendingDoubt(input.resumen ?? '') &&
-    !textAsksAboutShownDrive(input.text)
-  ) {
-    return true;
+      (shownDrive === '4x2' || shownDrive === '4x4') &&
+      askedDrive !== shownDrive &&
+      !resumenHasPendingDoubt(input.resumen ?? '') &&
+      !textAsksAboutShownDrive(input.text),
+  );
+}
+
+export function shownLeavesByAsientos(input: ShownCarContext): boolean {
+  const car = input.car;
+  if (!car) {
+    return false;
   }
   const spaceText = `${input.text}\n${input.resumen ?? ''}`;
-  if (asksForLargePassengerSpace(spaceText)) {
-    if (!isLargePassengerCar({ model: car.model, typeBody: car.typeBody })) {
-      return true;
-    }
-    const want = parsePassengerAsk(spaceText);
-    const have = seatsOfCar(car.passengerCapacity);
-    if (want && want >= 8 && (have == null || have < 7)) {
-      return true;
-    }
+  if (!asksForLargePassengerSpace(spaceText)) {
+    return false;
+  }
+  if (!isLargePassengerCar({ model: car.model, typeBody: car.typeBody })) {
+    return true;
+  }
+  const want = parsePassengerAsk(spaceText);
+  const have = seatsOfCar(car.passengerCapacity);
+  return Boolean(want && want >= 8 && (have == null || have < 7));
+}
+
+/** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
+export function leftShownCar(input: ShownCarContext): boolean {
+  if (!input.car) {
+    return false;
+  }
+  if (shownLeavesByColor(input)) {
+    return true;
+  }
+  if (shownLeavesByOtras(input)) {
+    return true;
+  }
+  if (shownLeavesByTope(input)) {
+    return true;
+  }
+  if (shownLeavesByFila1(input)) {
+    return true;
+  }
+  if (shownLeavesByCaja(input)) {
+    return true;
+  }
+  if (shownLeavesByTipo(input)) {
+    return true;
+  }
+  if (shownLeavesByCabina(input)) {
+    return true;
+  }
+  if (shownLeavesByTraccion(input)) {
+    return true;
+  }
+  if (shownLeavesByAsientos(input)) {
+    return true;
   }
   return false;
 }
@@ -393,28 +431,11 @@ export function followsShownCar(input: ShownCarContext): boolean {
   return !leftShownCar(input);
 }
 
-/**
- * Una sola decisión. Verdadero = seguir en la unidad.
- * Si leftShownCar suelta, nadie después vuelve a pegarla.
- * Tras un listado, sigue solo si señaló esa unidad.
- */
-export function decideStayOnShown(
-  input: ShownCarContext & { lastListed?: boolean; lastOfferText?: string },
-): boolean {
-  if (!input.car) {
-    return false;
-  }
-  if (leftShownCar(input)) {
-    return false;
-  }
-  if (input.lastListed) {
-    return listedPickStays(input);
-  }
-  return true;
-}
+export { decideStayOnShown } from './otro-vehiculo';
 
-function listedPickStays(
+export function listedPickStaysCore(
   input: ShownCarContext & { lastOfferText?: string },
+  namedOther: boolean,
 ): boolean {
   const car = input.car;
   if (!car) {
@@ -425,21 +446,11 @@ function listedPickStays(
   const resumen = input.resumen ?? '';
   const yearNow = detectYearInText(text);
   const colorNow = detectColorInText(text);
-  const namedNow = detectNamedModelAsk(
+  const namedThis = textMentionsModel(
     textoQueNombra(resumen, text, lexicon),
-    lexicon,
+    car.model,
   );
-  const stays = resumenStaysOnShownUnit(resumen);
-  const sigueEnEsta =
-    stays &&
-    (resumenAsksForCredit(resumen) ||
-      resumenAsksForListedPrice(resumen) ||
-      resumenAsksForPhotos(resumen));
-  if (
-    namedNow &&
-    !sigueEnEsta &&
-    !askedMatchesShownModel(namedNow.family, car.model)
-  ) {
+  if (namedOther && !namedThis) {
     return false;
   }
   if (
@@ -453,15 +464,14 @@ function listedPickStays(
   if (colorNow && car.color && !colorMatches(car.color, colorNow)) {
     return false;
   }
-  const cajaFlag = resumenCajaCompra(resumen);
-  const box =
-    cajaFlag === 'no'
-      ? null
-      : cajaFlag === 'manual' || cajaFlag === 'automatica'
-        ? cajaFlag
-        : detectGearbox(text, lexicon);
+  const box = detectGearbox(text, lexicon);
   const shownBox = gearboxOf(car);
-  if (box && shownBox && box !== shownBox) {
+  if (
+    box &&
+    shownBox &&
+    box !== shownBox &&
+    !textAsksAboutShownGearbox(text)
+  ) {
     return false;
   }
   const askedCab = resumenCabina(resumen) ?? detectAskedCab(text);
@@ -483,11 +493,13 @@ function listedPickStays(
   const pointed =
     yearNow != null ||
     Boolean(colorNow) ||
-    Boolean(namedNow) ||
+    namedThis ||
     Boolean(box) ||
     Boolean(askedCab) ||
     Boolean(askedDrive) ||
-    resumenAsksForListedPrice(resumen);
+    resumenAsksForListedPrice(resumen) ||
+    resumenAsksForCredit(resumen) ||
+    resumenAsksAboutShownFacts(resumen);
   if (!pointed) {
     return false;
   }
@@ -587,9 +599,9 @@ export function formatInterestedCar(
     const puertas = unitDoors(car);
     const traccion = unitDrive(car);
     const facts = [
-      car.mileage && car.mileage > 0
+      car.mileage != null && Number.isFinite(car.mileage) && car.mileage > 0
         ? `km=${Math.round(car.mileage)}`
-        : 'km=aún no cargado (NO digas 0 km; el dato no está en patio)',
+        : 'km=sin dato (aún no cargado. NO digas 0 km; el dato no está en patio)',
       car.color ? `color=${car.color}` : '',
       `caja=${caja ?? 'sin dato'}`,
       puertas != null ? `puertas=${puertas}` : '',
@@ -607,10 +619,10 @@ PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km
   if (options?.slimAfterFicha) {
     const after = options?.afterFicha;
     const km =
-      car.mileage && car.mileage > 0
+      car.mileage != null && Number.isFinite(car.mileage) && car.mileage > 0
         ? `\nkm=${Math.round(car.mileage)} (para contestar el km o justificar, no para repetir la ficha)`
         : after === 'facts'
-          ? '\nkm=aún no cargado (NO digas 0 km; si pregunta el kilometraje, dilo: todavía no está en patio)'
+          ? '\nkm=sin dato. km=aún no cargado (NO digas 0 km; si pregunta el kilometraje, dilo: todavía no está en patio)'
           : '';
     const priceNote = hasLoadedPrice(car.price)
       ? ''
@@ -641,10 +653,14 @@ ${close}`;
   const caja = unitCaja(car);
   const puertas = unitDoors(car);
   const traccion = unitDrive(car);
+  const mileageFact =
+    car.mileage != null && Number.isFinite(car.mileage) && car.mileage > 0
+      ? formatMileageFact(car.mileage, car.year, new Date().getFullYear(), {
+          skipClientCare: options?.skipMileageCare === true,
+        })
+      : 'km=sin dato (aún no cargado. NO digas 0 km; el dato no está en patio)';
   const facts = [
-    formatMileageFact(car.mileage, car.year, new Date().getFullYear(), {
-      skipClientCare: options?.skipMileageCare === true,
-    }),
+    mileageFact,
     car.color ? `color=${car.color}` : '',
     `caja=${caja ?? 'sin dato'}`,
     puertas != null ? `puertas=${puertas}` : '',
