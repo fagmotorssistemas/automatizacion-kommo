@@ -280,24 +280,81 @@ function evidenciaTokens(valor: string): string[] {
   return tokensDe(valor).filter((token) => token.length >= 2 || /^\d+$/.test(token));
 }
 
+/** Damerau-Levenshtein. Umbral 1: inserción, borrado, sustitución o transposición. */
+export function damerauLevenshtein(a: string, b: string): number {
+  if (a === b) {
+    return 0;
+  }
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) {
+    return 2;
+  }
+  const d: number[][] = Array.from({ length: la + 1 }, () =>
+    Array<number>(lb + 1).fill(0),
+  );
+  for (let i = 0; i <= la; i += 1) {
+    d[i][0] = i;
+  }
+  for (let j = 0; j <= lb; j += 1) {
+    d[0][j] = j;
+  }
+  for (let i = 1; i <= la; i += 1) {
+    for (let j = 1; j <= lb; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[la][lb];
+}
+
+function esTokenAlfabeticoLargo(token: string): boolean {
+  return token.length >= 4 && /^[a-z]+$/.test(token);
+}
+
+function fuenteCubreToken(
+  token: string,
+  srcToks: string[],
+  srcSet: Set<string>,
+  srcGlued: string,
+): boolean {
+  if (srcSet.has(token) || srcGlued.includes(token)) {
+    return true;
+  }
+  if (/\d/.test(token) || !esTokenAlfabeticoLargo(token)) {
+    return false;
+  }
+  return srcToks.some(
+    (src) =>
+      esTokenAlfabeticoLargo(src) && damerauLevenshtein(token, src) <= 1,
+  );
+}
+
 function cubreTokens(valToks: string[], fuente: string): boolean {
   if (valToks.length === 0) {
     return false;
   }
   const srcToks = tokensDe(fuente);
   const srcSet = new Set(srcToks);
-  if (valToks.every((token) => srcSet.has(token))) {
+  const srcGlued = srcToks.join('');
+  if (valToks.every((token) => fuenteCubreToken(token, srcToks, srcSet, srcGlued))) {
     return true;
   }
   const valGlued = valToks.join('');
-  const srcGlued = srcToks.join('');
   if (valGlued.length >= 2 && srcGlued.includes(valGlued)) {
     return true;
   }
   if (srcGlued.length >= 2 && valGlued.includes(srcGlued)) {
     return true;
   }
-  return valToks.every((token) => srcGlued.includes(token));
+  return false;
 }
 
 function esVersionPegada(token: string, parts: string[]): boolean {

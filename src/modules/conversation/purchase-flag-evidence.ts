@@ -69,11 +69,26 @@ export function textHasTipoEvidence(
   return has(corpus, TIPO_EVIDENCE[tipo]);
 }
 
+/** Cualquier forma de camioneta / suv / sedán / hatchback. */
+export function textHasTipoDimension(corpus: string): boolean {
+  return (Object.keys(TIPO_EVIDENCE) as VehicleKind[]).some((tipo) =>
+    textHasTipoEvidence(corpus, tipo),
+  );
+}
+
 export function textHasCajaEvidence(
   corpus: string,
   caja: 'automatica' | 'manual',
 ): boolean {
   return has(corpus, CAJA_EVIDENCE[caja]);
+}
+
+/** Cualquier forma de automática o manual. */
+export function textHasCajaDimension(corpus: string): boolean {
+  return (
+    textHasCajaEvidence(corpus, 'automatica') ||
+    textHasCajaEvidence(corpus, 'manual')
+  );
 }
 
 export function textHasCabinaEvidence(
@@ -83,11 +98,24 @@ export function textHasCabinaEvidence(
   return has(corpus, CABINA_EVIDENCE[cab]);
 }
 
+/** Cualquier forma de cabina doble o simple (cabina, cd, cs). */
+export function textHasCabinaDimension(corpus: string): boolean {
+  return textHasCabinaEvidence(corpus, 'cd') || textHasCabinaEvidence(corpus, 'cs');
+}
+
 export function textHasTraccionEvidence(
   corpus: string,
   drive: '4x2' | '4x4',
 ): boolean {
   return has(corpus, TRACCION_EVIDENCE[drive]);
+}
+
+/** Cualquier forma de 4x4 o 4x2. */
+export function textHasTraccionDimension(corpus: string): boolean {
+  return (
+    textHasTraccionEvidence(corpus, '4x4') ||
+    textHasTraccionEvidence(corpus, '4x2')
+  );
 }
 
 export function textHasColorPedidoEvidence(
@@ -104,4 +132,12 @@ export function textHasColorPedidoEvidence(
     return row.pattern.test(corpus);
   }
   return new RegExp(`\\b${escapeRegExp(name)}\\b`).test(corpus);
+}
+
+/** Cualquier color de COLORS. */
+export function textHasColorDimension(corpus: string): boolean {
+  return COLORS.some((row) => {
+    row.pattern.lastIndex = 0;
+    return row.pattern.test(corpus);
+  });
 }

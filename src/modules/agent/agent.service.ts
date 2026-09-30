@@ -112,9 +112,18 @@ import {
   Gearbox,
   pickDiverseByBrand,
   pickGearboxAlternatives,
+  pickSimilarMatching,
   resolveGearbox,
   stripGearboxWords,
 } from '../conversation/gearbox';
+import {
+  askedFactLabel,
+  formatFactMissInstruction,
+  mismatchesOf,
+  shownFactLabel,
+  type AskedFacts,
+  type FactMissKind,
+} from '../conversation/fact-miss';
 import {
   asksClosestByFacts,
   asksYearOnward,
@@ -253,7 +262,7 @@ import {
   VERIF_OTRO_TIMEOUT_MS,
   type StayFila1Decision,
 } from '../conversation/otro-vehiculo';
-import { respuestaAclaraAnioNoExiste } from './falta-aclarar-no-existe';
+import { respuestaAclaraAnioNoExiste, respuestaAclaraNoExiste } from './falta-aclarar-no-existe';
 import { withTimeout } from '../inbox/with-timeout';
 import { AGENT_TURN_TIMEOUT_MS } from '../inbox/inbox.constants';
 import {
@@ -396,38 +405,12 @@ type BrandReview = {
     ofrecido: string;
     anioPedido: number;
   };
+  noCoincideDato?: {
+    pedido: string;
+    ofrecido: string;
+    token: string;
+  };
 };
-
-function notaDistintoHechos(input: {
-  distinto: string[];
-  brand: string;
-  model: string;
-  yearPedido: number | null;
-  yearOfrecido: number | null;
-}): string {
-  const familia = modelFamily(input.model) || input.model;
-  const compact = familia.replace(/-/g, '');
-  const bits: string[] = [];
-  if (input.distinto.includes('año') && input.yearPedido != null) {
-    bits.push(
-      `El cliente pidió ${input.brand} ${familia} ${input.yearPedido}. Ese año NO está en patio. Di primero, en una frase, que no tenemos el ${familia} ${input.yearPedido}. Luego presenta la unidad que sí hay, diciendo su año. No digas que no tenemos el modelo: sí hay uno de otro año. No hay ${compact} ${input.yearPedido}. PROHIBIDO otra línea.`,
-    );
-  }
-  if (input.distinto.includes('color')) {
-    bits.push(
-      `El cliente pidió ${input.brand} ${familia} en otro color. Ese color NO está en patio. Di primero, en una frase, que no tenemos ese color. Luego presenta la unidad que sí hay, diciendo su color. No digas que no tenemos el modelo: sí hay uno de otro color.`,
-    );
-  }
-  if (input.distinto.includes('transmisión')) {
-    bits.push(
-      `El cliente pidió ${input.brand} ${familia} con otra versión. Esa versión NO está en patio. Di primero, en una frase, que no tenemos esa versión. Luego presenta la unidad que sí hay, diciendo su versión. No digas que no tenemos el modelo: sí hay uno de otra versión.`,
-    );
-  }
-  if (bits.length === 0) {
-    return `No coincide: ${input.distinto.join(', ')}. Di el dato de esta ficha. PROHIBIDO decir que no está el carro ni volver a otra unidad.`;
-  }
-  return bits.join(' ');
-}
 
 /** "La 2018" no es un Peugeot 2008: el año dicho no es esa familia. */
 function familyIsOtherYear(text: string, family: string): boolean {
@@ -1901,15 +1884,24 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       `Agente listo contactId=${input.contactId} inventory=${parsed.meta.vehiculo?.inventory_id ?? 'ninguno'}`,
     );
 
-    const faltaAclararNoExiste =
-      revision.noCoincideAnio &&
-      !respuestaAclaraAnioNoExiste(
-        parsed.mensaje,
-        revision.noCoincideAnio.anioPedido,
-      )
+    const faltaAclararNoExiste = revision.noCoincideAnio
+      ? !respuestaAclaraAnioNoExiste(
+          parsed.mensaje,
+          revision.noCoincideAnio.anioPedido,
+        )
         ? {
             pedido: revision.noCoincideAnio.pedido,
             ofrecido: revision.noCoincideAnio.ofrecido,
+          }
+        : undefined
+      : revision.noCoincideDato &&
+          !respuestaAclaraNoExiste(
+            parsed.mensaje,
+            revision.noCoincideDato.token,
+          )
+        ? {
+            pedido: revision.noCoincideDato.pedido,
+            ofrecido: revision.noCoincideDato.ofrecido,
           }
         : undefined;
     if (faltaAclararNoExiste) {
@@ -2204,7 +2196,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
    * Varios datos de la misma unidad. Corre si las mostradas no eligieron una.
    * Un solo dato (la 2018) sigue filtrando igual.
    */
-  private revisionPorCoincidencia(input: {
+  private async revisionPorCoincidencia(input: {
     text: string;
     cars: StockCar[];
     lexicon: VehicleLexicon;
@@ -2212,7 +2204,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     includePrice: boolean;
     yearSpan: boolean;
     otroColor: boolean;
-  }): BrandReview | null {
+    asked: AskedFacts;
+    kindForAsk: VehicleKind | null;
+  }): Promise<BrandReview | null> {
     if (input.yearSpan || input.otroColor) {
       return null;
     }
@@ -2224,34 +2218,156 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     if (!hit) {
       return null;
     }
-    const named = formatNamedUnits(hit.cars, input.includePrice);
     const offered = hit.cars[0];
-    const nota =
-      hit.distinto.length > 0
-        ? notaDistintoHechos({
-            distinto: hit.distinto,
-            brand: offered?.brand ?? '',
-            model: offered?.model ?? '',
-            yearPedido: input.year,
-            yearOfrecido: offered?.year ?? null,
-          })
-        : 'Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que no está.';
-    const yearPedido = input.year;
-    const noCoincideAnio =
-      hit.distinto.includes('año') && yearPedido != null && offered
-        ? {
-            pedido: `${modelFamily(offered.model) || offered.model} ${yearPedido}`,
-            ofrecido: `${modelFamily(offered.model) || offered.model} ${offered.year ?? ''}`.trim(),
-            anioPedido: yearPedido,
-          }
-        : undefined;
+    const kinds = hit.distinto.filter(
+      (item): item is FactMissKind =>
+        item === 'año' ||
+        item === 'color' ||
+        item === 'transmisión' ||
+        item === 'cabina' ||
+        item === 'tracción',
+    );
+    if (kinds.length > 0 && offered) {
+      const drive =
+        hechos.drive === '4x2' || hechos.drive === '4x4' ? hechos.drive : null;
+      return this.reviewFactMiss({
+        shown: offered,
+        mismatches: kinds,
+        asked: {
+          gearbox: hechos.gearbox ?? input.asked.gearbox,
+          color: hechos.color ?? input.asked.color,
+          year: hechos.year ?? input.asked.year,
+          cab: hechos.cab ?? input.asked.cab,
+          drive: drive ?? input.asked.drive,
+        },
+        includePrice: input.includePrice,
+        listed: input.cars,
+        kindForAsk: input.kindForAsk,
+      });
+    }
+    const named = formatNamedUnits(hit.cars, input.includePrice);
     return {
       ...named,
-      text: `${named.text}\n${nota}`,
-      ...(noCoincideAnio ? { noCoincideAnio } : {}),
+      text: `${named.text}
+Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que no está.`,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(hit.cars),
       choseFromShown: hit.cars.length === 1,
+    };
+  }
+
+  /** No hay el dato pedido: alternativas que SÍ lo cumplen + mencionar la unidad distinta. */
+  private async reviewFactMiss(input: {
+    shown: StockCar;
+    mismatches: FactMissKind[];
+    asked: AskedFacts;
+    includePrice: boolean;
+    listed: StockCar[];
+    kindForAsk: VehicleKind | null;
+  }): Promise<BrandReview> {
+    const kind = input.mismatches[0];
+    const shown = input.shown;
+    const family = modelFamily(shown.model) || shown.model;
+    const group =
+      bodyGroupOf(kindFromTypeBody(shown.typeBody)) ??
+      bodyGroupOf(input.kindForAsk);
+    const others = await this.catalog.listAvailableExcept('_');
+    const seen = new Set<string>();
+    const patio: StockCar[] = [];
+    for (const car of [...input.listed, ...others]) {
+      if (seen.has(car.id)) {
+        continue;
+      }
+      seen.add(car.id);
+      patio.push(car);
+    }
+    const similar = {
+      family,
+      group,
+      referencePrice: shown.price ?? null,
+    };
+    let alts: StockCar[] = [];
+    if (kind === 'transmisión' && input.asked.gearbox) {
+      alts =
+        pickGearboxAlternatives({
+          cars: patio,
+          gearbox: input.asked.gearbox,
+          ...similar,
+        })?.cars ?? [];
+    } else if (kind === 'cabina' || kind === 'tracción') {
+      const offer = pickCabDriveOffer(
+        patio,
+        input.asked.cab ?? null,
+        input.asked.drive ?? null,
+      );
+      alts =
+        pickSimilarMatching({
+          cars: offer.cars,
+          matches: () => true,
+          ...similar,
+        })?.cars ?? offer.cars.slice(0, 3);
+    } else if (kind === 'color' && input.asked.color) {
+      const askedColor = input.asked.color;
+      alts =
+        pickSimilarMatching({
+          cars: patio,
+          matches: (car) =>
+            Boolean(car.color && colorMatches(car.color, askedColor)),
+          ...similar,
+        })?.cars ?? [];
+    } else if (kind === 'año' && input.asked.year != null) {
+      const year = input.asked.year;
+      alts =
+        pickSimilarMatching({
+          cars: patio,
+          matches: (car) => car.year === year,
+          ...similar,
+        })?.cars ?? [];
+    }
+    alts = alts.filter((car) => car.id !== shown.id);
+    const askedLabel = askedFactLabel(kind, input.asked);
+    const formatted = formatFactMissInstruction({
+      kind,
+      brand: shown.brand,
+      family,
+      askedLabel,
+      shown,
+      alts,
+      includePrice: input.includePrice,
+    });
+    const yearPedido = input.asked.year;
+    const noCoincideAnio =
+      kind === 'año' && yearPedido != null
+        ? {
+            pedido: `${family} ${yearPedido}`,
+            ofrecido: `${family} ${shown.year ?? ''}`.trim(),
+            anioPedido: yearPedido,
+          }
+        : undefined;
+    const noCoincideDato =
+      kind !== 'año'
+        ? {
+            pedido: `${family} ${askedLabel}`,
+            ofrecido: `${family} ${shownFactLabel(kind, shown)}`,
+            token: askedLabel,
+          }
+        : undefined;
+    const send = patio.find((car) => car.id === formatted.sendId) ?? shown;
+    const unitPrice =
+      formatted.sendId && send.price && send.price > 0
+        ? Math.round(send.price)
+        : null;
+    return {
+      text: formatted.text,
+      holdVehicle: formatted.holdVehicle,
+      sendId: formatted.sendId,
+      unitPrice,
+      listedUnits: formatted.listedUnits,
+      switchedModel: true,
+      vehicleKind: kindOfNamedUnits(alts.length > 0 ? alts : [shown]),
+      choseFromShown: alts.length === 0 && Boolean(formatted.sendId),
+      ...(noCoincideAnio ? { noCoincideAnio } : {}),
+      ...(noCoincideDato ? { noCoincideDato } : {}),
     };
   }
 
@@ -2860,6 +2976,19 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
     }
     const yearAsk = yearSaidNow;
     const colorAsk = detectColorInText(customerText);
+    const askedFacts: AskedFacts = {
+      gearbox:
+        cajaCompra === 'manual' || cajaCompra === 'automatica'
+          ? cajaCompra
+          : gearbox,
+      color: colorAsk,
+      year: yearAsk,
+      cab: askedCab,
+      drive:
+        askedDriveEarly === '4x2' || askedDriveEarly === '4x4'
+          ? askedDriveEarly
+          : null,
+    };
     const trimAsk = detectTrimInText(customerText);
     const priorUserTexts = history
       .filter((item) => item.role === 'user')
@@ -2944,6 +3073,19 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
         yearOnward,
       );
       if (ranked[0]) {
+        const miss = yearOnward
+          ? []
+          : mismatchesOf(ranked[0], askedFacts);
+        if (miss.length > 0) {
+          return this.reviewFactMiss({
+            shown: ranked[0],
+            mismatches: miss,
+            asked: askedFacts,
+            includePrice,
+            listed,
+            kindForAsk,
+          });
+        }
         return this.namedModelFound(
           [ranked[0]],
           includePrice,
@@ -3009,6 +3151,17 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
         : matchUnitFacts(offered, yearAsk, colorAsk, trimAsk);
       const known = fromOffer.filter((car) => hasUsableFicha(car));
       if (known.length === 1) {
+        const miss = mismatchesOf(known[0], askedFacts);
+        if (miss.length > 0) {
+          return this.reviewFactMiss({
+            shown: known[0],
+            mismatches: miss,
+            asked: askedFacts,
+            includePrice,
+            listed,
+            kindForAsk,
+          });
+        }
         const named = formatNamedUnits(known, includePrice);
         return {
           ...named,
@@ -3029,7 +3182,7 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           vehicleKind: kindOfNamedUnits(known),
         };
       }
-      const porCoincidencia = this.revisionPorCoincidencia({
+      const porCoincidencia = await this.revisionPorCoincidencia({
         text: `${customerText}\n${solicitud}`,
         cars: listed,
         lexicon,
@@ -3037,6 +3190,8 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
         includePrice,
         yearSpan: Boolean(yearSpan),
         otroColor: askedOtherColor,
+        asked: askedFacts,
+        kindForAsk,
       });
       if (porCoincidencia) {
         return porCoincidencia;
@@ -3067,6 +3222,17 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
             yearSpan?.max ?? null,
           );
           if (picked.length === 1) {
+            const miss = mismatchesOf(picked[0], askedFacts);
+            if (miss.length > 0) {
+              return this.reviewFactMiss({
+                shown: picked[0],
+                mismatches: miss,
+                asked: askedFacts,
+                includePrice,
+                listed,
+                kindForAsk,
+              });
+            }
             return this.namedModelFound(picked, includePrice, false, false, yearAsk);
           }
           if (picked.length > 1) {
@@ -3113,6 +3279,17 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
           yearSpan?.max ?? null,
         );
         if (byFacts.length === 1) {
+          const miss = mismatchesOf(byFacts[0], askedFacts);
+          if (miss.length > 0) {
+            return this.reviewFactMiss({
+              shown: byFacts[0],
+              mismatches: miss,
+              asked: askedFacts,
+              includePrice,
+              listed,
+              kindForAsk,
+            });
+          }
           return this.namedModelFound(byFacts, includePrice, false, false, yearAsk);
         }
         if (byFacts.length > 1) {
@@ -3236,6 +3413,20 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       );
       if (!(yearOnward && offer.length === 0)) {
       if (wantsClosest) {
+        const miss =
+          !yearOnward && offer[0]
+            ? mismatchesOf(offer[0], askedFacts)
+            : [];
+        if (miss.length > 0) {
+          return this.reviewFactMiss({
+            shown: offer[0],
+            mismatches: miss,
+            asked: askedFacts,
+            includePrice,
+            listed,
+            kindForAsk,
+          });
+        }
         return this.namedModelFound(
           offer,
           includePrice,

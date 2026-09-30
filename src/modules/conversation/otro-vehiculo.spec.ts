@@ -865,6 +865,46 @@ describe('evidenciaReal exige solo lo nuevo del valor', () => {
       }).stay,
     ).toBe(true);
   });
+
+  it('a) gran i10 cuenta como Grand i10 (una letra)', () => {
+    expect(
+      evidenciaReal(
+        'Hyundai Grand i10 2018',
+        'Y hyundai  gran i10 nos un 2018...2019',
+        '',
+      ),
+    ).toBe(true);
+    expect(
+      decideStayOnShown({
+        text: 'Y hyundai  gran i10 nos un 2018...2019',
+        resumen: resumenCon(
+          'SOLICITUD ACTUAL:\nCliente pregunta por Hyundai Grand i10 2018.\nPide otras: no',
+          'Hyundai Grand i10 2018',
+        ),
+        car: {
+          inventoryId: 'picanto',
+          brand: 'kia',
+          model: 'picanto lx ac 1.2 4p 4x2 ta',
+          year: 2023,
+          price: 15990,
+          typeBody: 'hatchback',
+          color: 'blanco',
+        },
+      }).stay,
+    ).toBe(false);
+  });
+
+  it('b) huyndai cuenta como Hyundai', () => {
+    expect(evidenciaReal('Hyundai', 'un huyndai', '')).toBe(true);
+  });
+
+  it('c) 3008 no es evidencia de 2008', () => {
+    expect(evidenciaReal('3008', '2008', '')).toBe(false);
+  });
+
+  it('d) visitar esta unidad no es evidencia de Aveo', () => {
+    expect(evidenciaReal('Aveo', 'quiero visitar esta unidad', '')).toBe(false);
+  });
 });
 
 describe('debeConsultarRpcOtro', () => {

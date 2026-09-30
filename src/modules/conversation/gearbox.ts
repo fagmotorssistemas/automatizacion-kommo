@@ -165,15 +165,18 @@ export type GearboxPick = {
   sameModel: boolean;
 };
 
-/** Mismo modelo en esa caja, si existe. Si no, precio parecido del mismo tipo. */
-export function pickGearboxAlternatives(input: {
+/**
+ * Unidades que cumplen un filtro, priorizando el mismo modelo y luego
+ * mismo tipo + precio cercano (±25%). Si el grupo es chico y no hay, pasa a SUV.
+ */
+export function pickSimilarMatching(input: {
   cars: StockCar[];
-  gearbox: Gearbox;
+  matches: (car: StockCar) => boolean;
   family: string | null;
   group: BodyGroup | null;
   referencePrice: number | null;
 }): GearboxPick | null {
-  const matching = input.cars.filter((car) => gearboxOf(car) === input.gearbox);
+  const matching = input.cars.filter(input.matches);
   if (input.family) {
     const sameModel = matching.filter(
       (car) => modelFamily(car.model) === input.family,
@@ -209,6 +212,23 @@ export function pickGearboxAlternatives(input: {
     return { cars: suv, widenedToSuv: suv.length > 0, sameModel: false };
   }
   return { cars: [], widenedToSuv: false, sameModel: false };
+}
+
+/** Mismo modelo en esa caja, si existe. Si no, precio parecido del mismo tipo. */
+export function pickGearboxAlternatives(input: {
+  cars: StockCar[];
+  gearbox: Gearbox;
+  family: string | null;
+  group: BodyGroup | null;
+  referencePrice: number | null;
+}): GearboxPick | null {
+  return pickSimilarMatching({
+    cars: input.cars,
+    matches: (car) => gearboxOf(car) === input.gearbox,
+    family: input.family,
+    group: input.group,
+    referencePrice: input.referencePrice,
+  });
 }
 
 /** Hasta 3 unidades, priorizando marcas distintas. Sin caja: cualquier transmisión del tipo. */

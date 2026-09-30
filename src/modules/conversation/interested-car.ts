@@ -29,11 +29,11 @@ import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import { fila1Nueva } from './otro-vehiculo';
 import {
   purchaseEvidenceCorpus,
-  textHasCabinaEvidence,
-  textHasCajaEvidence,
-  textHasColorPedidoEvidence,
-  textHasTipoEvidence,
-  textHasTraccionEvidence,
+  textHasCabinaDimension,
+  textHasCajaDimension,
+  textHasColorDimension,
+  textHasTipoDimension,
+  textHasTraccionDimension,
 } from './purchase-flag-evidence';
 import {
   resumenAsksAboutShownFacts,
@@ -308,7 +308,7 @@ export function shownLeavesByColor(input: ShownCarContext): boolean {
   if (colorMatches(car.color, canonical)) {
     return false;
   }
-  return textHasColorPedidoEvidence(evidenceCorpusOf(input), canonical);
+  return textHasColorDimension(evidenceCorpusOf(input));
 }
 
 export function shownLeavesByOtras(input: ShownCarContext): boolean {
@@ -344,7 +344,7 @@ export function shownLeavesByCaja(input: ShownCarContext): boolean {
   if (!shownBox || caja === shownBox) {
     return false;
   }
-  return textHasCajaEvidence(evidenceCorpusOf(input), caja);
+  return textHasCajaDimension(evidenceCorpusOf(input));
 }
 
 export function shownLeavesByTipo(input: ShownCarContext): boolean {
@@ -360,7 +360,7 @@ export function shownLeavesByTipo(input: ShownCarContext): boolean {
   if (!shownKind || tipoPatio === shownKind) {
     return false;
   }
-  return textHasTipoEvidence(evidenceCorpusOf(input), tipoPatio);
+  return textHasTipoDimension(evidenceCorpusOf(input));
 }
 
 export function shownLeavesByCabina(input: ShownCarContext): boolean {
@@ -373,7 +373,7 @@ export function shownLeavesByCabina(input: ShownCarContext): boolean {
   if (!askedCab || !shownCab || askedCab === shownCab) {
     return false;
   }
-  return textHasCabinaEvidence(evidenceCorpusOf(input), askedCab);
+  return textHasCabinaDimension(evidenceCorpusOf(input));
 }
 
 export function shownLeavesByTraccion(input: ShownCarContext): boolean {
@@ -389,7 +389,7 @@ export function shownLeavesByTraccion(input: ShownCarContext): boolean {
   if (!shownDrive || askedDrive === shownDrive) {
     return false;
   }
-  return textHasTraccionEvidence(evidenceCorpusOf(input), askedDrive);
+  return textHasTraccionDimension(evidenceCorpusOf(input));
 }
 
 export function shownLeavesByAsientos(input: ShownCarContext): boolean {
@@ -475,7 +475,7 @@ export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
     const canonical = detectColorInText(askedColor) ?? askedColor;
     if (
       !colorMatches(car.color, canonical) &&
-      !textHasColorPedidoEvidence(corpus, canonical)
+      !textHasColorDimension(corpus)
     ) {
       return `Color pedido:${askedColor}`;
     }
@@ -486,7 +486,7 @@ export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
     (caja === 'automatica' || caja === 'manual') &&
     shownBox &&
     caja !== shownBox &&
-    !textHasCajaEvidence(corpus, caja)
+    !textHasCajaDimension(corpus)
   ) {
     return `Caja de compra:${caja}`;
   }
@@ -497,7 +497,7 @@ export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
     tipoPatio !== 'no' &&
     shownKind &&
     tipoPatio !== shownKind &&
-    !textHasTipoEvidence(corpus, tipoPatio)
+    !textHasTipoDimension(corpus)
   ) {
     return `Tipo de patio:${tipoPatio}`;
   }
@@ -507,7 +507,7 @@ export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
     askedCab &&
     shownCab &&
     askedCab !== shownCab &&
-    !textHasCabinaEvidence(corpus, askedCab)
+    !textHasCabinaDimension(corpus)
   ) {
     return askedCab === 'cs' ? 'Cabina:simple' : 'Cabina:doble';
   }
@@ -518,7 +518,7 @@ export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
     askedDrive !== 'no' &&
     shownDrive &&
     askedDrive !== shownDrive &&
-    !textHasTraccionEvidence(corpus, askedDrive)
+    !textHasTraccionDimension(corpus)
   ) {
     return `Tracción pedida:${askedDrive}`;
   }

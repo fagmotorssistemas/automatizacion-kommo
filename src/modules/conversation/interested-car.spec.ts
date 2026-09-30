@@ -1185,4 +1185,37 @@ describe('stay solo banderas', () => {
     expect(decideStayOnShown(input).stay).toBe(true);
     expect(stayBanderaSinEvidencia(input)).toBe('Color pedido:blanco');
   });
+
+  it('a) automático en el texto suelta aunque Caja de compra sea manual', () => {
+    expect(
+      decideStayOnShown({
+        text: 'No mi joven automático no disculpas',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente no quiere automática; pide manual.\nCaja de compra: manual\nPide otras: no',
+        car: sportage,
+      }),
+    ).toEqual({ stay: false, motivo: 'caja' });
+  });
+
+  it('b) precio con Caja de compra arrastrada no suelta', () => {
+    const input = {
+      text: '¿precio?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nCaja de compra: manual\nPide otras: no',
+      car: sportage,
+    };
+    expect(decideStayOnShown(input)).toEqual({ stay: true, motivo: 'sigue' });
+    expect(stayBanderaSinEvidencia(input)).toBe('Caja de compra:manual');
+  });
+
+  it('c) precio con Tipo de patio hatchback arrastrado no suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿precio?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nTipo de patio: hatchback\nPide otras: no',
+        car: sportage,
+      }),
+    ).toEqual({ stay: true, motivo: 'sigue' });
+  });
 });

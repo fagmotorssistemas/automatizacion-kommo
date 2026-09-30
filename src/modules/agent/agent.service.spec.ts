@@ -1507,6 +1507,163 @@ describe('AgentService', () => {
     expect(result?.faltaAclararNoExiste).toBeUndefined();
   });
 
+  it('Picanto blanco automático: pide manual, ofrece fiat500 y menciona que el Picanto es automático', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'fiat500',
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 13990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Picanto blanco manual.\nCaja de compra: manual\nColor pedido: blanco\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En manual está el Fiat 500. El Picanto es automático.',
+        meta: { vehiculo: { inventory_id: 'fiat500' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '25660880',
+      customerText: 'Por fa caja manual blanco habrá',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/fiat500/i);
+    expect(system).toMatch(/automátic/i);
+    expect(system).toMatch(/picanto/i);
+    expect(system).toMatch(/manual/i);
+  });
+
+  it('Picanto rojo: no hay rojo, ofrece hatchback rojo parecido y menciona el blanco', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'hatchback',
+      color: 'blanco',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'c3-rojo',
+        brand: 'citroen',
+        model: 'c3 feel ac 1.2 5p',
+        year: 2020,
+        price: 14990,
+        typeBody: 'hatchback',
+        color: 'rojo',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere el Picanto en rojo.\nColor pedido: rojo\nPide otro color: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No hay Picanto rojo. Hay un C3 rojo. El Picanto es blanco.',
+        meta: { vehiculo: { inventory_id: 'c3-rojo' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'picanto-rojo',
+      customerText: 'Picanto rojo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/rojo/i);
+    expect(system).toMatch(/c3-rojo|blanco/i);
+    expect(system).toMatch(/no tenemos|NO está en patio/i);
+  });
+
+  it('D-Max 2019: no hay, menciona la unidad de otro año', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x4 tm',
+      year: 2023,
+      price: 28990,
+      typeBody: 'doble cabina',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere D-Max 2019.\nOtro vehículo: D-Max 2019\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos D-Max 2019. Tenemos una 2023.',
+        meta: { vehiculo: { inventory_id: 'dmax-2023' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'dmax-2019',
+      customerText: 'D-Max 2019',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/2019/);
+    expect(system).toMatch(/no tenemos|NO está en patio|No hay/i);
+    expect(system).toMatch(/dmax-2023|2023/);
+  });
+
   it('Costo del 4Runner ya mostrado dice el $ de patio, no que no está cargado', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'runner-2004',
