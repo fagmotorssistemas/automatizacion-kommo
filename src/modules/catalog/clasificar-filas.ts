@@ -343,10 +343,14 @@ export function unitCaja(car: UnitFactSource): string | null {
       return 'automática';
     }
   }
-  if (/\btm\b/i.test(car.model)) {
+  if (/\btm\b/i.test(car.model) || /\bt\/m\b/i.test(car.model)) {
     return 'manual';
   }
-  if (/\bta\b/i.test(car.model) || /\bcvt\b/i.test(car.model)) {
+  if (
+    /\bta\b/i.test(car.model) ||
+    /\bt\/a\b/i.test(car.model) ||
+    /\bcvt\b/i.test(car.model)
+  ) {
     return 'automática';
   }
   return null;
@@ -434,9 +438,7 @@ export function describeUnit(car: StockCar, includePrice = false): string {
   const plate = sanitizePlateShort(car.plateShort);
   const km = hasLoadedMileage(car.mileage)
     ? `km=${Math.round(car.mileage as number)}`
-    : car.mileage != null && Number.isFinite(car.mileage)
-      ? 'km=aún no cargado (NO digas 0 km)'
-      : '';
+    : 'km=sin dato (aún no cargado. NO digas 0 km)';
   const fields = [
     `modelo=${car.model}`,
     car.year ? `año=${car.year}` : '',
