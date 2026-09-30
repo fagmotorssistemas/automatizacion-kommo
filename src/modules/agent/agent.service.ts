@@ -54,17 +54,13 @@ import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
 import {
   extraerNumeros,
-  formatHechosParaRegen,
-  formatInvalidosParaRegen,
   formatNumerosLog,
   hechoDesdeFila,
   idsDesdeToolJson,
   intentarCargarHechos,
   numerosInvalidos,
-  quitarInvalidosSinRef,
   reunirInventoryIds,
-  unidadReferencia,
-  validarNumeros,
+  validarNumerosSoloRegistro,
   type ContextoNumeros,
   type CorreccionNumero,
 } from './validar-numeros';
@@ -1988,6 +1984,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             invalidos: 0,
             corregidos: 0,
             regenerado: false,
+            aplicado: false,
             detalle: [],
             error: carga.error,
           }),
@@ -2017,6 +2014,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             invalidos: 0,
             corregidos: 0,
             regenerado: false,
+            aplicado: false,
             detalle: [],
           }),
         );
@@ -2027,67 +2025,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         hechos,
         ctxNumeros,
       );
-      let result = validarNumeros(
+      const result = validarNumerosSoloRegistro(
         input.mensaje,
         hechos,
         input.metaId,
         ctxNumeros,
       );
-      let regenerado = false;
-      if (result.requiereRegenerar) {
-        regenerado = true;
-        const extra =
-          `Tu respuesta anterior tenía estos datos que no corresponden a ninguna unidad: ${formatInvalidosParaRegen(invalidosIniciales)}.\n` +
-          `Valores reales: ${formatHechosParaRegen(hechos)}. Usa SOLO esos valores.`;
-        try {
-          const raw = await withTimeout(
-            this.openai.runSalesAgent({
-              system: `${input.system}\n\n${extra}`,
-              user: input.user,
-              history: input.history,
-              executeTool: input.executeTool,
-            }),
-            AGENT_TURN_TIMEOUT_MS,
-            'validar-numeros-regen',
-          );
-          if (raw) {
-            result = validarNumeros(
-              parseAgentOutput(raw).mensaje,
-              hechos,
-              input.metaId,
-              ctxNumeros,
-            );
-          }
-        } catch (error) {
-          this.logger.warn(
-            `validar-numeros regen falló contactId=${input.contactId}: ${
-              error instanceof Error ? error.message : error
-            }`,
-          );
-        }
-        if (numerosInvalidos(result.texto, hechos, ctxNumeros).length > 0) {
-          if (unidadReferencia(hechos, input.metaId)) {
-            result = validarNumeros(
-              result.texto,
-              hechos,
-              input.metaId,
-              ctxNumeros,
-            );
-          }
-          if (numerosInvalidos(result.texto, hechos, ctxNumeros).length > 0) {
-            const quitados = quitarInvalidosSinRef(
-              result.texto,
-              hechos,
-              ctxNumeros,
-            );
-            result = {
-              texto: quitados.texto,
-              correcciones: [...result.correcciones, ...quitados.correcciones],
-              requiereRegenerar: false,
-            };
-          }
-        }
-      }
       this.logger.log(
         formatNumerosLog({
           contactId: input.contactId,
@@ -2095,14 +2038,15 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           invalidos: invalidosIniciales.length,
           corregidos: result.correcciones.filter((row) => row.correcto != null)
             .length,
-          regenerado,
+          regenerado: false,
+          aplicado: false,
           detalle: result.correcciones,
         }),
       );
       return {
-        mensaje: result.texto,
+        mensaje: input.mensaje,
         correcciones: result.correcciones,
-        regenerado,
+        regenerado: false,
         hechos: hechosLog,
       };
     } catch (error) {
@@ -2113,6 +2057,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           invalidos: 0,
           corregidos: 0,
           regenerado: false,
+          aplicado: false,
           detalle: [],
           error: error instanceof Error ? error.message : String(error),
         }),

@@ -3,6 +3,7 @@ import {
   formatNumerosLog,
   intentarCargarHechos,
   validarNumeros,
+  validarNumerosSoloRegistro,
 } from './validar-numeros';
 
 const ROJO_ID = '0fde055a-a72d-4f70-8210-37a404385462';
@@ -137,5 +138,32 @@ describe('validarNumeros', () => {
         error: carga.error,
       }),
     ).toContain('error=GET inventoryoracle: timeout');
+  });
+
+  it('solo registro: detecta el km inválido, no cambia el texto, aplicado:false', () => {
+    const texto = 'con 33900 km';
+    const result = validarNumerosSoloRegistro(texto, [rojo], ROJO_ID);
+    expect(result.texto).toBe(texto);
+    expect(result.requiereRegenerar).toBe(false);
+    expect(result.correcciones).toEqual([
+      {
+        tipo: 'km',
+        dijo: 33900,
+        correcto: 91096,
+        id: ROJO_ID,
+        aplicado: false,
+      },
+    ]);
+    expect(
+      formatNumerosLog({
+        contactId: '1',
+        revisados: extraerNumeros(texto).length,
+        invalidos: 1,
+        corregidos: 1,
+        regenerado: false,
+        aplicado: false,
+        detalle: result.correcciones,
+      }),
+    ).toContain('aplicado=false');
   });
 });

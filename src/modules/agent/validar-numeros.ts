@@ -21,6 +21,7 @@ export type CorreccionNumero = {
   dijo: number;
   correcto: number | null;
   id: string | null;
+  aplicado?: boolean;
 };
 
 export type ValidarNumerosResult = {
@@ -416,6 +417,24 @@ export function validarNumeros(
   };
 }
 
+/** Detecta y registra; no reescribe el texto ni pide regenerar. */
+export function validarNumerosSoloRegistro(
+  respuesta: string,
+  hechos: HechoUnidad[],
+  metaInventoryId: string | null,
+  ctx?: ContextoNumeros,
+): ValidarNumerosResult {
+  const result = validarNumeros(respuesta, hechos, metaInventoryId, ctx);
+  return {
+    texto: respuesta,
+    correcciones: result.correcciones.map((row) => ({
+      ...row,
+      aplicado: false,
+    })),
+    requiereRegenerar: false,
+  };
+}
+
 export function quitarInvalidosSinRef(
   respuesta: string,
   hechos: HechoUnidad[],
@@ -510,11 +529,12 @@ export function formatNumerosLog(input: {
   corregidos: number;
   regenerado: boolean;
   detalle: CorreccionNumero[];
+  aplicado?: boolean;
   error?: string;
 }): string {
   const detalle = JSON.stringify(input.detalle);
   const error = input.error ? ` error=${input.error}` : '';
-  return `numeros contactId=${input.contactId} revisados=${input.revisados} invalidos=${input.invalidos} corregidos=${input.corregidos} regenerado=${input.regenerado} detalle=${detalle}${error}`;
+  return `numeros contactId=${input.contactId} revisados=${input.revisados} invalidos=${input.invalidos} corregidos=${input.corregidos} regenerado=${input.regenerado} aplicado=${input.aplicado === true} detalle=${detalle}${error}`;
 }
 
 export function formatHechosParaRegen(hechos: HechoUnidad[]): string {
