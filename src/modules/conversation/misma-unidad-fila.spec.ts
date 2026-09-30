@@ -31,6 +31,16 @@ describe('mismaUnidadPorFila con tokens cortos', () => {
     ).toBe(true);
   });
 
+  it('dmax y d-max pegan la ficha d-max con cilindraje', () => {
+    const car = {
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2022,
+    };
+    expect(mismaUnidadPorFila('dmax', car)).toBe(true);
+    expect(mismaUnidadPorFila('d-max', car)).toBe(true);
+  });
+
   it('solo la marca Kia sigue en el Kia Sportage', () => {
     expect(
       mismaUnidadPorFila('Kia', {

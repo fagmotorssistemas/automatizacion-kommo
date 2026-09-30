@@ -48,4 +48,35 @@ describe('unidad que más coincide', () => {
     const hechos = hechosDesdeTexto('el 2025', 2025, TEST_LEXICON);
     expect(coincidenUnidad(jetours, hechos)).toBeNull();
   });
+
+  it('3008n de ficha es la línea 3008, no el 2008', () => {
+    const peugeots: StockCar[] = [
+      {
+        id: 'p2008',
+        brand: 'peugeot',
+        model: '2008 fin h 12e bm6 ac 1.2 5p 4x2 tm',
+        year: 2022,
+        price: 18900,
+        color: 'plomo',
+        typeBody: 'jeep',
+      },
+      {
+        id: 'p3008',
+        brand: 'peugeot',
+        model: '3008n act 16e ba6 ac 1.6 5p 4x2 ta',
+        year: 2022,
+        price: 22800,
+        color: 'plata',
+        typeBody: 'jeep',
+      },
+    ];
+    const hechos = hechosDesdeTexto(
+      'el Peugeot 3008 2022',
+      2022,
+      TEST_LEXICON,
+    );
+    const hit = coincidenUnidad(peugeots, hechos);
+    expect(hit?.cars.map((car) => car.id)).toEqual(['p3008']);
+    expect(hit?.distinto).not.toContain('modelo');
+  });
 });

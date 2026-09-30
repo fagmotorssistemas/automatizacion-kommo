@@ -138,7 +138,7 @@ export class CatalogService {
 
   /**
    * Embedding primero. Si nombra un modelo, no se clava en SUV/sedán viejo.
-   * Si no aparece, reintenta sin tipo y luego sin marca.
+   * Una sola llamada al RPC: el plan elige tipo/marca, no se reintenta.
    */
   async searchByQuery(input: {
     embedding: number[];

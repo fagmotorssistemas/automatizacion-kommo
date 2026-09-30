@@ -1,6 +1,6 @@
 import { detectNamedModelAsk } from '../conversation/vehicle-brand';
 import { emptyLexicon, type VehicleLexicon } from '../conversation/fuzzy-vehicle-name';
-import { textMentionsModel, type StockCar } from './clasificar-filas';
+import { type StockCar } from './clasificar-filas';
 import { sanitizePlateShort } from './plate-short';
 import type { VehicleKind } from '../conversation/vehicle-kind';
 
@@ -18,13 +18,6 @@ export function inventorySearchPlan(
     return { tipo: null, marca: asked.brand || null, named: true };
   }
   return { tipo, marca, named: false };
-}
-
-export function matchRowsMentionFamily(raw: string, family: string): boolean {
-  if (!family || raw.trim() === '[]') {
-    return false;
-  }
-  return textMentionsModel(raw, family);
 }
 
 function matchRowFields(row: unknown): {

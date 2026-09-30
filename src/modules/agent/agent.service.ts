@@ -295,6 +295,7 @@ import {
   shownThreadText,
   StockCar,
   normalizeModelText,
+  rowMentionsFamily,
   textMentionsModel,
   userNamedModel,
 } from '../catalog/clasificar-filas';
@@ -2245,8 +2246,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
   }
 
   /**
-   * Varios datos de la misma unidad. No entra en matchUnitFacts:
-   * un solo dato sigue filtrando igual.
+   * Varios datos de la misma unidad. Corre si las mostradas no eligieron una.
+   * Un solo dato (la 2018) sigue filtrando igual.
    */
   private revisionPorCoincidencia(input: {
     text: string;
@@ -2852,14 +2853,14 @@ PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presenta
     }
     if (askedOtherColor && !detectColorInText(customerText) && reference?.family) {
       let pool = listed.filter((car) =>
-        textMentionsModel(car.model, reference.family ?? ''),
+        rowMentionsFamily(car.model, reference.family ?? ''),
       );
       if (pool.length === 0) {
         const others = await this.catalog.listAvailableExcept(
           targetBrand || '_',
         );
         pool = others.filter((car) =>
-          textMentionsModel(car.model, reference.family ?? ''),
+          rowMentionsFamily(car.model, reference.family ?? ''),
         );
       }
       const others = pool.filter((car) => {
@@ -2974,7 +2975,6 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       const ranked = this.filterByAskedYear(
         await this.lookupNamedByEmbedding(
           searchQuery || customerText,
-          '',
           targetBrand || asked.brand || '',
           listed,
           includePrice,
@@ -3025,21 +3025,9 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       !wantsClosest &&
       !skipShownYearAsSameModel
     ) {
-      const porCoincidencia = this.revisionPorCoincidencia({
-        text: `${customerText}\n${solicitud}`,
-        cars: listed,
-        lexicon,
-        year: yearAsk,
-        includePrice,
-        yearSpan: Boolean(yearSpan),
-        otroColor: askedOtherColor,
-      });
-      if (porCoincidencia) {
-        return porCoincidencia;
-      }
       const offered = asked
         ? alreadyOffered.filter((car) =>
-            textMentionsModel(car.model, asked.family),
+            rowMentionsFamily(car.model, asked.family),
           )
         : alreadyOffered;
       const fromOffer = yearSpan
@@ -3080,6 +3068,18 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           vehicleKind: kindOfNamedUnits(known),
         };
       }
+      const porCoincidencia = this.revisionPorCoincidencia({
+        text: `${customerText}\n${solicitud}`,
+        cars: listed,
+        lexicon,
+        year: yearAsk,
+        includePrice,
+        yearSpan: Boolean(yearSpan),
+        otroColor: askedOtherColor,
+      });
+      if (porCoincidencia) {
+        return porCoincidencia;
+      }
       const inferredFamily =
         detectNamedModelAsk(threadText, lexicon)?.family ||
         [...priorUserTexts]
@@ -3095,7 +3095,7 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
       ) {
         if (threadFamily && !trimAsk) {
           const inFamily = listed.filter((car) =>
-            textMentionsModel(car.model, threadFamily),
+            rowMentionsFamily(car.model, threadFamily),
           );
           const picked = matchUnitFacts(
             inFamily,
@@ -3188,7 +3188,6 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
         : this.filterByAskedYear(
             await this.lookupNamedByEmbedding(
               customerText,
-              asked.family,
               asked.brand || targetBrand || '',
               listed,
               includePrice,
@@ -3224,10 +3223,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
     }
     const namedNow = listed.filter((car) => {
       if (asked?.family) {
-        return (
-          textMentionsModel(car.model, asked.family) ||
-          modelFamily(car.model) === asked.family
-        );
+        return rowMentionsFamily(car.model, asked.family);
       }
       return textMentionsModel(customerText, car.model);
     });
@@ -3299,7 +3295,6 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
             ? (
                 await this.lookupNamedByEmbedding(
                   customerText,
-                  family,
                   asked?.brand || targetBrand || '',
                   listed,
                   includePrice,
@@ -3361,7 +3356,6 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           : this.filterByAskedYear(
               await this.lookupNamedByEmbedding(
                 customerText,
-                asked.family,
                 asked.brand,
                 listed,
                 includePrice,
@@ -3394,7 +3388,6 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         : this.filterByAskedYear(
             await this.lookupNamedByEmbedding(
               customerText,
-              asked.family,
               asked.brand,
               listed,
               includePrice,
@@ -3437,7 +3430,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         }
       }
       const sameFamily = listed.filter((car) =>
-        textMentionsModel(car.model, asked.family),
+        rowMentionsFamily(car.model, asked.family),
       );
       const yearOk = yearOnward && floorYear
         ? carsFromYearOnward(sameFamily, floorYear)
@@ -4015,7 +4008,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
       const itemFam = modelFamily(item.model);
       const same =
         (family && itemFam === family) ||
-        textMentionsModel(item.model, car.model);
+        rowMentionsFamily(item.model, car.model);
       if (!same) {
         return false;
       }
@@ -4289,14 +4282,13 @@ ${rule}`,
     const others = await this.catalog.listAvailableExcept(exceptBrand || '_');
     return others.filter(
       (car) =>
-        textMentionsModel(car.model, family) &&
+        rowMentionsFamily(car.model, family) &&
         (year == null || car.year === year),
     );
   }
 
   private async lookupNamedByEmbedding(
     query: string,
-    family: string,
     brand: string,
     listed: StockCar[],
     includePrice: boolean,

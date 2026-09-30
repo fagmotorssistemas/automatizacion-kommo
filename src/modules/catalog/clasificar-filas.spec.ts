@@ -15,6 +15,7 @@ import {
   pickClosestToMissingModel,
   pickShownByYear,
   preferCurrentYears,
+  rowMentionsFamily,
   textMentionsModel,
   unitCaja,
   unitDoors,
@@ -519,6 +520,12 @@ describe('clasificar filas', () => {
         'Hola. Me interesa el Peugeot 3008',
         '2008 fin h 12e bm6 ac 1.2 5p 4x2 tm',
       ),
+    ).toBe(false);
+    expect(
+      rowMentionsFamily('3008n act 16e ba6 ac 1.6 5p 4x2 ta', '3008'),
+    ).toBe(true);
+    expect(
+      rowMentionsFamily('2008 fin h 12e bm6 ac 1.2 5p 4x2 tm', '3008'),
     ).toBe(false);
   });
 

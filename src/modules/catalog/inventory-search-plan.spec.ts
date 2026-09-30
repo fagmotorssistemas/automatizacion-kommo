@@ -2,7 +2,6 @@ import {
   carsFromMatchJson,
   idsFromMatchJson,
   inventorySearchPlan,
-  matchRowsMentionFamily,
 } from './inventory-search-plan';
 import { TEST_LEXICON } from '../conversation/test-lexicon';
 
@@ -48,16 +47,6 @@ describe('inventory search plan', () => {
       marca: null,
       named: false,
     });
-  });
-
-  it('detecta el modelo en el JSON del embedding', () => {
-    expect(
-      matchRowsMentionFamily(
-        JSON.stringify([{ content: 'toyota hilux cd 2.4 tm', metadata: {} }]),
-        'hilux',
-      ),
-    ).toBe(true);
-    expect(matchRowsMentionFamily('[]', 'hilux')).toBe(false);
   });
 
   it('saca ids del match', () => {
