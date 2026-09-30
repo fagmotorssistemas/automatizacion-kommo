@@ -37,7 +37,7 @@ export function detectGearbox(
   return winner?.gearbox ?? null;
 }
 
-/** `tm` en el modelo es manual. `ta` es automática. El campo transmission manda si viene. */
+/** `tm` o `t/m` en el modelo es manual. `ta` o `t/a` es automática. El campo transmission manda si viene. */
 export function gearboxOf(car: {
   model: string;
   transmission?: string | null;
@@ -49,11 +49,18 @@ export function gearboxOf(car: {
   if (/autom/.test(field)) {
     return 'automatica';
   }
-  const name = car.model.toLowerCase();
-  if (/\btm\b/.test(name)) {
+  const fieldCode = field.replace(/\s+/g, '');
+  if (/^t\/?m$/.test(fieldCode)) {
     return 'manual';
   }
-  if (/\bta\b/.test(name)) {
+  if (/^t\/?a$/.test(fieldCode)) {
+    return 'automatica';
+  }
+  const name = car.model.toLowerCase();
+  if (/\btm\b/.test(name) || /\bt\/m\b/.test(name)) {
+    return 'manual';
+  }
+  if (/\bta\b/.test(name) || /\bt\/a\b/.test(name)) {
     return 'automatica';
   }
   return null;
