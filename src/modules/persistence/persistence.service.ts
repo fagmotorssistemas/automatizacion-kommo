@@ -467,6 +467,23 @@ export class PersistenceService {
     }
   }
 
+  async loadInventoryFacts(ids: string[]): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      color: string | null;
+      mileage: number | null;
+      price: number | null;
+    }[]
+  > {
+    if (!this.supabase) {
+      throw new Error('Supabase no configurado');
+    }
+    return this.supabase.loadInventoryFacts(ids);
+  }
+
   async latestInterestedCar(
     contactId: string,
   ): Promise<InterestedCarSnapshot | null> {

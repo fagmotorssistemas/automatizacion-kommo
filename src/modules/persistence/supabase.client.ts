@@ -508,6 +508,44 @@ export class SupabasePersistenceClient implements SupabaseGateway {
     };
   }
 
+  async loadInventoryFacts(ids: string[]): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      color: string | null;
+      mileage: number | null;
+      price: number | null;
+    }[]
+  > {
+    const client = this.requireClient();
+    const unique = [...new Set(ids.filter((id) => isUuid(id)))];
+    if (!client || unique.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await client
+      .from('inventoryoracle')
+      .select('id, brand, model, year, color, mileage, price')
+      .in('id', unique);
+
+    if (error) {
+      this.logger.warn(`GET inventoryoracle hechos: ${error.message}`);
+      throw error;
+    }
+
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      brand: String(row.brand ?? ''),
+      model: String(row.model ?? ''),
+      year: row.year == null ? null : Number(row.year),
+      color: row.color == null ? null : String(row.color),
+      mileage: row.mileage == null ? null : Number(row.mileage),
+      price: row.price == null ? null : Number(row.price),
+    }));
+  }
+
   async loadVehicleSpecs(topic: string, modelKeys: string[]) {
     const client = this.requireClient();
     if (!client || !topic || modelKeys.length === 0) {

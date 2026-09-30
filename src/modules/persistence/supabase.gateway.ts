@@ -96,6 +96,17 @@ export type SupabaseGateway = {
   hasInterestedCar(leadId: string, inventoryId: string): Promise<boolean>;
   insertInterestedCar(row: InterestedCarInput): Promise<void>;
   latestInterestedCar(leadId: string): Promise<InterestedCarSnapshot | null>;
+  loadInventoryFacts(ids: string[]): Promise<
+    {
+      id: string;
+      brand: string;
+      model: string;
+      year: number | null;
+      color: string | null;
+      mileage: number | null;
+      price: number | null;
+    }[]
+  >;
   loadVehicleSpecs(
     topic: string,
     modelKeys: string[],
