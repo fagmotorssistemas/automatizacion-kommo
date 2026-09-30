@@ -8,8 +8,10 @@ import {
   leftShownCar,
   refersToInterestedCar,
   sameShownUnitAsk,
+  stayBanderaSinEvidencia,
   vehicleLabelFitsCar,
 } from './interested-car';
+import { formatStayLog } from './otro-vehiculo';
 import { TEST_LEXICON } from './test-lexicon';
 import { KM_PER_YEAR, yearsOfUse } from '../catalog/mileage';
 
@@ -1092,5 +1094,95 @@ describe('stay solo banderas', () => {
         car: sportageManual,
       }).stay,
     ).toBe(true);
+  });
+
+  it('a) precio con Tipo de patio arrastrado no suelta la 4Runner', () => {
+    const runner = {
+      inventoryId: '4runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+    };
+    const input = {
+      text: '¿precio?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de ESA unidad.\nPide precio: sí\nPide otras: no\nTipo de patio: camioneta\nFalta vehículo: no',
+      car: runner,
+    };
+    expect(decideStayOnShown(input)).toEqual({ stay: true, motivo: 'sigue' });
+    expect(stayBanderaSinEvidencia(input)).toBe('Tipo de patio:camioneta');
+    expect(
+      formatStayLog({
+        contactId: '1',
+        inventory: runner.inventoryId,
+        stay: true,
+        motivo: 'sigue',
+        banderaSinEvidencia: stayBanderaSinEvidencia(input),
+        otro: null,
+        evidencia: 'n/a',
+        rpcRank1: null,
+        rpcSim1: null,
+        rpcSim2: null,
+      }),
+    ).toMatch(/bandera_sin_evidencia=Tipo de patio:camioneta/);
+  });
+
+  it('b) doble cabina suelta la CS con evidencia', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Necesito doble cabina',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere doble cabina.\nCabina: doble\nPide otras: no',
+        car: dmaxCs,
+      }),
+    ).toEqual({ stay: false, motivo: 'cabina' });
+  });
+
+  it('c) la quiero en automático suelta la manual', () => {
+    expect(
+      decideStayOnShown({
+        text: 'la quiero en automático',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere automática.\nCaja de compra: automática\nPide otras: no',
+        car: sportageManual,
+      }),
+    ).toEqual({ stay: false, motivo: 'caja' });
+  });
+
+  it('d) sí al 4x4 que ofreció el bot suelta la 4x2', () => {
+    expect(
+      decideStayOnShown({
+        text: 'sí',
+        lastAssistantText: '¿la prefiere en 4x4?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente acepta 4x4.\nTracción pedida: 4x4\nPide otras: no',
+        car: dmaxCs,
+      }).stay,
+    ).toBe(false);
+  });
+
+  it('e) ¿tiene en blanco? suelta la roja', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿tiene en blanco?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere en blanco.\nColor pedido: blanco\nPide otro color: no\nPide otras: no',
+        car: sportageManual,
+      }),
+    ).toEqual({ stay: false, motivo: 'otro_color' });
+  });
+
+  it('f) precio con Color pedido arrastrado no suelta', () => {
+    const input = {
+      text: '¿precio?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nColor pedido: blanco\nPide otro color: no\nPide otras: no',
+      car: sportageManual,
+    };
+    expect(decideStayOnShown(input).stay).toBe(true);
+    expect(stayBanderaSinEvidencia(input)).toBe('Color pedido:blanco');
   });
 });

@@ -7,6 +7,15 @@ import {
   formatTomaForResumen,
   type TomaChecklist,
 } from './toma-checklist';
+import { previousResumenForLlm } from '../intelligence/parse-resumen';
+import {
+  formatEntregadoForResumen,
+  type EntregadoEnHilo,
+} from './entregado-en-hilo';
+import {
+  formatTomaForResumen,
+  type TomaChecklist,
+} from './toma-checklist';
 
 export const RESUMEN_HISTORY_MAX = 8;
 
@@ -48,7 +57,10 @@ export function buildResumenInput(input: {
     );
   }
   if (input.previousResumen?.trim()) {
-    parts.push(`RESUMEN DEL TURNO ANTERIOR:\n${input.previousResumen.trim()}`);
+    const anterior = previousResumenForLlm(input.previousResumen);
+    if (anterior) {
+      parts.push(`RESUMEN DEL TURNO ANTERIOR:\n${anterior}`);
+    }
   }
 
   const entregado = input.entregado

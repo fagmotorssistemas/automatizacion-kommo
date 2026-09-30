@@ -610,6 +610,7 @@ export function formatStayLog(input: {
   stay: boolean;
   motivo: string;
   bandera?: string | null;
+  banderaSinEvidencia?: string | null;
   otro: string | null;
   evidencia: 'ok' | 'falla' | 'n/a';
   rpcRank1: string | null;
@@ -633,6 +634,7 @@ export function formatStayLog(input: {
     `stay=${input.stay}`,
     `motivo=${input.motivo}`,
     `bandera=${input.bandera ?? 'n/a'}`,
+    `bandera_sin_evidencia=${input.banderaSinEvidencia ?? 'n/a'}`,
     `otro=${quoted(input.otro)}`,
     `evidencia=${input.evidencia}`,
     `sospecha=${quoted(input.sospecha)}`,

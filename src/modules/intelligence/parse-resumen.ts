@@ -74,6 +74,42 @@ export function mergeResumenForNext(
   return lines.join('\n').slice(0, 800);
 }
 
+/**
+ * Lo que el analizador puede ver del turno anterior: Vehículo, Contexto y
+ * la frase de SOLICITUD. Sin líneas de banderas. No es lo que se guarda
+ * en Redis (eso sigue siendo mergeResumenForNext).
+ */
+export function previousResumenForLlm(
+  raw: string | null | undefined,
+): string {
+  if (!raw?.trim()) {
+    return '';
+  }
+  const text = raw.trim();
+  const vehiculo =
+    text.match(/(?:^|\n)\s*Veh[ií]culo:\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ?? '';
+  const contexto =
+    text.match(/(?:^|\n)\s*Contexto:\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ?? '';
+  let solicitud = solicitudSinBanderas(text);
+  if (!solicitud) {
+    const match = text.match(
+      /(?:^|\n)\s*SOLICITUD(?:\s+ACTUAL)?:\s*(.+?)(?=\n(?:Pide |Objeci|Acepta |Rechaza |Prefiere |Otro veh[ií]culo:|Caja de |Cabina:|Tracci|Color pedido:|Tope |Falta |Tipo de |Asientos:|Tres filas:|Toma |Tiene duda:|Es )|$)/is,
+    );
+    solicitud = stripResumenFlags(match?.[1] ?? '').trim();
+  }
+  const lines: string[] = [];
+  if (vehiculo) {
+    lines.push(`Vehículo: ${vehiculo}`);
+  }
+  if (contexto) {
+    lines.push(`Contexto: ${contexto}`);
+  }
+  if (solicitud) {
+    lines.push(`SOLICITUD: ${solicitud}`);
+  }
+  return lines.join('\n');
+}
+
 export function parseResumen(resumen: string): ParsedResumen {
   const texto = resumen || '';
   const vehiculoMatch = texto.match(/(?:^|\n)\s*Vehículo:\s*(.+?)(?:\n|$)/i);

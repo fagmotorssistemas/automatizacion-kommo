@@ -28,6 +28,14 @@ import { isLargePassengerCar, seatsOfCar } from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import { fila1Nueva } from './otro-vehiculo';
 import {
+  purchaseEvidenceCorpus,
+  textHasCabinaEvidence,
+  textHasCajaEvidence,
+  textHasColorPedidoEvidence,
+  textHasTipoEvidence,
+  textHasTraccionEvidence,
+} from './purchase-flag-evidence';
+import {
   resumenAsksAboutShownFacts,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
@@ -43,6 +51,7 @@ import {
   resumenTopeContado,
   resumenTraccionPedida,
   resumenTresFilas,
+  solicitudSinBanderas,
 } from '../intelligence/parse-resumen';
 import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
@@ -262,6 +271,29 @@ function refersToShownRow(
   });
 }
 
+function lastBotForEvidence(input: ShownCarContext): string {
+  if (typeof input.lastAssistantText === 'string') {
+    return input.lastAssistantText;
+  }
+  if (
+    Array.isArray(input.lastAssistantText) &&
+    input.lastAssistantText.length > 0
+  ) {
+    const last = input.lastAssistantText[input.lastAssistantText.length - 1];
+    return typeof last === 'string' ? last : '';
+  }
+  const msgs = (input.history ?? []).filter((item) => item.role === 'assistant');
+  return msgs[msgs.length - 1]?.content ?? '';
+}
+
+function evidenceCorpusOf(input: ShownCarContext): string {
+  return purchaseEvidenceCorpus({
+    customerText: input.text,
+    lastBot: lastBotForEvidence(input),
+    solicitud: solicitudSinBanderas(input.resumen ?? ''),
+  });
+}
+
 export function shownLeavesByColor(input: ShownCarContext): boolean {
   const resumen = input.resumen ?? '';
   if (resumenPideOtroColor(resumen)) {
@@ -273,7 +305,10 @@ export function shownLeavesByColor(input: ShownCarContext): boolean {
     return false;
   }
   const canonical = detectColorInText(asked) ?? asked;
-  return !colorMatches(car.color, canonical);
+  if (colorMatches(car.color, canonical)) {
+    return false;
+  }
+  return textHasColorPedidoEvidence(evidenceCorpusOf(input), canonical);
 }
 
 export function shownLeavesByOtras(input: ShownCarContext): boolean {
@@ -306,7 +341,10 @@ export function shownLeavesByCaja(input: ShownCarContext): boolean {
     return false;
   }
   const shownBox = gearboxOf(car);
-  return Boolean(shownBox && caja !== shownBox);
+  if (!shownBox || caja === shownBox) {
+    return false;
+  }
+  return textHasCajaEvidence(evidenceCorpusOf(input), caja);
 }
 
 export function shownLeavesByTipo(input: ShownCarContext): boolean {
@@ -319,7 +357,10 @@ export function shownLeavesByTipo(input: ShownCarContext): boolean {
     return false;
   }
   const shownKind = kindFromTypeBody(car.typeBody);
-  return Boolean(shownKind && tipoPatio !== shownKind);
+  if (!shownKind || tipoPatio === shownKind) {
+    return false;
+  }
+  return textHasTipoEvidence(evidenceCorpusOf(input), tipoPatio);
 }
 
 export function shownLeavesByCabina(input: ShownCarContext): boolean {
@@ -329,7 +370,10 @@ export function shownLeavesByCabina(input: ShownCarContext): boolean {
   }
   const askedCab = resumenCabina(input.resumen ?? '');
   const shownCab = unitCab(car);
-  return Boolean(askedCab && shownCab && askedCab !== shownCab);
+  if (!askedCab || !shownCab || askedCab === shownCab) {
+    return false;
+  }
+  return textHasCabinaEvidence(evidenceCorpusOf(input), askedCab);
 }
 
 export function shownLeavesByTraccion(input: ShownCarContext): boolean {
@@ -342,7 +386,10 @@ export function shownLeavesByTraccion(input: ShownCarContext): boolean {
     return false;
   }
   const shownDrive = unitDrive(car);
-  return Boolean(shownDrive && askedDrive !== shownDrive);
+  if (!shownDrive || askedDrive === shownDrive) {
+    return false;
+  }
+  return textHasTraccionEvidence(evidenceCorpusOf(input), askedDrive);
 }
 
 export function shownLeavesByAsientos(input: ShownCarContext): boolean {
@@ -412,6 +459,70 @@ export function stayLeaveBandera(
     return n != null ? `Asientos:${n}` : 'n/a';
   }
   return 'n/a';
+}
+
+/** Bandera de compra que quería soltar pero no hay evidencia en este turno. */
+export function stayBanderaSinEvidencia(input: ShownCarContext): string | null {
+  const car = input.car;
+  if (!car) {
+    return null;
+  }
+  const resumen = input.resumen ?? '';
+  const corpus = evidenceCorpusOf(input);
+
+  const askedColor = resumenColorPedido(resumen);
+  if (askedColor && car.color) {
+    const canonical = detectColorInText(askedColor) ?? askedColor;
+    if (
+      !colorMatches(car.color, canonical) &&
+      !textHasColorPedidoEvidence(corpus, canonical)
+    ) {
+      return `Color pedido:${askedColor}`;
+    }
+  }
+  const caja = resumenCajaCompra(resumen);
+  const shownBox = gearboxOf(car);
+  if (
+    (caja === 'automatica' || caja === 'manual') &&
+    shownBox &&
+    caja !== shownBox &&
+    !textHasCajaEvidence(corpus, caja)
+  ) {
+    return `Caja de compra:${caja}`;
+  }
+  const tipoPatio = resumenTipoPatio(resumen);
+  const shownKind = kindFromTypeBody(car.typeBody);
+  if (
+    tipoPatio &&
+    tipoPatio !== 'no' &&
+    shownKind &&
+    tipoPatio !== shownKind &&
+    !textHasTipoEvidence(corpus, tipoPatio)
+  ) {
+    return `Tipo de patio:${tipoPatio}`;
+  }
+  const askedCab = resumenCabina(resumen);
+  const shownCab = unitCab(car);
+  if (
+    askedCab &&
+    shownCab &&
+    askedCab !== shownCab &&
+    !textHasCabinaEvidence(corpus, askedCab)
+  ) {
+    return askedCab === 'cs' ? 'Cabina:simple' : 'Cabina:doble';
+  }
+  const askedDrive = resumenTraccionPedida(resumen);
+  const shownDrive = unitDrive(car);
+  if (
+    askedDrive &&
+    askedDrive !== 'no' &&
+    shownDrive &&
+    askedDrive !== shownDrive &&
+    !textHasTraccionEvidence(corpus, askedDrive)
+  ) {
+    return `Tracción pedida:${askedDrive}`;
+  }
+  return null;
 }
 
 /** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */

@@ -27,6 +27,7 @@ import {
   resumenTraccionPedida,
   resumenColorPedido,
   resumenPideOtroColor,
+  previousResumenForLlm,
   vehicleQueSigue,
   parseTopeAmount,
   resumenEsToma,
@@ -439,6 +440,23 @@ describe('resumenTraccionPedida y Color pedido', () => {
     const merged = mergeResumenForNext(resumen, null);
     expect(merged).not.toMatch(/Tracción pedida/i);
     expect(merged).not.toMatch(/Color pedido/i);
+  });
+});
+
+describe('previousResumenForLlm', () => {
+  it('deja Vehículo, Contexto y SOLICITUD; quita banderas', () => {
+    expect(
+      previousResumenForLlm(
+        'Vehículo: Kia Sportage 2019\nContexto: ficha enviada\nSOLICITUD ACTUAL:\nCliente quiere el precio.\nPide precio: sí\nTipo de patio: camioneta\nCabina: doble\nCaja de compra: automática',
+      ),
+    ).toBe(
+      'Vehículo: Kia Sportage 2019\nContexto: ficha enviada\nSOLICITUD: Cliente quiere el precio.',
+    );
+    expect(
+      previousResumenForLlm(
+        'Vehículo: Mazda 3\nSOLICITUD: Cliente quiere un Mazda 3.',
+      ),
+    ).toBe('Vehículo: Mazda 3\nSOLICITUD: Cliente quiere un Mazda 3.');
   });
 });
 

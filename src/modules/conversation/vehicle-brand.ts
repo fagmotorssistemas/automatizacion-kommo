@@ -16,7 +16,8 @@ export type { VehicleLexicon };
 const TRES_FILAS =
   /\b(?:3|tres)\s+filas?\b|\b7\s*(?:pasajeros?|personas?|puestos?|asientos?|plazas?)\b|\bsiete\s+(?:pasajeros?|personas?|puestos?|asientos?|plazas?)\b/i;
 
-const COLORS: { name: string; pattern: RegExp }[] = [
+/** Colores de ficha / pedido. Categorías de formato, no inventario. */
+export const COLORS: { name: string; pattern: RegExp }[] = [
   { name: 'blanco', pattern: /\bblanc[oa]s?\b/gi },
   { name: 'negro', pattern: /\bnegr[oa]s?\b/gi },
   { name: 'rojo', pattern: /\broj[oa]s?\b/gi },

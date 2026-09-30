@@ -23,6 +23,31 @@ describe('buildResumenInput', () => {
     );
   });
 
+  it('el turno anterior al LLM no lleva líneas de banderas', () => {
+    expect(
+      buildResumenInput({
+        history: [],
+        customerText: '¿precio?',
+        previousResumen:
+          'Vehículo: Toyota 4 runner\nContexto: fotos\nSOLICITUD ACTUAL:\nCliente quiere una camioneta.\nTipo de patio: camioneta\nCabina: doble\nPide precio: no',
+      }),
+    ).toBe(`RESUMEN DEL TURNO ANTERIOR:
+Vehículo: Toyota 4 runner
+Contexto: fotos
+SOLICITUD: Cliente quiere una camioneta.
+
+MENSAJE ACTUAL:
+¿precio?`);
+    expect(
+      buildResumenInput({
+        history: [],
+        customerText: 'ok',
+        previousResumen:
+          'Vehículo: Toyota 4 runner\nSOLICITUD ACTUAL:\nCliente quiere una camioneta.\nTipo de patio: camioneta',
+      }),
+    ).not.toMatch(/Tipo de patio/i);
+  });
+
   it('pasa el tope de contado ya guardado al analizador', () => {
     expect(
       buildResumenInput({
