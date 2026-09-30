@@ -8,14 +8,6 @@ import {
   type TomaChecklist,
 } from './toma-checklist';
 import { previousResumenForLlm } from '../intelligence/parse-resumen';
-import {
-  formatEntregadoForResumen,
-  type EntregadoEnHilo,
-} from './entregado-en-hilo';
-import {
-  formatTomaForResumen,
-  type TomaChecklist,
-} from './toma-checklist';
 
 export const RESUMEN_HISTORY_MAX = 8;
 
