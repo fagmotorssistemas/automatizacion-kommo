@@ -279,6 +279,8 @@ export class InboxFlushRunner {
         hechos: turn.hechos ?? [],
         unidadesContexto: turn.unidadesContexto ?? [],
         ...stayFieldsForRunLog(stay),
+        stayBandera: stay?.stayBandera ?? null,
+        banderaSinEvidencia: stay?.banderaSinEvidencia ?? null,
         ...(turn.faltaAclararNoExiste
           ? { faltaAclararNoExiste: turn.faltaAclararNoExiste }
           : {}),

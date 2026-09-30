@@ -940,12 +940,16 @@ export class AgentService {
     });
     const stayOnShown = decided.stay;
     const motivo = decided.motivo;
+    const stayBandera = stayLeaveBandera(stayInput, motivo);
+    const banderaSinEvidencia = stayBanderaSinEvidencia(stayInput);
     this.stayDecisions.save(input.contactId, {
       stay: stayOnShown,
       motivo,
       otroVehiculo: otro,
       sospecha,
       verificado,
+      stayBandera: stayBandera === 'n/a' ? null : stayBandera,
+      banderaSinEvidencia,
     });
     this.logger.log(
       formatStayLog({
@@ -953,8 +957,8 @@ export class AgentService {
         inventory: interested?.inventoryId ?? null,
         stay: stayOnShown,
         motivo,
-        bandera: stayLeaveBandera(stayInput, motivo),
-        banderaSinEvidencia: stayBanderaSinEvidencia(stayInput),
+        bandera: stayBandera,
+        banderaSinEvidencia,
         otro,
         evidencia: otro ? (evidencia ? 'ok' : 'falla') : 'n/a',
         rpcRank1,

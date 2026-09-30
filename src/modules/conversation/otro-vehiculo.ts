@@ -29,6 +29,8 @@ export type StayFila1Decision = {
   otroVehiculo: string | null;
   sospecha?: string | null;
   verificado?: string | null;
+  stayBandera?: string | null;
+  banderaSinEvidencia?: string | null;
 };
 
 export function stayFieldsForRunLog(stay: StayFila1Decision | null): {

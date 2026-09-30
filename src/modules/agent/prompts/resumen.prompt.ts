@@ -165,10 +165,13 @@ Aplica a Caja de compra, Cabina, Tipo de patio, Tracción pedida, Color pedido, 
 - Solo si en ESTE mensaje el cliente pide comprar o ver un vehículo de patio con ese dato.
 - "no" si pregunta por la unidad mostrada ("¿es automática?", "¿es 4x4?", "¿de qué color es?").
 - "no" si habla de SU carro para la toma: eso va solo en Toma ficha / Toma ya.
-- "no" si el dato es de un mensaje anterior: no copies banderas del resumen previo. Cada turno las escribe de cero.
+- "no" si el dato es de un mensaje anterior: No copies banderas del resumen previo: cada turno las escribe de cero.
+  Excepción: si en ESTE turno el cliente pide otras opciones de la mostrada o acepta ver alternativas,
+  Tipo de patio es el de la unidad mostrada o el de la que rechazó (ver reglas de otras), salvo que
+  AHORA pida otro tipo.
 
 REGLA DE TIPO DE PATIO (OBLIGATORIA):
-Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback), o ya no sigue el tipo de antes?
+Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback)? El "tipo de antes" (unidad mostrada o la que rechazó) solo se usa si ESTE turno pide otras opciones de la mostrada o acepta ver alternativas; si no, no heredes tipo.
 - Tipo de patio: suv|camioneta|sedan|hatchback si AHORA quiere ese tipo (lo dijo o el carro que pide es de ese tipo).
 - Tipo de patio: hatchback si pide un carro/auto pequeño, compacto, o uno similar a un ciudad (Picanto y similares). Eso NO es camioneta. Cabina: no.
 - Tipo de patio: hatchback si dice que quiere auto/carro y NO camioneta, o “cualquiera pero que sea auto/carro”.
