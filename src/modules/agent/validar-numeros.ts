@@ -62,6 +62,13 @@ const FINANCIERO = new Set([
   'gastos',
 ]);
 
+const PRECIO_CONTEXTO = new Set([
+  'presupuesto',
+  'hasta',
+  'maximo',
+  'tope',
+]);
+
 const NUM_RE = /\d{1,3}(?:[.\s,]\d{3})+|\d+/g;
 const KM_AFTER =
   /^(?:\s+\S+){0,2}\s*(?:km|kms|kil[oó]metros?|kilometraje)\b/i;
@@ -86,24 +93,47 @@ function esFinanciero(word: string): boolean {
   return folded.startsWith('financ');
 }
 
-function palabrasAlrededor(
-  texto: string,
-  inicio: number,
-  fin: number,
-): { antes: string[]; despues: string[] } {
-  const antes = texto
-    .slice(0, inicio)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-6);
-  const despues = texto
-    .slice(fin)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 6);
-  return { antes, despues };
+function esContextoPrecio(word: string): boolean {
+  const folded = foldWord(word);
+  if (!folded) {
+    return false;
+  }
+  return PRECIO_CONTEXTO.has(folded) || esFinanciero(word);
+}
+
+function palabrasDeFrase(texto: string, index: number): string[] {
+  return fraseDe(texto, index).split(/\s+/).filter(Boolean);
+}
+
+function fraseExcluyePrecio(texto: string, index: number): boolean {
+  return palabrasDeFrase(texto, index).some(esContextoPrecio);
+}
+
+function kmInmediato(after: string): string | null {
+  const km = after.match(
+    /^\s*(?:km|kms|kil[oó]metros?|kilometraje)\b/i,
+  );
+  return km ? km[0] : null;
+}
+
+/** Otro número entre este y el "km": este no es el kilometraje. */
+function hayNumeroMasCercaDeKm(after: string): boolean {
+  const km = after.match(KM_AFTER);
+  if (!km) {
+    return false;
+  }
+  const antesDeKm = km[0].replace(
+    /\s*(?:km|kms|kil[oó]metros?|kilometraje)\s*$/i,
+    '',
+  );
+  return [...antesDeKm.matchAll(/\d{1,3}(?:[.\s,]\d{3})+|\d+/g)].length > 0;
+}
+
+function esKmDeUnidad(after: string): boolean {
+  if (!KM_AFTER.test(after)) {
+    return false;
+  }
+  return !hayNumeroMasCercaDeKm(after);
 }
 
 function parseValor(crudo: string): number | null {
@@ -122,19 +152,33 @@ function foldPlain(value: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function esCorteDeFrase(texto: string, i: number): boolean {
+  const ch = texto[i];
+  if (ch === '!' || ch === '?' || ch === '\n') {
+    return true;
+  }
+  if (ch !== '.') {
+    return false;
+  }
+  const prev = texto[i - 1];
+  const next = texto[i + 1];
+  if (prev && next && /\d/.test(prev) && /\d/.test(next)) {
+    return false;
+  }
+  return true;
+}
+
 function fraseDe(texto: string, index: number): string {
   let start = 0;
   for (let i = index - 1; i >= 0; i -= 1) {
-    const ch = texto[i];
-    if (ch === '.' || ch === '!' || ch === '?' || ch === '\n') {
+    if (esCorteDeFrase(texto, i)) {
       start = i + 1;
       break;
     }
   }
   let end = texto.length;
   for (let i = index; i < texto.length; i += 1) {
-    const ch = texto[i];
-    if (ch === '.' || ch === '!' || ch === '?' || ch === '\n') {
+    if (esCorteDeFrase(texto, i)) {
       end = i;
       break;
     }
@@ -202,21 +246,21 @@ function numerosDeToma(resumen?: string): Set<number> {
   return valoresEn(chunks.join('\n'));
 }
 
-function kmExento(
+function numeroExento(
   texto: string,
   num: NumeroExtraido,
   ctx?: ContextoNumeros,
 ): boolean {
-  if (num.tipo !== 'km') {
-    return false;
-  }
-  if (kmExentoPorTexto(texto, num.inicio, num.fin)) {
+  if (num.tipo === 'km' && kmExentoPorTexto(texto, num.inicio, num.fin)) {
     return true;
   }
   if (numerosDelCliente(ctx).has(num.valor)) {
     return true;
   }
-  return numerosDeToma(ctx?.resumen).has(num.valor);
+  if (numerosDeToma(ctx?.resumen).has(num.valor)) {
+    return true;
+  }
+  return num.tipo === 'precio' && fraseExcluyePrecio(texto, num.inicio);
 }
 
 function detectaSeparador(crudo: string): '.' | ',' | ' ' | null {
@@ -250,15 +294,14 @@ export function extraerNumeros(texto: string): NumeroExtraido[] {
     }
     const after = texto.slice(fin);
     const before = texto.slice(0, inicio);
-    const esKm = KM_AFTER.test(after);
+    const esKm = esKmDeUnidad(after);
     const dolarAntes = /\$\s*$/.test(before);
     const dolarDespues = DOLAR_AFTER.test(after);
     let tipo: 'km' | 'precio' | null = null;
     if (esKm) {
       tipo = 'km';
     } else if (dolarAntes || dolarDespues) {
-      const { antes, despues } = palabrasAlrededor(texto, inicio, fin);
-      if (![...antes, ...despues].some(esFinanciero)) {
+      if (!fraseExcluyePrecio(texto, inicio)) {
         tipo = 'precio';
       }
     }
@@ -305,7 +348,7 @@ export function numerosInvalidos(
   ctx?: ContextoNumeros,
 ): NumeroExtraido[] {
   return extraerNumeros(texto).filter(
-    (num) => !kmExento(texto, num, ctx) && !coincideHechos(num, hechos),
+    (num) => !numeroExento(texto, num, ctx) && !coincideHechos(num, hechos),
   );
 }
 
@@ -356,15 +399,16 @@ export function quitarFragmentoInvalido(
       return texto.replace(pattern, '').replace(/\s{2,}/g, ' ').trim();
     }
   }
-  return `${texto.slice(0, num.inicio)}${texto.slice(num.fin)}`
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  return texto;
 }
 
 function quitarKmEnIndice(texto: string, num: NumeroExtraido): string {
   const tail = texto.slice(num.fin);
-  const km = tail.match(KM_AFTER);
-  const end = km ? num.fin + km[0].length : num.fin;
+  const km = kmInmediato(tail);
+  if (!km) {
+    return texto;
+  }
+  const end = num.fin + km.length;
   const before = texto.slice(0, num.inicio);
   const con = before.match(/\bcon\s+$/i);
   const start = con ? before.length - con[0].length : num.inicio;
@@ -383,7 +427,7 @@ export function validarNumeros(
   let texto = respuesta;
   let requiereRegenerar = false;
   const invalidos = numeros.filter(
-    (num) => !kmExento(respuesta, num, ctx) && !coincideHechos(num, hechos),
+    (num) => !numeroExento(respuesta, num, ctx) && !coincideHechos(num, hechos),
   );
   if (invalidos.length === 0) {
     return { texto, correcciones, requiereRegenerar: false };
@@ -424,7 +468,7 @@ export function quitarInvalidosSinRef(
   let texto = respuesta;
   const correcciones: CorreccionNumero[] = [];
   for (const num of [...extraerNumeros(texto)].reverse()) {
-    if (kmExento(texto, num, ctx) || coincideHechos(num, hechos)) {
+    if (numeroExento(texto, num, ctx) || coincideHechos(num, hechos)) {
       continue;
     }
     correcciones.push({
