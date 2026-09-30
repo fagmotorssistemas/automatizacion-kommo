@@ -53,6 +53,23 @@ import { HANDOFF_SUMMARIZER_SYSTEM_PROMPT } from './prompts/handoff-summarizer.p
 import { RESUMEN_SYSTEM_PROMPT } from './prompts/resumen.prompt';
 import { salesSystemPrompt } from './prompts/sales.prompt';
 import {
+  extraerNumeros,
+  formatHechosParaRegen,
+  formatInvalidosParaRegen,
+  formatNumerosLog,
+  hechoDesdeFila,
+  idsDesdeToolJson,
+  intentarCargarHechos,
+  numerosInvalidos,
+  quitarInvalidosSinRef,
+  reunirInventoryIds,
+  unidadReferencia,
+  validarNumeros,
+  type ContextoNumeros,
+  type CorreccionNumero,
+} from './validar-numeros';
+import { armarUnidadesContexto } from './unidades-contexto';
+import {
   asksAnyBrand,
   detectVehicleKind,
   formatPedidoVigente,
@@ -172,6 +189,7 @@ import {
   mergeResumenForNext,
   resumenFaltaVehiculo,
   vehicleQueSigue,
+  resumenOtroVehiculo,
   resumenPideHorario,
   resumenStaysOnShownUnit,
   resumenAsientos,
@@ -212,12 +230,30 @@ import {
 } from '../catalog/mileage';
 import {
   askedMatchesShownModel,
-  decideStayOnShown,
   formatInterestedCar,
   historyPresentedFicha,
   refersToInterestedCar,
   vehicleLabelFitsCar,
 } from '../conversation/interested-car';
+import {
+  buildVerifOtroUser,
+  consultarOtroEsLaMostrada,
+  debeConsultarRpcOtro,
+  decideStayOnShown,
+  evidenciaReal,
+  formatStayLog,
+  mismaUnidadPorFila,
+  parseVerifOtroJson,
+  patioFamiliesCacheFresh,
+  sospechaOtroVehiculo,
+  StayDecisionStore,
+  VERIF_OTRO_SYSTEM_PROMPT,
+  VERIF_OTRO_TIMEOUT_MS,
+  type StayFila1Decision,
+} from '../conversation/otro-vehiculo';
+import { respuestaAclaraAnioNoExiste } from './falta-aclarar-no-existe';
+import { withTimeout } from '../inbox/with-timeout';
+import { AGENT_TURN_TIMEOUT_MS } from '../inbox/inbox.constants';
 import {
   asksForLargePassengerSpace,
   formatLargePassengerPedido,
@@ -321,6 +357,12 @@ import {
   parseTomaChecklistFromResumen,
 } from '../conversation/toma-checklist';
 
+function unidadesParaTurno(
+  unidades: { id: string; origen: string }[],
+): { unidadesContexto: { id: string; origen: string }[] } | Record<string, never> {
+  return unidades.length ? { unidadesContexto: unidades } : {};
+}
+
 function namedOfferId(
   cars: StockCar[],
   offer: string[],
@@ -344,7 +386,45 @@ type BrandReview = {
   vehicleKind?: VehicleKind | null;
   photoQueue?: PhotoQueueItem[];
   choseFromShown?: boolean;
+  contextOrigin?: 'alternativas_caja';
+  contextIds?: string[];
+  noCoincideAnio?: {
+    pedido: string;
+    ofrecido: string;
+    anioPedido: number;
+  };
 };
+
+function notaDistintoHechos(input: {
+  distinto: string[];
+  brand: string;
+  model: string;
+  yearPedido: number | null;
+  yearOfrecido: number | null;
+}): string {
+  const familia = modelFamily(input.model) || input.model;
+  const compact = familia.replace(/-/g, '');
+  const bits: string[] = [];
+  if (input.distinto.includes('año') && input.yearPedido != null) {
+    bits.push(
+      `El cliente pidió ${input.brand} ${familia} ${input.yearPedido}. Ese año NO está en patio. Di primero, en una frase, que no tenemos el ${familia} ${input.yearPedido}. Luego presenta la unidad que sí hay, diciendo su año. No digas que no tenemos el modelo: sí hay uno de otro año. No hay ${compact} ${input.yearPedido}. PROHIBIDO otra línea.`,
+    );
+  }
+  if (input.distinto.includes('color')) {
+    bits.push(
+      `El cliente pidió ${input.brand} ${familia} en otro color. Ese color NO está en patio. Di primero, en una frase, que no tenemos ese color. Luego presenta la unidad que sí hay, diciendo su color. No digas que no tenemos el modelo: sí hay uno de otro color.`,
+    );
+  }
+  if (input.distinto.includes('transmisión')) {
+    bits.push(
+      `El cliente pidió ${input.brand} ${familia} con otra versión. Esa versión NO está en patio. Di primero, en una frase, que no tenemos esa versión. Luego presenta la unidad que sí hay, diciendo su versión. No digas que no tenemos el modelo: sí hay uno de otra versión.`,
+    );
+  }
+  if (bits.length === 0) {
+    return `No coincide: ${input.distinto.join(', ')}. Di el dato de esta ficha. PROHIBIDO decir que no está el carro ni volver a otra unidad.`;
+  }
+  return bits.join(' ');
+}
 
 /** "La 2018" no es un Peugeot 2008: el año dicho no es esa familia. */
 function familyIsOtherYear(text: string, family: string): boolean {
@@ -474,6 +554,7 @@ function mightNameModel(text: string): boolean {
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
+  private readonly stayDecisions = new StayDecisionStore();
 
   constructor(
     private readonly openai: OpenAiAgentClient,
@@ -482,13 +563,19 @@ export class AgentService {
     private readonly persistence: PersistenceService,
   ) {}
 
+  takeStayDecision(contactId: string): StayFila1Decision | null {
+    return this.stayDecisions.take(contactId);
+  }
+
   async handleTurn(input: {
     contactId: string;
     customerText: string;
   }): Promise<AgentTurnResult | null> {
     if (!isRealCustomerText(input.customerText)) {
+      this.stayDecisions.discard(input.contactId);
       return null;
     }
+    this.stayDecisions.discard(input.contactId);
 
     const lexicon = await this.catalog.getLexicon();
     const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
@@ -659,9 +746,11 @@ export class AgentService {
     const askedOtherColor =
       resumenAsksForOtherColor(resumen) ||
       textAsksForOtherColor(input.customerText);
-    const lastAssistantText =
-      [...history].reverse().find((item) => item.role === 'assistant')
-        ?.content ?? '';
+    const textosBot = history
+      .filter((item) => item.role === 'assistant')
+      .map((item) => item.content);
+    const lastAssistantText = textosBot.at(-1) ?? '';
+    const ultimosBot = textosBot.slice(-3);
     const closing =
       resumenIsFarewell(resumen) && !resumenHasPendingDoubt(resumen);
     const thanksHint = salesFollowHint({
@@ -710,11 +799,10 @@ export class AgentService {
       !lastAssistantListed &&
       !resumenPideOtras(resumen) &&
       !otherBrandNow;
+    let patioDisponible: StockCar[] | null = null;
     if (stayFollowUp && !pideHorario) {
-      const shown = lastSingleShownUnit(
-        history,
-        await this.catalog.listAvailableExcept('_'),
-      );
+      patioDisponible = await this.catalog.listAvailableExcept('_');
+      const shown = lastSingleShownUnit(history, patioDisponible);
       if (shown) {
         interested = {
           inventoryId: shown.id,
@@ -743,7 +831,7 @@ export class AgentService {
         (!resumenStaysOnShownUnit(resumen) &&
           (isThreadAck(input.customerText) || resumenIsThreadAck(resumen)))) &&
       lastOfferedOtherOptions(lastOfferText);
-    const stayOnShown = decideStayOnShown({
+    const stayInput = {
       text: input.customerText,
       resumen,
       history,
@@ -752,7 +840,125 @@ export class AgentService {
       pedido,
       lastListed: lastAssistantListed,
       lastOfferText,
+    };
+    let otro = resumenOtroVehiculo(resumen);
+    let otroOverride: string | null = null;
+    let sospecha: string | null = null;
+    let verificado: string | null = null;
+    if (interested && !otro) {
+      try {
+        let patio = patioDisponible;
+        if (!patio) {
+          patio = patioFamiliesCacheFresh()
+            ? []
+            : await this.catalog.listAvailableExcept('_');
+        }
+        sospecha = sospechaOtroVehiculo(
+          input.customerText,
+          interested,
+          patio,
+          lexicon,
+          pedido,
+        );
+        if (sospecha) {
+          try {
+            const raw = await withTimeout(
+              this.openai.completeJson(
+                VERIF_OTRO_SYSTEM_PROMPT,
+                buildVerifOtroUser({
+                  car: interested,
+                  lastAssistantText,
+                  customerText: input.customerText,
+                }),
+              ),
+              VERIF_OTRO_TIMEOUT_MS,
+              'verif-otro',
+            );
+            const parsed = parseVerifOtroJson(raw);
+            if (!parsed.ok) {
+              verificado = 'error';
+            } else if (parsed.otro) {
+              otro = parsed.otro;
+              otroOverride = parsed.otro;
+              verificado = parsed.otro;
+            }
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : '';
+            verificado = /tardó más de/.test(msg) ? 'timeout' : 'error';
+          }
+        }
+      } catch {
+        sospecha = sospecha ?? null;
+        verificado = verificado ?? 'error';
+      }
+    }
+    const evidencia = Boolean(
+      otro &&
+        interested &&
+        evidenciaReal(otro, input.customerText, ultimosBot),
+    );
+    const mismaPorFila = Boolean(
+      otro && interested && mismaUnidadPorFila(otro, interested),
+    );
+    let otroEsLaMostrada: boolean | null = null;
+    let rpcRank1: string | null = null;
+    let rpcSim1: number | null = null;
+    let rpcSim2: number | null = null;
+    if (debeConsultarRpcOtro(interested, otro, evidencia, mismaPorFila)) {
+      const rpc = await consultarOtroEsLaMostrada({
+        otro: otro as string,
+        inventoryId: interested!.inventoryId,
+        embed: (text) => this.openai.embed(text),
+        match: async (embedding, topK) => {
+          const raw = await this.catalog.searchInventory(
+            embedding,
+            undefined,
+            undefined,
+            true,
+            topK,
+          );
+          try {
+            return JSON.parse(typeof raw === 'string' ? raw : '[]');
+          } catch {
+            return [];
+          }
+        },
+      });
+      otroEsLaMostrada = rpc.otroEsLaMostrada;
+      rpcRank1 = rpc.rank1Id;
+      rpcSim1 = rpc.sim1;
+      rpcSim2 = rpc.sim2;
+    }
+    const decided = decideStayOnShown({
+      ...stayInput,
+      lastAssistantText: ultimosBot,
+      otroEsLaMostrada,
+      otroOverride,
     });
+    const stayOnShown = decided.stay;
+    const motivo = decided.motivo;
+    this.stayDecisions.save(input.contactId, {
+      stay: stayOnShown,
+      motivo,
+      otroVehiculo: otro,
+      sospecha,
+      verificado,
+    });
+    this.logger.log(
+      formatStayLog({
+        contactId: input.contactId,
+        inventory: interested?.inventoryId ?? null,
+        stay: stayOnShown,
+        motivo,
+        otro,
+        evidencia: otro ? (evidencia ? 'ok' : 'falla') : 'n/a',
+        rpcRank1,
+        rpcSim1,
+        rpcSim2,
+        sospecha,
+        verificado,
+      }),
+    );
     const priceObjection =
       resumenIsPriceObjection(resumen) ||
       textIsPriceObjection(input.customerText);
@@ -1354,22 +1560,40 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         photoQueue: revision.photoQueue,
         alreadyShownInThread: false,
         plan: planLog,
+        ...unidadesParaTurno(
+          armarUnidadesContexto({
+            interestedText,
+            interestedId: interested?.inventoryId,
+            sendId: revision.sendId,
+            listedIds: (revision.listedUnits ?? []).map((car) => car.id),
+            contextOrigin: revision.contextOrigin,
+            contextIds: revision.contextIds,
+          }),
+        ),
       };
     }
 
+    const toolInventoryIds: string[] = [];
+    const executeTurnTool = async (name: string, argsJson: string) => {
+      const out = await this.executeTool(
+        name,
+        argsJson,
+        revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
+        selling && !buying ? null : brand,
+        Boolean(revision.sendId),
+        lexicon,
+      );
+      if (name === 'buscarvehiuclo') {
+        toolInventoryIds.push(...idsDesdeToolJson(out));
+      }
+      return out;
+    };
+    const agentUser = pedidoVigente ? `${resumen}\n\n${pedidoVigente}` : resumen;
     const raw = await this.openai.runSalesAgent({
       system,
-      user: pedidoVigente ? `${resumen}\n\n${pedidoVigente}` : resumen,
+      user: agentUser,
       history,
-      executeTool: (name, argsJson) =>
-        this.executeTool(
-          name,
-          argsJson,
-          revision.switchedModel ? (revision.vehicleKind ?? null) : vehicleKind,
-          selling && !buying ? null : brand,
-          Boolean(revision.sendId),
-          lexicon,
-        ),
+      executeTool: executeTurnTool,
     });
 
     if (!raw) {
@@ -1627,6 +1851,28 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }
     }
 
+    const numeros = await this.validarNumerosDeRespuesta({
+      contactId: input.contactId,
+      mensaje: parsed.mensaje,
+      system,
+      user: agentUser,
+      history,
+      customerText: input.customerText,
+      resumen,
+      executeTool: executeTurnTool,
+      ids: reunirInventoryIds({
+        metaId: parsed.meta.vehiculo?.inventory_id,
+        interestedId: interested?.inventoryId,
+        sendId: revision.sendId,
+        listedIds: (revision.listedUnits ?? []).map((car) => car.id),
+        photoIds: (revision.photoQueue ?? []).map((item) => item.inventoryId),
+        toolIds: toolInventoryIds,
+        revisionText: revision.text,
+      }),
+      metaId: parsed.meta.vehiculo?.inventory_id ?? null,
+    });
+    parsed.mensaje = numeros.mensaje;
+
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
         role: 'assistant',
@@ -1645,6 +1891,23 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       `Agente listo contactId=${input.contactId} inventory=${parsed.meta.vehiculo?.inventory_id ?? 'ninguno'}`,
     );
 
+    const faltaAclararNoExiste =
+      revision.noCoincideAnio &&
+      !respuestaAclaraAnioNoExiste(
+        parsed.mensaje,
+        revision.noCoincideAnio.anioPedido,
+      )
+        ? {
+            pedido: revision.noCoincideAnio.pedido,
+            ofrecido: revision.noCoincideAnio.ofrecido,
+          }
+        : undefined;
+    if (faltaAclararNoExiste) {
+      this.logger.log(
+        `faltaAclararNoExiste contactId=${input.contactId} pedido=${faltaAclararNoExiste.pedido} ofrecido=${faltaAclararNoExiste.ofrecido}`,
+      );
+    }
+
     return {
       reply: parsed,
       resumen,
@@ -1656,7 +1919,202 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           parsed.meta.vehiculo.inventory_id === interested?.inventoryId),
       plan: planLog,
       entregado,
+      ...(numeros.correcciones.length
+        ? { numerosCorregidos: numeros.correcciones }
+        : {}),
+      ...(numeros.regenerado ? { regenerado: true } : {}),
+      ...(numeros.hechos.length ? { hechos: numeros.hechos } : {}),
+      ...unidadesParaTurno(
+        armarUnidadesContexto({
+          interestedText,
+          interestedId: interested?.inventoryId,
+          sendId: revision.sendId,
+          listedIds: (revision.listedUnits ?? []).map((car) => car.id),
+          contextOrigin: revision.contextOrigin,
+          contextIds: revision.contextIds,
+          toolIds: toolInventoryIds,
+        }),
+      ),
+      ...(faltaAclararNoExiste ? { faltaAclararNoExiste } : {}),
     };
+  }
+
+  private async validarNumerosDeRespuesta(input: {
+    contactId: string;
+    mensaje: string;
+    system: string;
+    user: string;
+    history: { role: 'user' | 'assistant'; content: string }[];
+    customerText?: string;
+    resumen?: string;
+    executeTool: (name: string, argsJson: string) => Promise<string>;
+    ids: string[];
+    metaId: string | null;
+  }): Promise<{
+    mensaje: string;
+    correcciones: CorreccionNumero[];
+    regenerado: boolean;
+    hechos: Array<{ id: string; km: number | null; precio: number | null }>;
+  }> {
+    const vacio = {
+      mensaje: input.mensaje,
+      correcciones: [] as CorreccionNumero[],
+      regenerado: false,
+      hechos: [] as Array<{ id: string; km: number | null; precio: number | null }>,
+    };
+    if (!input.mensaje) {
+      return vacio;
+    }
+    try {
+      const carga = await intentarCargarHechos(async () => {
+        if (
+          input.ids.length === 0 ||
+          typeof this.persistence.loadInventoryFacts !== 'function'
+        ) {
+          return [];
+        }
+        const rows = await this.persistence.loadInventoryFacts(input.ids);
+        return rows.map(hechoDesdeFila);
+      });
+      if (carga.error) {
+        this.logger.warn(
+          formatNumerosLog({
+            contactId: input.contactId,
+            revisados: extraerNumeros(input.mensaje).length,
+            invalidos: 0,
+            corregidos: 0,
+            regenerado: false,
+            detalle: [],
+            error: carga.error,
+          }),
+        );
+        return vacio;
+      }
+      const hechos = carga.hechos;
+      const ctxNumeros: ContextoNumeros = {
+        history: [
+          ...input.history,
+          ...(input.customerText
+            ? [{ role: 'user' as const, content: input.customerText }]
+            : []),
+        ],
+        resumen: input.resumen,
+      };
+      const hechosLog = hechos.map((hecho) => ({
+        id: hecho.id,
+        km: hecho.km,
+        precio: hecho.precio,
+      }));
+      if (hechos.length === 0) {
+        this.logger.log(
+          formatNumerosLog({
+            contactId: input.contactId,
+            revisados: extraerNumeros(input.mensaje).length,
+            invalidos: 0,
+            corregidos: 0,
+            regenerado: false,
+            detalle: [],
+          }),
+        );
+        return { ...vacio, hechos: hechosLog };
+      }
+      const invalidosIniciales = numerosInvalidos(
+        input.mensaje,
+        hechos,
+        ctxNumeros,
+      );
+      let result = validarNumeros(
+        input.mensaje,
+        hechos,
+        input.metaId,
+        ctxNumeros,
+      );
+      let regenerado = false;
+      if (result.requiereRegenerar) {
+        regenerado = true;
+        const extra =
+          `Tu respuesta anterior tenía estos datos que no corresponden a ninguna unidad: ${formatInvalidosParaRegen(invalidosIniciales)}.\n` +
+          `Valores reales: ${formatHechosParaRegen(hechos)}. Usa SOLO esos valores.`;
+        try {
+          const raw = await withTimeout(
+            this.openai.runSalesAgent({
+              system: `${input.system}\n\n${extra}`,
+              user: input.user,
+              history: input.history,
+              executeTool: input.executeTool,
+            }),
+            AGENT_TURN_TIMEOUT_MS,
+            'validar-numeros-regen',
+          );
+          if (raw) {
+            result = validarNumeros(
+              parseAgentOutput(raw).mensaje,
+              hechos,
+              input.metaId,
+              ctxNumeros,
+            );
+          }
+        } catch (error) {
+          this.logger.warn(
+            `validar-numeros regen falló contactId=${input.contactId}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+        }
+        if (numerosInvalidos(result.texto, hechos, ctxNumeros).length > 0) {
+          if (unidadReferencia(hechos, input.metaId)) {
+            result = validarNumeros(
+              result.texto,
+              hechos,
+              input.metaId,
+              ctxNumeros,
+            );
+          }
+          if (numerosInvalidos(result.texto, hechos, ctxNumeros).length > 0) {
+            const quitados = quitarInvalidosSinRef(
+              result.texto,
+              hechos,
+              ctxNumeros,
+            );
+            result = {
+              texto: quitados.texto,
+              correcciones: [...result.correcciones, ...quitados.correcciones],
+              requiereRegenerar: false,
+            };
+          }
+        }
+      }
+      this.logger.log(
+        formatNumerosLog({
+          contactId: input.contactId,
+          revisados: extraerNumeros(input.mensaje).length,
+          invalidos: invalidosIniciales.length,
+          corregidos: result.correcciones.filter((row) => row.correcto != null)
+            .length,
+          regenerado,
+          detalle: result.correcciones,
+        }),
+      );
+      return {
+        mensaje: result.texto,
+        correcciones: result.correcciones,
+        regenerado,
+        hechos: hechosLog,
+      };
+    } catch (error) {
+      this.logger.warn(
+        formatNumerosLog({
+          contactId: input.contactId,
+          revisados: extraerNumeros(input.mensaje).length,
+          invalidos: 0,
+          corregidos: 0,
+          regenerado: false,
+          detalle: [],
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      return vacio;
+    }
   }
 
   /**
@@ -1808,13 +2266,30 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       return null;
     }
     const named = formatNamedUnits(hit.cars, input.includePrice);
+    const offered = hit.cars[0];
     const nota =
       hit.distinto.length > 0
-        ? `No coincide: ${hit.distinto.join(', ')}. Di el dato de esta ficha. PROHIBIDO decir que no está el carro ni volver a otra unidad.`
+        ? notaDistintoHechos({
+            distinto: hit.distinto,
+            brand: offered?.brand ?? '',
+            model: offered?.model ?? '',
+            yearPedido: input.year,
+            yearOfrecido: offered?.year ?? null,
+          })
         : 'Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que no está.';
+    const yearPedido = input.year;
+    const noCoincideAnio =
+      hit.distinto.includes('año') && yearPedido != null && offered
+        ? {
+            pedido: `${modelFamily(offered.model) || offered.model} ${yearPedido}`,
+            ofrecido: `${modelFamily(offered.model) || offered.model} ${offered.year ?? ''}`.trim(),
+            anioPedido: yearPedido,
+          }
+        : undefined;
     return {
       ...named,
       text: `${named.text}\n${nota}`,
+      ...(noCoincideAnio ? { noCoincideAnio } : {}),
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(hit.cars),
       choseFromShown: hit.cars.length === 1,
@@ -3116,7 +3591,11 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           referencePrice: reference.price,
         });
         if (pick) {
-          return formatGearboxAlternatives({ gearbox, pick, includePrice });
+          return {
+            ...formatGearboxAlternatives({ gearbox, pick, includePrice }),
+            contextOrigin: 'alternativas_caja' as const,
+            contextIds: pick.cars.map((car) => car.id),
+          };
         }
       }
     }

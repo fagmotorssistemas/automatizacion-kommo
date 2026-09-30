@@ -1370,6 +1370,143 @@ describe('AgentService', () => {
     expect(system).toContain('runner-2004');
   });
 
+  it('4Runner 2010: el system pide decir que ese año no hay', async () => {
+    const runner = {
+      id: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    };
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Hola. Me interesa el Toyota 4runner',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Para poder ayudarle con el precio del Toyota 4runner y enviarle las fotos, ¿me confirma el año que está buscando por favor?',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([runner]);
+    catalog.listAvailableExcept.mockResolvedValue([runner]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Toyota 4runner 2010.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos Toyota 4runner 2010, pero sí un Toyota 4runner 2004 rojo.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'A66406-instr',
+      customerText: '2010 podría ser',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/Ese año NO está en patio/i);
+    expect(system).toMatch(/no tenemos el .*2010/i);
+    expect(system).not.toMatch(/PROHIBIDO decir que no está el carro/);
+  });
+
+  it('4Runner 2010 sin aclarar registra faltaAclararNoExiste', async () => {
+    const runner = {
+      id: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    };
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Para poder ayudarle con el precio del Toyota 4runner y enviarle las fotos, ¿me confirma el año que está buscando por favor?',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([runner]);
+    catalog.listAvailableExcept.mockResolvedValue([runner]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Toyota 4runner 2010.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos un 4Runner 2004 color rojo.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A66406-falta',
+      customerText: '2010 podría ser',
+    });
+
+    expect(result?.faltaAclararNoExiste).toEqual(
+      expect.objectContaining({
+        pedido: expect.stringMatching(/2010/),
+        ofrecido: expect.stringMatching(/2004/),
+      }),
+    );
+  });
+
+  it('4Runner 2010 aclarado no registra faltaAclararNoExiste', async () => {
+    const runner = {
+      id: 'runner-2004',
+      brand: 'toyota',
+      model: '4 runner 4x2 t/a',
+      year: 2004,
+      price: 21400,
+      typeBody: 'jeep',
+      color: 'rojo',
+      mileage: 701839,
+    };
+    conversation.loadVehicleBrand.mockResolvedValue('toyota');
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Buenas tardes, estimado. Para poder ayudarle con el precio del Toyota 4runner y enviarle las fotos, ¿me confirma el año que está buscando por favor?',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([runner]);
+    catalog.listAvailableExcept.mockResolvedValue([runner]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere Toyota 4runner 2010.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No tenemos el 4Runner 2010, pero tenemos uno 2004.',
+        meta: { vehiculo: { inventory_id: 'runner-2004' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'A66406-ok',
+      customerText: '2010 podría ser',
+    });
+
+    expect(result?.faltaAclararNoExiste).toBeUndefined();
+  });
+
   it('Costo del 4Runner ya mostrado dice el $ de patio, no que no está cargado', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'runner-2004',
@@ -1786,7 +1923,7 @@ describe('AgentService', () => {
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.',
+        'RESUMEN PREVIO:\nVehículo: D-Max 2022 vino\nSOLICITUD ACTUAL:\nCliente busca la Premiere 2020.\nOtro vehículo: Premiere 2020',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -2136,7 +2273,7 @@ describe('AgentService', () => {
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Nissan.\nPide precio: sí\nPide otras: no\nFalta vehículo: no',
+        'SOLICITUD ACTUAL:\nCliente quiere el precio de un Nissan.\nPide precio: sí\nPide otras: no\nFalta vehículo: no\nOtro vehículo: Nissan',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -2921,8 +3058,11 @@ describe('AgentService', () => {
       /primero se confirma la entrada|debe entregar la entrada primero/i,
     );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/PIDIÓ UBICACIÓN/i);
+    expect(system).toMatch(/Av\. España 6-73 y Sevilla/i);
     expect(system).toMatch(/PROHIBIDO pedir entrada/i);
+    expect(system).not.toMatch(
+      /primero se confirma la entrada|debe entregar la entrada primero/i,
+    );
   });
 
   it('Nissan + precio no dice que el X-Trail no tiene valor', async () => {
@@ -3060,7 +3200,7 @@ describe('AgentService', () => {
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente quiere un Kia.\nPide precio: sí\nFalta vehículo: no',
+        'SOLICITUD ACTUAL:\nCliente quiere un Kia.\nPide precio: sí\nFalta vehículo: no\nOtro vehículo: KIA',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -3305,7 +3445,7 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).toHaveBeenCalledWith('jetour');
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('x70-2023');
-    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
   });
 
   it('Chevrolet Grand Vitara 2008 se presenta si está en patio', async () => {
@@ -3353,7 +3493,7 @@ describe('AgentService', () => {
     expect(catalog.listByBrand).toHaveBeenCalledWith('chevrolet');
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('chevy-vitara-2008');
-    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
     expect(system).not.toMatch(/No hay Vitara 2008/i);
   });
 
@@ -3678,7 +3818,8 @@ describe('AgentService', () => {
       expect.objectContaining({ inventory_id: 'sportage-1' }),
     );
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/SÍ está en patio/i);
+    expect(system).toContain('sportage-1');
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
     expect(system).not.toMatch(/no tenemos Sportage/i);
   });
 
@@ -3872,7 +4013,9 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere una Hilux.\nOtro vehículo: Hilux',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
@@ -3920,7 +4063,9 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere un Prado.\nOtro vehículo: Prado',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
@@ -4178,6 +4323,7 @@ describe('AgentService', () => {
           'Falta vehículo: no',
           'Tipo de patio: suv',
           'Toma: no',
+          'Otro vehículo: Hyundai Santa Fe 2018',
         ].join('\n'),
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
@@ -4962,6 +5108,7 @@ describe('AgentService', () => {
     {
       lead: '40770859',
       text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      otro: 'Hyundai Santa Fe 2018',
       id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
       brand: 'hyundai',
       model: 'santa fe dm 7pas ac 2.4 5p 4x2',
@@ -4977,6 +5124,7 @@ describe('AgentService', () => {
     {
       lead: 'nuevo-explorer-a-creta',
       text: 'Buenas noches precio del vehículo creta',
+      otro: 'creta',
       id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
       brand: 'hyundai',
       model: 'creta ac 1.5 5p 4x2 tm',
@@ -4992,6 +5140,7 @@ describe('AgentService', () => {
     {
       lead: 'nuevo-vitara-a-fiat',
       text: 'Hola. Me interesa el Fiat 500 lounge',
+      otro: 'Fiat 500 lounge',
       id: 'aa00fed0-3337-4274-9575-8cc3bc66718c',
       brand: 'fiat',
       model: '500 lounge ac 1.4 3p 4x2 tm',
@@ -5007,6 +5156,7 @@ describe('AgentService', () => {
     {
       lead: 'nuevo-explorer-a-ram',
       text: 'Vi tu anuncio en Instagram. Me interesa Ram 700 2023',
+      otro: 'Ram 700 2023',
       id: 'c2633734-4541-468e-a0ba-cb1ef2b383a1',
       brand: 'ram',
       model: 'ram 700 slt ac 1.4 cs 4x2 tm',
@@ -5022,6 +5172,7 @@ describe('AgentService', () => {
     {
       lead: '41788215',
       text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      otro: 'Hyundai Santa Fe 2018',
       id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
       brand: 'hyundai',
       model: 'santa fe dm 7pas ac 2.4 5p 4x2',
@@ -5037,6 +5188,7 @@ describe('AgentService', () => {
     {
       lead: 'sportage-a-rio',
       text: 'Hola. Me interesa el Kia Rio',
+      otro: 'Kia Rio',
       id: 'rio-1',
       brand: 'kia',
       model: 'rio lx',
@@ -5052,6 +5204,7 @@ describe('AgentService', () => {
     {
       lead: 'xtrail-a-creta',
       text: 'Me interesa el Hyundai Creta',
+      otro: 'Hyundai Creta',
       id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
       brand: 'hyundai',
       model: 'creta ac 1.5 5p 4x2 tm',
@@ -5067,6 +5220,7 @@ describe('AgentService', () => {
     {
       lead: 'tucson-a-santafe',
       text: 'Hola. Me interesa el Hyundai Santa Fe 2018',
+      otro: 'Hyundai Santa Fe 2018',
       id: '16c145ba-a4d0-4dbb-a3a2-af0ff64c9e0c',
       brand: 'hyundai',
       model: 'santa fe dm 7pas ac 2.4 5p 4x2',
@@ -5082,6 +5236,7 @@ describe('AgentService', () => {
     {
       lead: 'creta-a-kona',
       text: 'Tiene Kona?',
+      otro: 'Kona',
       id: 'kona-1',
       brand: 'hyundai',
       model: 'kona gl',
@@ -5097,6 +5252,7 @@ describe('AgentService', () => {
     {
       lead: 'l200-a-montero',
       text: 'Hola. Me interesa el Montero Sport',
+      otro: 'Montero Sport',
       id: 'e5847771-9c0b-4ef8-bb6d-6bb9bd380a11',
       brand: 'mitsubishi',
       model: 'montero sport gls ac 3.0 5p 4x4',
@@ -5112,6 +5268,7 @@ describe('AgentService', () => {
     {
       lead: 'montero-a-l200',
       text: 'Me interesa la L200',
+      otro: 'L200',
       id: 'l200-new',
       brand: 'mitsubishi',
       model: 'l200 2.4 cd',
@@ -5127,6 +5284,7 @@ describe('AgentService', () => {
     {
       lead: 'hilux-a-prado',
       text: 'Hola. Me interesa el Toyota Prado',
+      otro: 'Toyota Prado',
       id: 'prado-1',
       brand: 'toyota',
       model: 'prado txl',
@@ -5142,6 +5300,7 @@ describe('AgentService', () => {
     {
       lead: 'dmax-a-hilux',
       text: 'Tiene Hilux?',
+      otro: 'Hilux',
       id: 'hilux-1',
       brand: 'toyota',
       model: 'hilux 2.4 cd',
@@ -5157,6 +5316,7 @@ describe('AgentService', () => {
     {
       lead: 'f150-a-explorer',
       text: 'Me interesa la Explorer',
+      otro: 'Explorer',
       id: 'explorer-new',
       brand: 'ford',
       model: 'explorer xlt',
@@ -5172,6 +5332,7 @@ describe('AgentService', () => {
     {
       lead: '2008-a-tucson',
       text: 'Hola. Me interesa el Hyundai Tucson',
+      otro: 'Hyundai Tucson',
       id: 'tucson-from-2008',
       brand: 'hyundai',
       model: 'tucson gl',
@@ -5187,6 +5348,7 @@ describe('AgentService', () => {
     {
       lead: 'x70-a-t1',
       text: 'Me interesa el Jetour T1',
+      otro: 'Jetour T1',
       id: 't1-new',
       brand: 'jetour',
       model: 't1 ac 2.0 5p 4x4 ta',
@@ -5202,6 +5364,7 @@ describe('AgentService', () => {
     {
       lead: 'picanto-a-sportage',
       text: 'Hola. Me interesa el Kia Sportage 2019',
+      otro: 'Kia Sportage 2019',
       id: 'sportage-new',
       brand: 'kia',
       model: 'sportage r gti',
@@ -5217,6 +5380,7 @@ describe('AgentService', () => {
     {
       lead: 'sentra-a-xtrail',
       text: 'Me interesa el Nissan Xtrail',
+      otro: 'Nissan Xtrail',
       id: 'xtrail-new',
       brand: 'nissan',
       model: 'x-trail sense',
@@ -5232,6 +5396,7 @@ describe('AgentService', () => {
     {
       lead: 'aveo-a-optra',
       text: 'Hola. Me interesa el Chevrolet Optra',
+      otro: 'Chevrolet Optra',
       id: 'optra-new',
       brand: 'chevrolet',
       model: 'optra advance 1.8l',
@@ -5247,6 +5412,7 @@ describe('AgentService', () => {
     {
       lead: 'ram700-a-1500',
       text: 'Me interesa el Ram 1500',
+      otro: 'Ram 1500',
       id: 'ram1500-new',
       brand: 'ram',
       model: 'ram 1500 laramie 4x4',
@@ -5262,6 +5428,7 @@ describe('AgentService', () => {
     {
       lead: 'poer-a-hunter',
       text: 'Hola. Me interesa el Hunter',
+      otro: 'Hunter',
       id: 'hunter-new',
       brand: 'great wall',
       model: 'hunter ac 2.4 cd',
@@ -5277,6 +5444,7 @@ describe('AgentService', () => {
     {
       lead: 'tcross-a-creta',
       text: 'Me interesa el Hyundai Creta',
+      otro: 'Hyundai Creta',
       id: 'creta-from-tcross',
       brand: 'hyundai',
       model: 'creta ac 1.5 5p 4x2 tm',
@@ -5292,6 +5460,7 @@ describe('AgentService', () => {
     {
       lead: '4runner-a-prado',
       text: 'Hola. Me interesa el Prado',
+      otro: 'Prado',
       id: 'prado-from-4r',
       brand: 'toyota',
       model: 'prado txl',
@@ -5360,6 +5529,7 @@ describe('AgentService', () => {
           'Pide otras: no',
           'Caja de compra: no',
           'Falta vehículo: no',
+          `Otro vehículo: ${row.otro}`,
         ].join('\n'),
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
@@ -5502,7 +5672,9 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta por Kia rio.\nOtro vehículo: Kia rio',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
@@ -5561,7 +5733,9 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pregunta por Río.\nOtro vehículo: Río',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
@@ -5608,7 +5782,8 @@ describe('AgentService', () => {
 Vehículo: No aplica
 SOLICITUD ACTUAL:
 Cliente no especificó qué carro.
-Falta vehículo: sí`,
+Falta vehículo: sí
+Otro vehículo: Mazda 3`,
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -7664,8 +7839,8 @@ Pide precio: no`,
       customerText: 'quiero 7 pasajeros',
     });
 
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'xtrail' });
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('xtrail');
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         system: expect.stringMatching(/lo más parecido/i),
@@ -7704,7 +7879,6 @@ Pide precio: no`,
     });
 
     expect(result?.reply.meta.vehiculo).toBeNull();
-    expect(catalog.listAvailableExcept).not.toHaveBeenCalled();
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
         system: expect.stringContaining('No pases a otra marca'),
@@ -8002,7 +8176,9 @@ Pide precio: no`,
       typeBody: 'doble cabina',
     });
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente busca D-MAX 2014 o 2015.\nOtro vehículo: D-MAX 2014',
+      )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.embed.mockResolvedValue([0.2]);
     catalog.searchByQuery.mockResolvedValue('[]');
@@ -9613,7 +9789,7 @@ Pide precio: no`,
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente quiere un Peugeot 2008.\nPide precio: no\nPide otras: no',
+        'SOLICITUD ACTUAL:\nCliente quiere un Peugeot 2008.\nPide precio: no\nPide otras: no\nOtro vehículo: Peugeot 2008',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -9718,7 +9894,7 @@ Pide precio: no`,
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente pregunta si hay Hyundai i10.\nPide precio: no',
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay Hyundai i10.\nPide precio: no\nOtro vehículo: hyundai',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
@@ -10276,7 +10452,7 @@ Pide precio: no`,
     ]);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente pregunta si hay D-max 2019.\nPide precio: no',
+        'SOLICITUD ACTUAL:\nCliente pregunta si hay D-max 2019.\nPide precio: no\nOtro vehículo: D-Max 2019',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
