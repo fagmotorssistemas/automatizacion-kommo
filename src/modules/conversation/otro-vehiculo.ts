@@ -425,6 +425,10 @@ export function mismaUnidadPorFila(
   if (restantes.every((token) => token.length <= 2)) {
     return false;
   }
+  const valorPegada = restantes.join('');
+  if (valorPegada.length >= 3 && filaPegada.includes(valorPegada)) {
+    return true;
+  }
   const filaSet = new Set(filaToks);
   return restantes.every((token) => {
     if (token.length <= 2) {
