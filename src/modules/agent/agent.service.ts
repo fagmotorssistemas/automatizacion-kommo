@@ -194,6 +194,7 @@ import {
   resumenAsientos,
   resumenTresFilas,
   resumenTipoPatio,
+  resumenTraccionPedida,
   resumenTopeContado,
   resumenPidePresupuesto,
   resumenEsToma,
@@ -1084,6 +1085,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         cashBudget,
         pedido,
         tresFilas,
+        stayOnShown ? null : motivo,
       );
     }
     if (revision.choseFromShown && revision.sendId) {
@@ -2307,6 +2309,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     cashBudget: number | null = null,
     pedido: string | null = null,
     tresFilas = false,
+    stayMotivo: string | null = null,
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const lastAsst = lastOfferAssistantText(history);
@@ -2360,7 +2363,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const targetBrand = asked?.brand || brandSaidInTurn || brand;
     const cabDriveText = `${solicitudSinBanderas(resumen)}\n${concreteAsk ?? ''}\n${customerText}`;
     const askedCab = resumenCabina(resumen) ?? detectAskedCab(cabDriveText);
-    const askedDriveEarly = detectAskedDrive(cabDriveText);
+    const traccionPedida = resumenTraccionPedida(resumen);
+    const askedDriveEarly =
+      stayMotivo === 'traccion' &&
+      (traccionPedida === '4x2' || traccionPedida === '4x4')
+        ? traccionPedida
+        : detectAskedDrive(cabDriveText);
     const anyBrandPedido =
       asksAnyBrand(customerText) ||
       history.some(
@@ -3458,6 +3466,12 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       Boolean(referenceFamily) &&
       !mentionsReference &&
       Boolean(detectBrand(nombraAhora, lexicon));
+    const leaveByCaja =
+      stayMotivo === 'caja' &&
+      (cajaCompra === 'manual' || cajaCompra === 'automatica');
+    const skipGearboxAlts =
+      stayMotivo === 'cabina' || stayMotivo === 'traccion';
+    const box: Gearbox | null = leaveByCaja ? cajaCompra : gearbox;
 
     const asksNow =
       isConcreteAsk(customerText) ||
@@ -3465,10 +3479,10 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       (namesBrandNow && leftListedBrand) ||
       (tresFilas &&
         (brandsNow.length > 0 || Boolean(targetBrand) || anyTresFilasBrand));
-    if (!asksNow && !namesBrandNow) {
+    if (!leaveByCaja && !asksNow && !namesBrandNow) {
       return empty;
     }
-    if (askingOther && !asksNow && !leftListedBrand) {
+    if (!leaveByCaja && askingOther && !asksNow && !leftListedBrand) {
       return {
         text: '',
         holdVehicle: false,
@@ -3485,11 +3499,11 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         reference.brand.trim().toLowerCase() !==
           targetBrand.trim().toLowerCase(),
     );
-    if (gearbox && leftoverShownBrand) {
+    if (!skipGearboxAlts && box && leftoverShownBrand) {
       const group = bodyGroupOf(kindForAsk);
       const inBrand = listed.filter(
         (car) =>
-          gearboxOf(car) === gearbox &&
+          gearboxOf(car) === box &&
           (!kindForAsk || matchesVehicleKind(car.typeBody, kindForAsk)),
       );
       if (inBrand.length === 0) {
@@ -3498,11 +3512,11 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         );
         return {
           ...formatOtherBrandGearboxList({
-            gearbox,
+            gearbox: box,
             askedBrand: targetBrand,
             cars: pickDiverseByBrand(
               [...listed, ...others],
-              gearbox,
+              box,
               group,
               3,
             ),
@@ -3513,11 +3527,16 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         };
       }
       stock = inBrand;
-    } else if (gearbox && reference?.family && !askingOther) {
+    } else if (
+      !skipGearboxAlts &&
+      box &&
+      reference?.family &&
+      (leaveByCaja || !askingOther)
+    ) {
       const group = bodyGroupOf(kindForAsk);
       const inBrand = pickGearboxAlternatives({
         cars: listed,
-        gearbox,
+        gearbox: box,
         family: reference.family,
         group,
         referencePrice: reference.price,
@@ -3530,31 +3549,31 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         );
         const pick = pickGearboxAlternatives({
           cars: [...listed, ...others],
-          gearbox,
+          gearbox: box,
           family: reference.family,
           group,
           referencePrice: reference.price,
         });
         if (pick) {
           return {
-            ...formatGearboxAlternatives({ gearbox, pick, includePrice }),
+            ...formatGearboxAlternatives({ gearbox: box, pick, includePrice }),
             contextOrigin: 'alternativas_caja' as const,
             contextIds: pick.cars.map((car) => car.id),
           };
         }
       }
     }
-    if (gearbox) {
-      const opposite = gearbox === 'manual' ? 'automatica' : 'manual';
+    if (box) {
+      const opposite = box === 'manual' ? 'automatica' : 'manual';
       stock = stock.filter((car) => gearboxOf(car) !== opposite);
     }
     const byKind =
-      gearbox && bodyGroupOf(kindForAsk) === 'chico'
+      box && bodyGroupOf(kindForAsk) === 'chico'
         ? stock.filter((car) => carBodyGroup(car.typeBody) === 'chico')
         : kindForAsk
           ? stock.filter((car) => matchesVehicleKind(car.typeBody, kindForAsk))
           : stock;
-    const askedDrive = detectAskedDrive(cabDriveText);
+    const askedDrive = askedDriveEarly ?? detectAskedDrive(cabDriveText);
     const cabDriveOffer =
       askedCab || askedDrive
         ? pickCabDriveOffer(byKind, askedCab, askedDrive)

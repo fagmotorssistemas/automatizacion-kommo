@@ -864,7 +864,7 @@ describe('AgentService', () => {
       },
     ]);
     openai.complete
-      .mockResolvedValueOnce('RESUMEN')
+      .mockResolvedValueOnce('RESUMEN\nCaja de compra: manual')
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
