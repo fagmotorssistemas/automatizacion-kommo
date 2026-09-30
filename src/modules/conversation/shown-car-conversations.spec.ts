@@ -234,7 +234,8 @@ const conversations: {
     stay: false,
     input: {
       text: 'lo tienen en rojo?',
-      resumen: 'SOLICITUD ACTUAL:\nCliente pide otro color.\nOtro color: sí',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente pide otro color.\nPide otro color: sí\nOtro color: sí',
       history: fichaC300,
       car: c300,
       lexicon: mercedesLexicon,
@@ -246,6 +247,8 @@ const conversations: {
     stay: false,
     input: {
       text: 'y en manual?',
+      resumen:
+        'SOLICITUD ACTUAL:\nCliente quiere caja manual.\nCaja de compra: manual\nPide otras: no',
       history: fichaC300,
       car: c300,
       lexicon: mercedesLexicon,

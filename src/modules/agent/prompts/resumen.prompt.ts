@@ -77,7 +77,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, pide las letras, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no. Pide crédito: sí. SOLICITUD: quiere la cuota. Aunque el bot haya preguntado si aplica demasiado pronto, si AHORA da plazo o pide las letras no es “acepta ver si aplica”: primero la letra.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tracción pedida: 4x2|4x4|no   y   Color pedido: [color o no]   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE PIDE OTRAS (OBLIGATORIA):
 Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el pedido concreto (precio, ficha, ubicación, horario, la unidad que nombró).
@@ -143,6 +143,8 @@ Otro vehículo: [marca/modelo/año/versión copiado LITERAL] | no
 Pide ficha: sí|no
 Caja de compra: automática|manual|no
 Cabina: simple|doble|no
+Tracción pedida: 4x2|4x4|no
+Color pedido: [color]|no
 Tope de contado: [23000 o no]
 Falta vehículo: sí|no
 Tipo de patio: suv|camioneta|sedan|hatchback|no
@@ -157,6 +159,13 @@ Toma falta: modelo, color | no  // dos: A || B
 Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
+
+REGLA DE BANDERAS DE COMPRA (OBLIGATORIA):
+Aplica a Caja de compra, Cabina, Tipo de patio, Tracción pedida, Color pedido, Asientos y Tres filas.
+- Solo si en ESTE mensaje el cliente pide comprar o ver un vehículo de patio con ese dato.
+- "no" si pregunta por la unidad mostrada ("¿es automática?", "¿es 4x4?", "¿de qué color es?").
+- "no" si habla de SU carro para la toma: eso va solo en Toma ficha / Toma ya.
+- "no" si el dato es de un mensaje anterior: no copies banderas del resumen previo. Cada turno las escribe de cero.
 
 REGLA DE TIPO DE PATIO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback), o ya no sigue el tipo de antes?
@@ -260,6 +269,21 @@ Lee el sentido, no una frase fija. ¿Pidió cabina simple o doble para el carro 
 - Cabina: doble si quiere cabina doble (cd).
 - Cabina: no si no pidió cabina, o si habla de la cabina del carro SUYO (toma).
 - La SOLICITUD puede decir “cabina simple” o “cabina doble” con tus palabras. El patio filtra por cs/cd.
+
+REGLA DE TRACCIÓN PEDIDA (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Pidió 4x2 o 4x4 para el carro que quiere VER/COMPRAR de patio?
+- Tracción pedida: 4x2 o 4x4 SOLO si está pidiendo esa tracción para el vehículo de patio.
+- Tracción pedida: no si pregunta por la unidad mostrada ("¿es 4x4?", "¿no era 4x4?").
+- Tracción pedida: no si la 4x2/4x4 es del carro SUYO (toma) o de otra ficha del resumen.
+- Tracción pedida: no si no pidió tracción en ESTE mensaje. No copies la del turno anterior.
+
+REGLA DE COLOR PEDIDO (OBLIGATORIA):
+Lee el sentido, no una frase fija. ¿Pidió un color concreto para el carro que quiere VER/COMPRAR de patio?
+- Color pedido: el color (blanco, rojo, plateado) SOLO si AHORA quiere ESA unidad en ese color.
+- Color pedido: no si pregunta de qué color es la mostrada.
+- Color pedido: no si el color es del carro SUYO (toma).
+- Si pide otro color sin nombrar cuál: Pide otro color: sí. Color pedido: no.
+- Color pedido: no si no pidió color en ESTE mensaje. No copies el del turno anterior.
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.

@@ -356,7 +356,7 @@ describe('vehículo de interés', () => {
       leftShownCar({
         text: 'Precio\nNo era 4x4?',
         resumen:
-          'RESUMEN PREVIO:\nVehículo: Toyota 4 runner 4x2 t/a 2004\nSOLICITUD ACTUAL:\nCliente quiere saber el precio del Toyota 4runner mostrado y confirmar la tracción 4x2 vs 4x4.\nPide otras: no\nTiene duda: sí',
+          'RESUMEN PREVIO:\nVehículo: Toyota 4 runner 4x2 t/a 2004\nSOLICITUD ACTUAL:\nCliente quiere saber el precio del Toyota 4runner mostrado y confirmar la tracción 4x2 vs 4x4.\nPide otras: no\nTiene duda: sí\nTracción pedida: no',
         car: runner,
         lexicon: TEST_LEXICON,
       }),
@@ -409,7 +409,7 @@ describe('vehículo de interés', () => {
         lexicon: TEST_LEXICON,
       }),
     ).toBe(false);
-    expect(followsShownCar({ text: 'y en manual?', car: sportage })).toBe(
+    expect(followsShownCar({ text: 'y en manual?', resumen: 'SOLICITUD ACTUAL:\nCliente quiere caja manual.\nCaja de compra: manual\nPide otras: no', car: sportage })).toBe(
       false,
     );
   });
@@ -480,6 +480,8 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'Busco una camioneta 4x4 cabina simple',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere camioneta cabina simple 4x4.\nCabina: simple\nTracción pedida: 4x4\nTipo de patio: camioneta\nPide otras: no',
         car: {
           ...hilux,
           model: 'hilux cd 2.4 4x4 tm',
@@ -503,6 +505,8 @@ describe('vehículo de interés', () => {
     expect(
       followsShownCar({
         text: 'Tal vez dispone en cabina simple pero 4x4?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere cabina simple 4x4.\nCabina: simple\nTracción pedida: 4x4\nPide otras: no',
         car: dmaxCs,
       }),
     ).toBe(false);
@@ -510,7 +514,7 @@ describe('vehículo de interés', () => {
       followsShownCar({
         text: 'No era 4x4?',
         resumen:
-          'SOLICITUD ACTUAL:\nCliente confirma si la unidad es 4x4.\nTiene duda: sí\nPide otras: no',
+          'SOLICITUD ACTUAL:\nCliente confirma si la unidad es 4x4.\nTiene duda: sí\nPide otras: no\nTracción pedida: no',
         car: dmaxCs,
       }),
     ).toBe(true);
@@ -728,6 +732,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'No tienen otro color?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere otro color del Sportage.\nPide otro color: sí',
         car: { ...sportage, color: 'plateado' },
       }),
     ).toBe(true);
@@ -855,6 +861,8 @@ describe('vehículo de interés', () => {
     expect(
       leftShownCar({
         text: 'Por favor páseme furgonetas de 17 o 20 pasajeros',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere un vehículo GRANDE de 17 o 20 pasajeros.\nAsientos: 17\nTres filas: no\nPide otras: sí',
         car: picanto,
       }),
     ).toBe(true);
@@ -944,6 +952,145 @@ describe('vehículo de interés', () => {
         },
         lexicon: TEST_LEXICON,
       }),
+    ).toBe(true);
+  });
+});
+
+describe('stay solo banderas', () => {
+  const dmaxCs = {
+    inventoryId: 'dmax-cs',
+    brand: 'chevrolet',
+    model: 'd-max crdi 2.5 cs 4x2 tm diesel',
+    year: 2020,
+    price: 21900,
+    typeBody: 'cabina simple',
+    color: 'blanco',
+  };
+  const sportageManual = {
+    ...sportage,
+    model: 'sportage r gti ac 2.0 5p 4x2',
+    transmission: 'manual' as const,
+    color: 'rojo',
+  };
+
+  it('le comento no suelta la SUV si Tipo de patio: no', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Estimada, le comento, yo salgo del trabajo a las 6',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente indica horario de salida.\nTipo de patio: no\nPide otras: no',
+        car: sportage,
+      }),
+    ).toEqual({ stay: true, motivo: 'sigue' });
+  });
+
+  it('comento + toma C3 no suelta por caja ni tipo', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Le comento es un Citroën C3 2024 … caja automática',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere vendernos su Citroën C3 2024 automática.\nToma: sí\nTipo de patio: no\nCaja de compra: no\nPide otras: no',
+        car: sportage,
+      }).stay,
+    ).toBe(true);
+  });
+
+  it('Año 2007 de la toma no suelta la Sportage', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Año 2007',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere vender su Hyundai sedán blanco año 2007.\nToma: sí\nTipo de patio: no\nPide otras: no\nToma ficha: Hyundai sedán no  no\nToma ya: marca=Hyundai; modelo=sedán; color=blanco; año=2007',
+        car: sportage,
+      }).stay,
+    ).toBe(true);
+  });
+
+  it('crédito directo no suelta por el 4x4 de otra ficha', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Uds tiene crédito directo',
+        resumen:
+          'RESUMEN PREVIO:\nVehículo: Chevrolet D-Max CS 4x2\nSOLICITUD ACTUAL:\nCliente pregunta si hay crédito directo.\nPide crédito: sí\nTracción pedida: no\nPide otras: no\nFord Explorer XLT 5p 4x4',
+        car: dmaxCs,
+      }).stay,
+    ).toBe(true);
+  });
+
+  it('doble cabina suelta la CS', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Necesito doble cabina',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere doble cabina.\nCabina: doble\nPide otras: no',
+        car: dmaxCs,
+      }),
+    ).toEqual({ stay: false, motivo: 'cabina' });
+  });
+
+  it('¿es automática? no suelta la manual', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿es automática?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta si la unidad es automática.\nCaja de compra: no\nPide otras: no',
+        car: sportageManual,
+      }).stay,
+    ).toBe(true);
+  });
+
+  it('la quiero en automática suelta la manual', () => {
+    expect(
+      decideStayOnShown({
+        text: 'la quiero en automática',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere automática.\nCaja de compra: automática\nPide otras: no',
+        car: sportageManual,
+      }),
+    ).toEqual({ stay: false, motivo: 'caja' });
+  });
+
+  it('¿es 4x4? no suelta la 4x2', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿es 4x4?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta si la unidad es 4x4.\nTracción pedida: no\nPide otras: no',
+        car: dmaxCs,
+      }).stay,
+    ).toBe(true);
+  });
+
+  it('cabina simple pero 4x4 suelta la CS 4x2', () => {
+    expect(
+      decideStayOnShown({
+        text: 'cabina simple pero 4x4',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere cabina simple 4x4.\nCabina: simple\nTracción pedida: 4x4\nPide otras: no',
+        car: dmaxCs,
+      }).stay,
+    ).toBe(false);
+  });
+
+  it('¿tienen en blanco? suelta la roja', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿tienen en blanco?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere en blanco.\nColor pedido: blanco\nPide otro color: no\nPide otras: no',
+        car: sportageManual,
+      }),
+    ).toEqual({ stay: false, motivo: 'otro_color' });
+  });
+
+  it('¿de qué color es? no suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿de qué color es?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta el color de la unidad.\nColor pedido: no\nPide otro color: no\nPide otras: no',
+        car: sportageManual,
+      }).stay,
     ).toBe(true);
   });
 });

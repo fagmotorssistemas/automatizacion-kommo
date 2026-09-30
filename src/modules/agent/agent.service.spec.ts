@@ -10779,7 +10779,7 @@ Pide precio: no`,
     catalog.listAvailableExcept.mockResolvedValue(patio);
     openai.complete
       .mockResolvedValueOnce(
-        'SOLICITUD ACTUAL:\nCliente elige la D-Max 2006 de las que le mostraron.\nPide precio: no\nPide crédito: no',
+        'SOLICITUD ACTUAL:\nCliente elige la D-Max 2006 de las que le mostraron.\nPide precio: no\nPide crédito: no\nPide otras: no\nOtro vehículo: D-Max 2006\nTracción pedida: 4x4',
       )
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(

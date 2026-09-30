@@ -232,6 +232,7 @@ import {
   formatInterestedCar,
   historyPresentedFicha,
   refersToInterestedCar,
+  stayLeaveBandera,
   vehicleLabelFitsCar,
 } from '../conversation/interested-car';
 import {
@@ -950,6 +951,7 @@ export class AgentService {
         inventory: interested?.inventoryId ?? null,
         stay: stayOnShown,
         motivo,
+        bandera: stayLeaveBandera(stayInput, motivo),
         otro,
         evidencia: otro ? (evidencia ? 'ok' : 'falla') : 'n/a',
         rpcRank1,

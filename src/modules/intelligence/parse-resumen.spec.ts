@@ -24,6 +24,9 @@ import {
   resumenAsientos,
   resumenTresFilas,
   resumenTipoPatio,
+  resumenTraccionPedida,
+  resumenColorPedido,
+  resumenPideOtroColor,
   vehicleQueSigue,
   parseTopeAmount,
   resumenEsToma,
@@ -394,6 +397,48 @@ describe('resumenCabina', () => {
     expect(
       resumenCabina('SOLICITUD ACTUAL:\nCliente quiere Dimax de una sola cabina.'),
     ).toBeNull();
+  });
+});
+
+describe('resumenTraccionPedida y Color pedido', () => {
+  it('lee las banderas, no el texto libre', () => {
+    expect(
+      resumenTraccionPedida(
+        'SOLICITUD ACTUAL:\nCliente quiere cabina simple 4x4.\nTracción pedida: 4x4',
+      ),
+    ).toBe('4x4');
+    expect(
+      resumenTraccionPedida(
+        'SOLICITUD ACTUAL:\nCliente pregunta si es 4x4.\nTracción pedida: no',
+      ),
+    ).toBe('no');
+    expect(
+      resumenTraccionPedida(
+        'Uds tiene crédito directo\nVehículo: Explorer 5p 4x4',
+      ),
+    ).toBeNull();
+    expect(
+      resumenColorPedido(
+        'SOLICITUD ACTUAL:\nCliente quiere en blanco.\nColor pedido: blanco',
+      ),
+    ).toBe('blanco');
+    expect(
+      resumenColorPedido(
+        'SOLICITUD ACTUAL:\nCliente pregunta el color.\nColor pedido: no',
+      ),
+    ).toBeNull();
+    expect(resumenPideOtroColor('Pide otro color: sí')).toBe(true);
+    expect(resumenPideOtroColor('Pide otro color: no')).toBe(false);
+  });
+
+  it('no arrastra tracción ni color a la solicitud ni al merge', () => {
+    const resumen =
+      'RESUMEN PREVIO:\nVehículo: Kia Sportage\nSOLICITUD ACTUAL:\nCliente quiere el precio.\nPide otras: no\nTracción pedida: 4x4\nColor pedido: blanco';
+    expect(solicitudSinBanderas(resumen)).toBe('Cliente quiere el precio.');
+    expect(parseResumen(resumen).solicitudActual).not.toMatch(/4x4|blanco/i);
+    const merged = mergeResumenForNext(resumen, null);
+    expect(merged).not.toMatch(/Tracción pedida/i);
+    expect(merged).not.toMatch(/Color pedido/i);
   });
 });
 

@@ -83,7 +83,7 @@ export function parseResumen(resumen: string): ParsedResumen {
   return {
     vehiculo: vehiculoMatch?.[1]?.trim() || null,
     contexto: contextoMatch?.[1]?.trim() || null,
-    solicitudActual: stripOtroVehiculoLine(solicitudMatch?.[1]?.trim() || '') || null,
+    solicitudActual: stripIsolatedResumenLines(solicitudMatch?.[1]?.trim() || '') || null,
   };
 }
 
@@ -100,8 +100,12 @@ export function resumenOtroVehiculo(resumen: string): string | null {
   return raw;
 }
 
-function stripOtroVehiculoLine(text: string): string {
-  return text.replace(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*.*/gi, '').trim();
+function stripIsolatedResumenLines(text: string): string {
+  return text
+    .replace(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*.*/gi, '')
+    .replace(/(?:^|\n)\s*tracci[oó]n\s+pedida:\s*.*/gi, '')
+    .replace(/(?:^|\n)\s*color\s+pedido:\s*.*/gi, '')
+    .trim();
 }
 
 function fold(text: string): string {
@@ -174,6 +178,8 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+ficha:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/cabina:\s*(simple|doble|no)/gi, '')
+    .replace(/tracci[oó]n\s+pedida:\s*[^\n]*/gi, '')
+    .replace(/color\s+pedido:\s*[^\n]*/gi, '')
     .replace(/tope\s+de\s+contado:\s*[^\n]+/gi, '')
     .replace(/falta\s+veh[ií]culo:\s*(s[ií]|no)/gi, '')
     .replace(/tipo\s+de\s+patio:\s*[^\n]+/gi, '')
@@ -330,6 +336,11 @@ export function resumenAsksForCredit(resumen: string): boolean {
     return flag;
   }
   return false;
+}
+
+/** Bandera Pide otro color: sí. Sin fallback a la prosa. */
+export function resumenPideOtroColor(resumen: string): boolean {
+  return flagSiNo(resumen, 'pide\\s+otro\\s+color') === true;
 }
 
 /** El analizador vio que quiere otro color del mismo modelo, no la misma unidad. */
@@ -522,6 +533,47 @@ export function resumenCabina(resumen: string): CabCode | null {
     return null;
   }
   return value === 'simple' ? 'cs' : 'cd';
+}
+
+export type TraccionPedida = '4x2' | '4x4' | 'no';
+
+/**
+ * Tracción del carro que quiere COMPRAR. Lo decide el analizador.
+ * `no` = preguntó por la mostrada, es del suyo (toma) o no pidió tracción.
+ */
+export function resumenTraccionPedida(
+  resumen: string,
+): '4x2' | '4x4' | 'no' | null {
+  const match = resumen.match(
+    /tracci[oó]n\s+pedida:\s*(4\s*x\s*[24]|no)(?:\s|$)/i,
+  );
+  if (!match) {
+    return null;
+  }
+  const value = fold(match[1]).replace(/\s+/g, '');
+  if (value === 'no') {
+    return 'no';
+  }
+  if (value === '4x2' || value === '4x4') {
+    return value;
+  }
+  return null;
+}
+
+/**
+ * Color concreto que quiere COMPRAR. Lo decide el analizador.
+ * `null` = Color pedido: no, o la línea no está.
+ */
+export function resumenColorPedido(resumen: string): string | null {
+  const match = resumen.match(/color\s+pedido:\s*(.+?)(?:\n|$)/i);
+  if (!match) {
+    return null;
+  }
+  const raw = match[1].trim();
+  if (!raw || /^no$/i.test(raw)) {
+    return null;
+  }
+  return fold(raw);
 }
 
 /** El analizador leyó un tope de contado. El número, no una frase del cliente. */

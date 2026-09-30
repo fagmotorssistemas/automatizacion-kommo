@@ -11,7 +11,7 @@ import {
 } from '../catalog/clasificar-filas';
 import { textoQueNombra } from './named-this-turn';
 import { formatMileageFact } from '../catalog/mileage';
-import { detectVehicleKind, kindFromTypeBody } from './vehicle-kind';
+import { kindFromTypeBody } from './vehicle-kind';
 import {
   colorMatches,
   detectBrand,
@@ -24,31 +24,29 @@ import {
   modelHasTrim,
 } from './vehicle-brand';
 import { detectGearbox, gearboxOf, stripGearboxWords } from './gearbox';
-import {
-  asksForLargePassengerSpace,
-  isLargePassengerCar,
-  parsePassengerAsk,
-  seatsOfCar,
-} from './large-passenger';
+import { isLargePassengerCar, seatsOfCar } from './large-passenger';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
 import { fila1Nueva } from './otro-vehiculo';
 import {
   resumenAsksAboutShownFacts,
   resumenAsksForCredit,
   resumenAsksForListedPrice,
-  resumenAsksForPhotos,
-  resumenAsksForOtherColor,
+  resumenAsientos,
   resumenCabina,
+  resumenCajaCompra,
+  resumenColorPedido,
   resumenHasPendingDoubt,
   resumenPideOtras,
+  resumenPideOtroColor,
   resumenPidePresupuesto,
-  solicitudSinBanderas,
-  textAsksForOtherColor,
+  resumenTipoPatio,
+  resumenTopeContado,
+  resumenTraccionPedida,
+  resumenTresFilas,
 } from '../intelligence/parse-resumen';
 import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { sanitizePlateShort } from '../catalog/plate-short';
-import { resumenTipoPatio, resumenTopeContado } from '../intelligence/parse-resumen';
 import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
@@ -265,10 +263,17 @@ function refersToShownRow(
 }
 
 export function shownLeavesByColor(input: ShownCarContext): boolean {
-  return (
-    textAsksForOtherColor(input.text) ||
-    resumenAsksForOtherColor(input.resumen ?? '')
-  );
+  const resumen = input.resumen ?? '';
+  if (resumenPideOtroColor(resumen)) {
+    return true;
+  }
+  const car = input.car;
+  const asked = resumenColorPedido(resumen);
+  if (!car?.color || !asked) {
+    return false;
+  }
+  const canonical = detectColorInText(asked) ?? asked;
+  return !colorMatches(car.color, canonical);
 }
 
 export function shownLeavesByOtras(input: ShownCarContext): boolean {
@@ -296,12 +301,12 @@ export function shownLeavesByCaja(input: ShownCarContext): boolean {
   if (!car) {
     return false;
   }
-  const lexicon = input.lexicon ?? emptyLexicon();
-  const box = detectGearbox(input.text, lexicon);
+  const caja = resumenCajaCompra(input.resumen ?? '');
+  if (caja !== 'automatica' && caja !== 'manual') {
+    return false;
+  }
   const shownBox = gearboxOf(car);
-  return Boolean(
-    box && shownBox && box !== shownBox && !textAsksAboutShownGearbox(input.text),
-  );
+  return Boolean(shownBox && caja !== shownBox);
 }
 
 export function shownLeavesByTipo(input: ShownCarContext): boolean {
@@ -309,23 +314,12 @@ export function shownLeavesByTipo(input: ShownCarContext): boolean {
   if (!car) {
     return false;
   }
-  const resumen = input.resumen ?? '';
-  const solicitud = solicitudSinBanderas(resumen);
-  const shownKind = kindFromTypeBody(car.typeBody);
-  const solicitudKind = solicitud ? detectVehicleKind(solicitud) : null;
-  const textKind = detectVehicleKind(input.text);
-  const tipoPatio = resumenTipoPatio(resumen);
-  const askedKind = textKind || solicitudKind;
-  if (
-    tipoPatio &&
-    tipoPatio !== 'no' &&
-    shownKind &&
-    tipoPatio !== shownKind &&
-    askedKind === tipoPatio
-  ) {
-    return true;
+  const tipoPatio = resumenTipoPatio(input.resumen ?? '');
+  if (!tipoPatio || tipoPatio === 'no') {
+    return false;
   }
-  return Boolean(askedKind && shownKind && askedKind !== shownKind);
+  const shownKind = kindFromTypeBody(car.typeBody);
+  return Boolean(shownKind && tipoPatio !== shownKind);
 }
 
 export function shownLeavesByCabina(input: ShownCarContext): boolean {
@@ -333,8 +327,7 @@ export function shownLeavesByCabina(input: ShownCarContext): boolean {
   if (!car) {
     return false;
   }
-  const askedCab =
-    resumenCabina(input.resumen ?? '') ?? detectAskedCab(input.text);
+  const askedCab = resumenCabina(input.resumen ?? '');
   const shownCab = unitCab(car);
   return Boolean(askedCab && shownCab && askedCab !== shownCab);
 }
@@ -344,17 +337,12 @@ export function shownLeavesByTraccion(input: ShownCarContext): boolean {
   if (!car) {
     return false;
   }
-  const askedDrive = detectAskedDrive(
-    `${input.text}\n${input.resumen ?? ''}`,
-  );
+  const askedDrive = resumenTraccionPedida(input.resumen ?? '');
+  if (!askedDrive || askedDrive === 'no') {
+    return false;
+  }
   const shownDrive = unitDrive(car);
-  return Boolean(
-    askedDrive &&
-      (shownDrive === '4x2' || shownDrive === '4x4') &&
-      askedDrive !== shownDrive &&
-      !resumenHasPendingDoubt(input.resumen ?? '') &&
-      !textAsksAboutShownDrive(input.text),
-  );
+  return Boolean(shownDrive && askedDrive !== shownDrive);
 }
 
 export function shownLeavesByAsientos(input: ShownCarContext): boolean {
@@ -362,16 +350,68 @@ export function shownLeavesByAsientos(input: ShownCarContext): boolean {
   if (!car) {
     return false;
   }
-  const spaceText = `${input.text}\n${input.resumen ?? ''}`;
-  if (!asksForLargePassengerSpace(spaceText)) {
+  const resumen = input.resumen ?? '';
+  const asientos = resumenAsientos(resumen);
+  const tresFilas = resumenTresFilas(resumen);
+  if (!tresFilas && asientos == null) {
     return false;
   }
   if (!isLargePassengerCar({ model: car.model, typeBody: car.typeBody })) {
     return true;
   }
-  const want = parsePassengerAsk(spaceText);
+  if (asientos == null) {
+    return false;
+  }
   const have = seatsOfCar(car.passengerCapacity);
-  return Boolean(want && want >= 8 && (have == null || have < 7));
+  if (have != null && have < asientos) {
+    return true;
+  }
+  return asientos >= 8 && (have == null || have < 7);
+}
+
+/** Bandera del resumen que disparó el cambio de carro. n/a si no aplica. */
+export function stayLeaveBandera(
+  input: ShownCarContext,
+  motivo: string,
+): string {
+  const resumen = input.resumen ?? '';
+  if (motivo === 'otro_color') {
+    if (resumenPideOtroColor(resumen)) {
+      return 'Pide otro color:sí';
+    }
+    const color = resumenColorPedido(resumen);
+    return color ? `Color pedido:${color}` : 'n/a';
+  }
+  if (motivo === 'caja') {
+    const caja = resumenCajaCompra(resumen);
+    return caja && caja !== 'no' ? `Caja de compra:${caja}` : 'n/a';
+  }
+  if (motivo === 'tipo') {
+    const tipo = resumenTipoPatio(resumen);
+    return tipo && tipo !== 'no' ? `Tipo de patio:${tipo}` : 'n/a';
+  }
+  if (motivo === 'cabina') {
+    const cab = resumenCabina(resumen);
+    if (cab === 'cs') {
+      return 'Cabina:simple';
+    }
+    if (cab === 'cd') {
+      return 'Cabina:doble';
+    }
+    return 'n/a';
+  }
+  if (motivo === 'traccion') {
+    const asked = resumenTraccionPedida(resumen);
+    return asked && asked !== 'no' ? `Tracción pedida:${asked}` : 'n/a';
+  }
+  if (motivo === 'asientos') {
+    if (resumenTresFilas(resumen)) {
+      return 'Tres filas:sí';
+    }
+    const n = resumenAsientos(resumen);
+    return n != null ? `Asientos:${n}` : 'n/a';
+  }
+  return 'n/a';
 }
 
 /** Dejó la unidad mostrada: otro carro, o el resumen decidió que pidió otra. */
