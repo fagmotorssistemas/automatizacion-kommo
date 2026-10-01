@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AgentTurnResult } from '../agent/parse-agent-output';
+import { AgentTurnResult, looksLikeAgentJson } from '../agent/parse-agent-output';
 import { AgentService } from '../agent/agent.service';
 import { stayFieldsForRunLog } from '../conversation/otro-vehiculo';
 import { ConversationService } from '../conversation/conversation.service';
@@ -278,6 +278,8 @@ export class InboxFlushRunner {
         regenerado: turn.regenerado ?? false,
         hechos: turn.hechos ?? [],
         unidadesContexto: turn.unidadesContexto ?? [],
+        rawLlm: turn.rawLlm ?? null,
+        ...(turn.negacionSinContexto ? { negacionSinContexto: true } : {}),
         ...stayFieldsForRunLog(stay),
         stayBandera: stay?.stayBandera ?? null,
         banderaSinEvidencia: stay?.banderaSinEvidencia ?? null,
@@ -287,6 +289,10 @@ export class InboxFlushRunner {
         texto: customerText.slice(0, 500),
       },
     });
+
+    if (looksLikeAgentJson(turn.reply.mensaje)) {
+      turn.reply.mensaje = '¿Qué carro le interesa?';
+    }
 
     const inventoryId = turn.reply.meta.vehiculo?.inventory_id?.trim() ?? '';
     const latestShown = await this.persistenceService.latestInterestedCar(

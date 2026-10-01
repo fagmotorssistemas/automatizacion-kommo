@@ -45,6 +45,10 @@ export type AgentTurnResult = {
   unidadesContexto?: UnidadContexto[];
   /** El turno pedía aclarar que ese año no hay y la respuesta no lo dijo. */
   faltaAclararNoExiste?: { pedido: string; ofrecido: string };
+  /** Respuesta cruda del LLM, antes de postprocesos. */
+  rawLlm?: string;
+  /** Dijo que no hay y el turno no tenía ficha de esa unidad. */
+  negacionSinContexto?: boolean;
 };
 
 const EMPTY_META: AgentMeta = {
@@ -114,6 +118,73 @@ export function serializeAgentTurn(parsed: ParsedAgentOutput): string {
   });
 }
 
+/** Primer `{...}` con llaves balanceadas, aunque vengan dos objetos o texto alrededor. */
+export function firstBalancedJsonObject(raw: string): string | null {
+  const start = raw.indexOf('{');
+  if (start === -1) {
+    return null;
+  }
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{') {
+      depth += 1;
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+/** El texto que iría al cliente todavía es el JSON del modelo. */
+export function looksLikeAgentJson(text: string): boolean {
+  const t = (text || '').trim();
+  if (!t) {
+    return false;
+  }
+  if (t.startsWith('{')) {
+    return true;
+  }
+  return /respuesta_cliente|"inventory_id"|img_prefix/.test(t);
+}
+
+function mensajeDesdeRawJson(raw: string): string | null {
+  const match = raw.match(
+    /"respuesta_cliente"\s*:\s*"((?:\\.|[^"\\])*)"/,
+  );
+  if (!match) {
+    return null;
+  }
+  try {
+    return String(JSON.parse(`"${match[1]}"`));
+  } catch {
+    return match[1];
+  }
+}
+
 /** Parser Datos de n8n. Un solo parser. */
 export function parseAgentOutput(raw: string): ParsedAgentOutput {
   const trimmed = (raw || '').trim();
@@ -121,19 +192,33 @@ export function parseAgentOutput(raw: string): ParsedAgentOutput {
   try {
     return fromParsed(JSON.parse(trimmed) as Record<string, unknown>);
   } catch {
-    const index = raw.indexOf('{');
-    if (index === -1) {
+    const block = firstBalancedJsonObject(raw);
+    if (!block) {
       return { mensaje: cleanText(raw), meta: { ...EMPTY_META }, img_prefix: '' };
     }
-
-    const textPart = raw.slice(0, index).trim();
+    const textPart = raw.slice(0, raw.indexOf('{')).trim();
     try {
       return fromParsed(
-        JSON.parse(raw.slice(index)) as Record<string, unknown>,
+        JSON.parse(block) as Record<string, unknown>,
         textPart,
       );
     } catch {
       return { mensaje: cleanText(raw), meta: { ...EMPTY_META }, img_prefix: '' };
     }
   }
+}
+
+export function extractClientMessage(raw: string): ParsedAgentOutput {
+  const parsed = parseAgentOutput(raw);
+  if (!looksLikeAgentJson(parsed.mensaje)) {
+    return parsed;
+  }
+  const fromField = mensajeDesdeRawJson(raw);
+  if (fromField && !looksLikeAgentJson(fromField)) {
+    return { ...parsed, mensaje: cleanText(fromField) };
+  }
+  return {
+    ...parsed,
+    mensaje: '¿Qué carro le interesa?',
+  };
 }
