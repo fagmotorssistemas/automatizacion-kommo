@@ -5,6 +5,7 @@ import {
   detectPedidoPatio,
   mismoVehiculoPorTokens,
   otroVehiculoEfectivo,
+  respuestaIncompletaPrecio,
   unidadAAnclar,
 } from './compra-vs-toma';
 import { solicitudSinBanderas } from '../intelligence/parse-resumen';
@@ -147,5 +148,43 @@ describe('compra vs toma', () => {
     });
     expect(asked?.family).toMatch(/x70/i);
     expect(asked?.brand).toMatch(/jetour/i);
+  });
+
+  it('Pide precio: sí es incompleta si la respuesta no trae el $ (22,990 = 22.990 = 22990)', () => {
+    expect(
+      respuestaIncompletaPrecio({
+        pidePrecio: true,
+        mensaje: 'El Hyundai Creta 2022 está en $22,990.',
+        precio: 22990,
+      }),
+    ).toBe(false);
+    expect(
+      respuestaIncompletaPrecio({
+        pidePrecio: true,
+        mensaje: 'El Hyundai Creta 2022 está en $22.990.',
+        precio: 22990,
+      }),
+    ).toBe(false);
+    expect(
+      respuestaIncompletaPrecio({
+        pidePrecio: true,
+        mensaje: 'El Hyundai Creta 2022 está en 22990.',
+        precio: 22990,
+      }),
+    ).toBe(false);
+    expect(
+      respuestaIncompletaPrecio({
+        pidePrecio: true,
+        mensaje: 'Estimado, no tenemos Jetour blanco. El precio no está cargado.',
+        precio: 22990,
+      }),
+    ).toBe(true);
+    expect(
+      respuestaIncompletaPrecio({
+        pidePrecio: false,
+        mensaje: 'Tenemos el Creta 2022.',
+        precio: 22990,
+      }),
+    ).toBe(false);
   });
 });

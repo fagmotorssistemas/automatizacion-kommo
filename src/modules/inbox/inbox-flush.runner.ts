@@ -292,6 +292,7 @@ export class InboxFlushRunner {
           ? { banderaDeToma: stay.banderaDeToma }
           : {}),
         ...(turn.asesorPedido ? { asesorPedido: true } : {}),
+        ...(turn.respuestaIncompleta ? { respuestaIncompleta: true } : {}),
         ...(turn.faltaAclararNoExiste
           ? { faltaAclararNoExiste: turn.faltaAclararNoExiste }
           : {}),

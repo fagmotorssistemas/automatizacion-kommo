@@ -12,7 +12,7 @@ import {
   solicitudSinBanderas,
 } from '../intelligence/parse-resumen';
 import type { NamedModelAsk, VehicleLexicon } from './vehicle-brand';
-import { detectNamedModelAsk } from './vehicle-brand';
+import { detectNamedModelAsk, colorMatches } from './vehicle-brand';
 import {
   damerauLevenshtein,
   evidenciaReal,
@@ -20,7 +20,7 @@ import {
   type TextosBot,
 } from './otro-vehiculo';
 import { parseTomaChecklistFromResumen } from './toma-checklist';
-import { colorMatches } from './vehicle-brand';
+import { hasLoadedPrice, mentionsAmount } from './strip-unsolicited-price';
 import {
   rowMentionsFamily,
   type StockCar,
@@ -261,4 +261,56 @@ export function unidadAAnclar(input: {
     return ofFamily[0].id;
   }
   return null;
+}
+
+/** Precio de la unidad de Quiere comprar o, si no hay, la anclada. */
+export function precioUnidadPedida(input: {
+  family: string | null | undefined;
+  interested: { model?: string | null; price?: number | null } | null | undefined;
+  listed: Array<{ model?: string | null; price?: number | null }>;
+  stayOnShown: boolean;
+  unitPrice: number | null | undefined;
+}): number | null {
+  if (
+    input.family &&
+    input.interested &&
+    rowMentionsFamily(input.interested.model ?? '', input.family) &&
+    hasLoadedPrice(input.interested.price)
+  ) {
+    return Math.round(input.interested.price as number);
+  }
+  const deLista = input.listed.find(
+    (car) =>
+      Boolean(input.family) &&
+      rowMentionsFamily(car.model ?? '', input.family as string) &&
+      hasLoadedPrice(car.price),
+  );
+  if (deLista?.price) {
+    return Math.round(deLista.price);
+  }
+  if (
+    input.interested &&
+    hasLoadedPrice(input.interested.price) &&
+    input.stayOnShown
+  ) {
+    return Math.round(input.interested.price as number);
+  }
+  return hasLoadedPrice(input.unitPrice)
+    ? Math.round(input.unitPrice as number)
+    : (input.unitPrice ?? null);
+}
+
+/** Pide precio y la respuesta no trae el $ de la unidad pedida ($22,990 = $22.990 = 22990). */
+export function respuestaIncompletaPrecio(input: {
+  pidePrecio: boolean;
+  mensaje: string;
+  precio: number | null | undefined;
+}): boolean {
+  if (!input.pidePrecio) {
+    return false;
+  }
+  if (!hasLoadedPrice(input.precio)) {
+    return true;
+  }
+  return !mentionsAmount(input.mensaje, input.precio as number);
 }

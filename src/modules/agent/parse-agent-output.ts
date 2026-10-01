@@ -45,6 +45,8 @@ export type AgentTurnResult = {
   unidadesContexto?: UnidadContexto[];
   /** El cliente pidió un asesor; se registró (Kommo no crea tareas aún). */
   asesorPedido?: boolean;
+  /** Pide precio: sí y la respuesta no trae el $ de la unidad pedida. */
+  respuestaIncompleta?: boolean;
   /** El turno pedía aclarar que ese año no hay y la respuesta no lo dijo. */
   faltaAclararNoExiste?: { pedido: string; ofrecido: string };
   /** Respuesta cruda del LLM, antes de postprocesos. */

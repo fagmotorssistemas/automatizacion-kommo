@@ -166,6 +166,8 @@ import {
   detectPedidoPatio,
   mismoVehiculoPorTokens,
   otroVehiculoEfectivo,
+  precioUnidadPedida,
+  respuestaIncompletaPrecio,
   textoPedidoPatio,
   unidadAAnclar,
 } from '../conversation/compra-vs-toma';
@@ -926,6 +928,7 @@ export class AgentService {
                 otroOverride = parsed.otro;
                 verificado = parsed.otro;
               }
+            }
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             verificado = /tardó más de/.test(msg) ? 'timeout' : 'error';
@@ -1922,29 +1925,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           lastAssistantMsg?.content,
         );
       }
-      const precioDeLaPedida = (() => {
-        if (
-          patioAsk?.family &&
-          interested &&
-          rowMentionsFamily(interested.model, patioAsk.family) &&
-          hasLoadedPrice(interested.price)
-        ) {
-          return Math.round(interested.price as number);
-        }
-        const deLista = (revision.listedUnits ?? []).find(
-          (car) =>
-            patioAsk?.family &&
-            rowMentionsFamily(car.model, patioAsk.family) &&
-            hasLoadedPrice(car.price),
-        );
-        if (deLista?.price) {
-          return Math.round(deLista.price);
-        }
-        if (interested && hasLoadedPrice(interested.price) && stayOnShown) {
-          return Math.round(interested.price as number);
-        }
-        return unitPrice;
-      })();
+      const precioDeLaPedida = precioUnidadPedida({
+        family: patioAsk?.family,
+        interested,
+        listed: revision.listedUnits ?? [],
+        stayOnShown,
+        unitPrice,
+      });
       if (askedPrice && hasLoadedPrice(precioDeLaPedida)) {
         parsed.mensaje = stripUnloadedPriceClaim(parsed.mensaje);
       }
@@ -2127,6 +2114,19 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ...(faltaAclararNoExiste ? { faltaAclararNoExiste } : {}),
       ...(resumenPideAsesor(resumen, input.customerText)
         ? { asesorPedido: true }
+        : {}),
+      ...(respuestaIncompletaPrecio({
+        pidePrecio: mentionsPrice,
+        mensaje: parsed.mensaje,
+        precio: precioUnidadPedida({
+          family: patioAsk?.family,
+          interested,
+          listed: revision.listedUnits ?? [],
+          stayOnShown,
+          unitPrice,
+        }),
+      })
+        ? { respuestaIncompleta: true }
         : {}),
     };
     Object.defineProperty(turn, 'rawLlm', {
