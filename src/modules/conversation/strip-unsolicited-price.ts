@@ -347,7 +347,6 @@ export function ensureListedSetPrices(
     const year = unit.year != null ? String(unit.year) : '';
     const yearAt = year ? out.search(new RegExp(`\\b${year}\\b`)) : -1;
     if (yearAt < 0) {
-      out = `${out} ${formatListedUsd(amount)}.`.trim();
       continue;
     }
     const afterYear = yearAt + year.length;

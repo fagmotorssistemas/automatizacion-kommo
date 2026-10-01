@@ -179,6 +179,13 @@ export function ensureListedPrice(text: string, price: number): string {
   if (replyCarriesFinancing(body)) {
     return `${lead} ${body}`.replace(/\s{2,}/g, ' ').trim();
   }
+  if (
+    /\bno\s+(?:tenemos|contamos|disponemos)|no est[aá] (?:disponible|en (?:nuestro )?inventario)/i.test(
+      body,
+    )
+  ) {
+    return body;
+  }
   const clean = dropDanglingAnd(stripListedPriceAmounts(body));
   return isStrippedReplyStub(clean) || !clean ? lead : `${lead} ${clean}`;
 }

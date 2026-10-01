@@ -221,6 +221,20 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(clean).toMatch(/2024/);
   });
 
+  it('C 59819631: no pega montos sueltos al final si el recado no nombró esas unidades', () => {
+    const visit =
+      '¿Desea coordinar una visita para verla en la concesionaria?';
+    const clean = ensureListedSetPrices(visit, [
+      { year: 2026, price: 44590 },
+      { year: 2024, price: 22990 },
+      { year: 2023, price: 34990 },
+    ]);
+    expect(clean).not.toMatch(/44,?590/);
+    expect(clean).not.toMatch(/22,?990/);
+    expect(clean).not.toMatch(/34,?990/);
+    expect(clean).toMatch(/visita/i);
+  });
+
   it('si el listado quedó sin $ los pega al lado de cada año', () => {
     const stripped =
       'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo. y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en. ¿Cuál desea ver?';

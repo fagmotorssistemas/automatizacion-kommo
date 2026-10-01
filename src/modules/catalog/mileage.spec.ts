@@ -89,4 +89,15 @@ describe('mileage', () => {
     expect(clean).toMatch(/financiamiento a 4 años/i);
     expect(clean).toMatch(/\$654\.68 mensuales/i);
   });
+
+  it('A 44666879: si ya trae el $ de patio no antepone ni abre huecos', () => {
+    const llm =
+      'El precio de la Chevrolet D-Max CRDi 2.5 CS 4x2 TM diesel 2020 color blanco que consultó es $28,990. Este valor se mantiene.';
+    expect(ensureListedPrice(llm, 28990)).toBe(llm);
+  });
+
+  it('F 59822499: no antepone el $ de otra unidad a una negación', () => {
+    const llm = 'El Golf no está en nuestro inventario.';
+    expect(ensureListedPrice(llm, 21400)).toBe(llm);
+  });
 });
