@@ -123,13 +123,19 @@ export function parseResumen(resumen: string): ParsedResumen {
   };
 }
 
+/** Corta el “| no” del formato. No parte los bloques “A || B”. */
+export function cutFlagValue(raw: string): string {
+  const parts = raw.split(/(?<!\|)\|(?!\|)/);
+  return (parts[0] ?? '').trim();
+}
+
 /** Lee "Otro vehículo: X" del resumen crudo. null si falta, está vacío o es "no". */
 export function resumenOtroVehiculo(resumen: string): string | null {
   const match = resumen.match(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*(.+?)(?:\n|$)/i);
   if (!match) {
     return null;
   }
-  const raw = match[1].trim();
+  const raw = cutFlagValue(match[1]);
   if (!raw || /^no$/i.test(raw)) {
     return null;
   }
@@ -605,7 +611,7 @@ export function resumenColorPedido(resumen: string): string | null {
   if (!match) {
     return null;
   }
-  const raw = match[1].trim();
+  const raw = cutFlagValue(match[1]);
   if (!raw || /^no$/i.test(raw)) {
     return null;
   }
@@ -713,7 +719,7 @@ function tomaFichaLine(resumen: string): string | null {
   if (!match) {
     return null;
   }
-  const value = match[1].trim();
+  const value = cutFlagValue(match[1]);
   if (!value || /^no$/i.test(value)) {
     return null;
   }

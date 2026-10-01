@@ -26,6 +26,7 @@ import {
   resumenTipoPatio,
   resumenTraccionPedida,
   resumenColorPedido,
+  resumenOtroVehiculo,
   resumenPideOtroColor,
   previousResumenForLlm,
   vehicleQueSigue,
@@ -430,6 +431,23 @@ describe('resumenTraccionPedida y Color pedido', () => {
     ).toBeNull();
     expect(resumenPideOtroColor('Pide otro color: sí')).toBe(true);
     expect(resumenPideOtroColor('Pide otro color: no')).toBe(false);
+  });
+
+  it('corta el | no del formato y no usa ese no como valor', () => {
+    expect(
+      resumenColorPedido(
+        'SOLICITUD ACTUAL:\nCliente quiere blanco.\nColor pedido: blanco | no',
+      ),
+    ).toBe('blanco');
+    expect(
+      resumenOtroVehiculo('Otro vehículo: jet tur | no'),
+    ).toBe('jet tur');
+    expect(resumenOtroVehiculo('Otro vehículo: no | no')).toBeNull();
+    expect(
+      resumenTomaFicha(
+        'Toma: sí\nToma ficha: Kia Niro 2019 | no',
+      ),
+    ).toBe('Kia Niro 2019');
   });
 
   it('no arrastra tracción ni color a la solicitud ni al merge', () => {
