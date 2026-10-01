@@ -179,6 +179,69 @@ describe('fila1Nueva', () => {
     ).toEqual({ suelta: false, motivo: 'sin_evidencia' });
   });
 
+  it('el token no del formato no cuenta como evidencia', () => {
+    expect(evidenciaReal('no', 'no gracias', '')).toBe(false);
+    expect(evidenciaReal('Aveo | no', 'no, gracias', '')).toBe(false);
+  });
+
+  it('59631637: Toma sí del Peugeot no suelta la Vitara', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Así como ve mi Peugeot por cuánto lo aceptarían?\nDele',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere saber por cuánto aceptarían su Peugeot Berlina 406.\nToma: sí\nToma ficha: Peugeot Berlina 406\nPide otras: no\nOtro vehículo: Peugeot',
+        car: {
+          inventoryId: 'vitara-2015',
+          brand: 'suzuki',
+          model: 'grand vitara sz',
+          year: 2015,
+          price: 13800,
+          color: 'plata',
+        },
+      }),
+    ).toEqual({ stay: true, motivo: 'es_toma' });
+  });
+
+  it('53466996: Kia Niro de parte de pago no suelta el X-Trail', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Tengo un kia Niro 2019 con 143000 km placas de pichincha\nColor gris',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente quiere vendernos su Kia Niro 2019.\nToma: sí\nToma ficha: Kia Niro 2019\nPide otras: no\nOtro vehículo: kia Niro 2019',
+        car: {
+          inventoryId: 'xtrail-2016',
+          brand: 'nissan',
+          model: 'x-trail sense cvt',
+          year: 2016,
+          price: 16890,
+          color: 'azul',
+        },
+      }),
+    ).toEqual({ stay: true, motivo: 'es_toma' });
+  });
+
+  it('foto con intencion VENDER no suelta la unidad mostrada', () => {
+    expect(
+      decideStayOnShown({
+        text: 'Cañajo { "marca": "Hyundai", "modelo": "no identificado", "intencion": "VENDER" }',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente envía foto de su Hyundai.\nToma: sí\nToma ficha: Hyundai Santa Fe 2007\nPide otras: no\nOtro vehículo: Hyundai',
+        car: sportage,
+      }),
+    ).toEqual({ stay: true, motivo: 'es_toma' });
+  });
+
+  it('¿tienen algún Peugeot 2008? sí suelta', () => {
+    expect(
+      decideStayOnShown({
+        text: '¿tienen algún Peugeot 2008?',
+        resumen:
+          'SOLICITUD ACTUAL:\nCliente pregunta si tienen Peugeot 2008.\nToma: no\nPide otras: no\nOtro vehículo: Peugeot 2008',
+        car: sportage,
+      }).stay,
+    ).toBe(false);
+  });
+
   it('sí + Premiere 2020 del bot suelta la D-Max', () => {
     expect(
       fila1Nueva({

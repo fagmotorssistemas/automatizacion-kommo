@@ -1,5 +1,10 @@
 import { InterestedCarSnapshot } from '../persistence/lead.types';
-import { resumenOtroVehiculo } from '../intelligence/parse-resumen';
+import {
+  cutFlagValue,
+  resumenEsToma,
+  resumenOtroVehiculo,
+  resumenTomaFicha,
+} from '../intelligence/parse-resumen';
 import {
   modelFamily,
   normalizeModelText,
@@ -19,6 +24,7 @@ import {
   shownLeavesByTraccion,
   type ShownCarContext,
 } from './interested-car';
+import { inboundTomaPhotosReceived } from './toma-checklist';
 
 /** provisional, calibrar con logs */
 export const MARGEN_RPC = 0.05;
@@ -277,7 +283,9 @@ export function tokensDe(texto: string): string[] {
 }
 
 function evidenciaTokens(valor: string): string[] {
-  return tokensDe(valor).filter((token) => token.length >= 2 || /^\d+$/.test(token));
+  return tokensDe(valor).filter(
+    (token) => token !== 'no' && (token.length >= 2 || /^\d+$/.test(token)),
+  );
 }
 
 /** Damerau-Levenshtein. Umbral 1: inserción, borrado, sustitución o transposición. */
@@ -511,6 +519,24 @@ export function mismaUnidadPorFila(
   });
 }
 
+function tomaCorpus(resumen: string): string {
+  const ficha = resumenTomaFicha(resumen) ?? '';
+  const yaMatch = resumen.match(/toma\s+ya:\s*(.+?)(?:\n|$)/i);
+  const ya = yaMatch ? cutFlagValue(yaMatch[1]) : '';
+  return `${ficha} ${ya}`.trim();
+}
+
+function otroEsLaToma(input: Fila1NuevaInput, otro: string): boolean {
+  if (inboundTomaPhotosReceived(input.customerText)) {
+    return true;
+  }
+  if (!resumenEsToma(input.resumen)) {
+    return false;
+  }
+  const corpus = `${tomaCorpus(input.resumen)}\n${input.customerText}`;
+  return cubreTokens(evidenciaTokens(otro), corpus);
+}
+
 export function fila1Nueva(input: Fila1NuevaInput): {
   suelta: boolean;
   motivo: string;
@@ -531,6 +557,9 @@ export function fila1Nueva(input: Fila1NuevaInput): {
       return { suelta: false, motivo: 'misma_por_fila' };
     }
     return { suelta: false, motivo: 'sin_evidencia' };
+  }
+  if (otroEsLaToma(input, otro)) {
+    return { suelta: false, motivo: 'es_toma' };
   }
   if (askedOtherUnitFacts(otro, input.car)) {
     return { suelta: true, motivo: 'otro_anio_version_color' };
