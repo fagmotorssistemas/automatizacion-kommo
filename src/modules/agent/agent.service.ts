@@ -2452,10 +2452,16 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
         !reference?.family ||
         detectedAsk.family === reference.family);
     const fromText = stillOnShownAsk ? null : detectedAsk;
+    const rawYear = detectYearInText(customerText);
+    const solicitudAsk = detectNamedModelAsk(
+      solicitudSinBanderas(resumen),
+      lexicon,
+    );
     const fromSolicitud =
-      cajaCompra === 'no' || (namesBrandNow && !fromText)
+      (namesBrandNow && !fromText) ||
+      (cajaCompra === 'no' && solicitudAsk?.year == null)
         ? null
-        : detectNamedModelAsk(solicitudSinBanderas(resumen), lexicon);
+        : solicitudAsk;
     const named =
       (fromText &&
       !isDriveFamily(fromText.family) &&
@@ -2465,7 +2471,6 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       (fromSolicitud && !isDriveFamily(fromSolicitud.family)
         ? fromSolicitud
         : null);
-    const rawYear = detectYearInText(customerText);
     const yearSaidNow =
       cajaCompra === 'no' && !named
         ? null
@@ -3011,9 +3016,12 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       (asksClosestByFacts(customerText) ||
         yearOnward ||
         asksClosestByFacts(solicitud));
-    const yearFromThread = yearNamesTheModel(threadYear.year, asked?.family ?? '')
+    const yearFromThread = yearNamesTheModel(
+      asked?.year ?? threadYear.year,
+      asked?.family ?? '',
+    )
       ? null
-      : threadYear.year;
+      : (asked?.year ?? threadYear.year);
     const yearSpan =
       detectYearSpan(customerText) ||
       detectYearSpan(solicitud) ||
@@ -3048,9 +3056,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
           stayMotivo === 'cabina' ||
           stayMotivo === 'traccion' ||
           stayMotivo === 'otro_color';
-        const sameLine =
-          Boolean(askedFamily) &&
-          askedMatchesShownModel(askedFamily, shown.model);
+        const sameLine = askedFamily
+          ? askedMatchesShownModel(askedFamily, shown.model)
+          : false;
         if (flagMiss || sameLine) {
           const miss = mismatchesOf(shown, askedFacts);
           if (miss.length > 0) {
@@ -3100,13 +3108,19 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       const searchQuery = [customerText, solicitud]
         .filter((part) => part.trim())
         .join('\n');
-      const ranked = this.filterByAskedYear(
-        await this.lookupNamedByEmbedding(
-          searchQuery || customerText,
-          targetBrand || asked.brand || '',
-          listed,
-          includePrice,
+      const ranked = this.carsMatchingAskedFamily(
+        this.filterByAskedYear(
+          await this.lookupNamedByEmbedding(
+            searchQuery || customerText,
+            targetBrand || asked.brand || '',
+            listed,
+            includePrice,
+          ),
+          yearFromThread,
+          yearOnward,
         ),
+        listed,
+        asked.family,
         yearFromThread,
         yearOnward,
       );
@@ -3125,7 +3139,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
           });
         }
         return this.namedModelFound(
-          [ranked[0]],
+          ranked,
           includePrice,
           true,
           wantsClosest,
@@ -3361,13 +3375,19 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
     if (wantsClosest && asked && !tresFilas) {
       const fromEmbed = namedRpcEmpty
         ? []
-        : this.filterByAskedYear(
-            await this.lookupNamedByEmbedding(
-              customerText,
-              asked.brand || targetBrand || '',
-              listed,
-              includePrice,
+        : this.carsMatchingAskedFamily(
+            this.filterByAskedYear(
+              await this.lookupNamedByEmbedding(
+                customerText,
+                asked.brand || targetBrand || '',
+                listed,
+                includePrice,
+              ),
+              yearFromThread,
+              yearOnward,
             ),
+            listed,
+            asked.family,
             yearFromThread,
             yearOnward,
           );
@@ -3575,13 +3595,19 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       const floorYear = yearFromThread;
       const fromEmbed = namedRpcEmpty
         ? []
-        : this.filterByAskedYear(
-            await this.lookupNamedByEmbedding(
-              customerText,
-              asked.brand,
-              listed,
-              includePrice,
+        : this.carsMatchingAskedFamily(
+            this.filterByAskedYear(
+              await this.lookupNamedByEmbedding(
+                customerText,
+                asked.brand,
+                listed,
+                includePrice,
+              ),
+              floorYear,
+              yearOnward,
             ),
+            listed,
+            asked.family,
             floorYear,
             yearOnward,
           );
@@ -4430,6 +4456,44 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     };
   }
 
+  /**
+   * El embedding a veces trae otra línea (Explorer por F150) o un año viejo.
+   * Se queda en la familia pedida y, si hay unidades vigentes, esas.
+   */
+  private carsMatchingAskedFamily(
+    ranked: StockCar[],
+    listed: StockCar[],
+    family: string,
+    year: number | null | undefined,
+    onward: boolean,
+  ): StockCar[] {
+    const same = (car: StockCar) => rowMentionsFamily(car.model, family);
+    const fromRank = ranked.filter(same);
+    const fromListed = listed.filter(same);
+    if (fromRank.length === 0) {
+      return [];
+    }
+    if (onward) {
+      return this.filterByAskedYear(fromRank, year, true);
+    }
+    if (year != null) {
+      const exactRank = this.filterByAskedYear(fromRank, year, false);
+      return exactRank.length > 0
+        ? exactRank
+        : this.filterByAskedYear(fromListed, year, false);
+    }
+    const rankCurrent = fromRank.filter(
+      (car) => car.year == null || car.year >= 2010,
+    );
+    const listedCurrent = fromListed.filter(
+      (car) => car.year == null || car.year >= 2010,
+    );
+    if (listedCurrent.length > 0 && rankCurrent.length === 0) {
+      return preferCurrentYears(listedCurrent, null, false);
+    }
+    return fromRank;
+  }
+
   private filterByAskedYear(
     cars: StockCar[],
     year: number | null | undefined,
@@ -4460,7 +4524,11 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     const via = fromEmbed ? ' (búsqueda por inventario)' : '';
     const rule = closest
       ? `Estas son las más cercanas del patio a lo que pidió${via}. Preséntalas. Dilo en qué se parecen y en qué no (tracción, combustible, año). PROHIBIDO decir que no hay, que no tienes unidad exacta o que no hay fotos si hay ficha. PROHIBIDO otra línea.`
-      : `Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca. PROHIBIDO nombrar otra línea (otra pickup u otro modelo). Solo las unidades de arriba. Si ya hay año, manda ESA unidad; no listes las demás.`;
+      : `Este modelo SÍ está en patio${via}. Prohibido decir que no está disponible. No inventes que pidió automática/manual si no lo dijo ahora. No pases a otra marca. PROHIBIDO nombrar otra línea (otra pickup u otro modelo). Solo las unidades de arriba. Si ya hay año, manda ESA unidad; no listes las demás.${
+          askedYear
+            ? ` Pidió el ${askedYear}. PROHIBIDO decir que no hay otro año del resumen previo o del hilo anterior.`
+            : ''
+        }`;
     return {
       ...named,
       text: `${named.text}

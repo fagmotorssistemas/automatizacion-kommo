@@ -150,7 +150,7 @@ export function resolveThreadYear(input: {
   const currentFamily = familyInText(input.currentText, input.lexicon);
   state = applyTurn(state, {
     family: currentFamily,
-    year: input.yearSaidNow,
+    year: input.yearSaidNow ?? yearInText(input.currentText, input.lexicon),
     onward: asksYearOnward(input.currentText),
     span: detectYearSpan(input.currentText),
   });

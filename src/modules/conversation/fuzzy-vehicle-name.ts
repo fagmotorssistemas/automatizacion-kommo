@@ -103,9 +103,10 @@ function tokens(text: string): { token: string; index: number }[] {
   return out;
 }
 
-/** Misma norma que el patio (d-max → dmax) y junta “d max”. */
-function modelTokens(text: string): { token: string; index: number }[] {
-  const base = tokens(normalizeModelText(text));
+/** Junta “jet tur” / “d max” en un token, como si viniera pegado. */
+function withJoinedNeighbors(
+  base: { token: string; index: number }[],
+): { token: string; index: number }[] {
   const out = [...base];
   for (let i = 0; i < base.length - 1; i += 1) {
     out.push({
@@ -114,6 +115,15 @@ function modelTokens(text: string): { token: string; index: number }[] {
     });
   }
   return out;
+}
+
+/** Misma norma que el patio (d-max → dmax) y junta “d max”. */
+function modelTokens(text: string): { token: string; index: number }[] {
+  return withJoinedNeighbors(tokens(normalizeModelText(text)));
+}
+
+function brandTokens(text: string): { token: string; index: number }[] {
+  return withJoinedNeighbors(tokens(text));
 }
 
 function levenshtein(a: string, b: string): number {
@@ -225,6 +235,32 @@ function bestKey(
       return null;
     }
   }
+  if (winner || mode !== 'brand') {
+    return winner?.key ?? null;
+  }
+  // «jetourx70»: marca + versión pegada. No «un»+«peugeot».
+  for (const key of keys) {
+    if (token.length <= key.length) {
+      continue;
+    }
+    if (token[0] !== key[0] && soften(token)[0] !== soften(key)[0]) {
+      continue;
+    }
+    const head = token.slice(0, key.length);
+    const rest = token.slice(key.length);
+    if (rest.length < 2) {
+      continue;
+    }
+    if (!closeEnough(head, key, mode)) {
+      continue;
+    }
+    const dist = levenshtein(head, key);
+    if (!winner || dist < winner.dist) {
+      winner = { key, dist };
+    } else if (dist === winner.dist && key !== winner.key) {
+      return null;
+    }
+  }
   return winner?.key ?? null;
 }
 
@@ -251,7 +287,7 @@ export function fuzzyBrandHits(
   const keys = lexicon.brands.flatMap((brand) =>
     brand.split(/\s+/).filter((part) => part.length >= 3),
   );
-  for (const { token, index } of tokens(text)) {
+  for (const { token, index } of brandTokens(text)) {
     const match = bestKey(token, [...lexicon.brands, ...keys]);
     if (!match) {
       continue;
@@ -263,7 +299,14 @@ export function fuzzyBrandHits(
       hits.push({ name, index });
     }
   }
-  return hits;
+  const byName = new Map<string, FuzzyHit>();
+  for (const hit of hits) {
+    const prev = byName.get(hit.name);
+    if (!prev || hit.index >= prev.index) {
+      byName.set(hit.name, hit);
+    }
+  }
+  return [...byName.values()];
 }
 
 export function fuzzyModelHits(

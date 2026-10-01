@@ -7319,6 +7319,314 @@ Pide precio: no`,
     expect(result?.reply.meta.vehiculo).toBeNull();
   });
 
+  it('59805095 jet tur sale del X-Trail y lista Jetour del patio', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'xtrail-2016',
+      brand: 'nissan',
+      model: 'x-trail sense cvt ac 2.5',
+      year: 2016,
+      price: 16890,
+      typeBody: 'jeep',
+      color: 'azul',
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('nissan');
+    const jetours = [
+      {
+        id: 'x70-2023',
+        brand: 'jetour',
+        model: 'x70 ii ac 1.5 5p 4x2 tm',
+        year: 2023,
+        price: 17990,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 't1-2026',
+        brand: 'jetour',
+        model: 't1 ac 2.0 5p 4x4 ta',
+        year: 2026,
+        price: 38990,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+    ];
+    catalog.listByBrand.mockImplementation(async (marca: string) =>
+      marca === 'jetour' ? jetours : [],
+    );
+    catalog.listAvailableExcept.mockResolvedValue(jetours);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere que le brinden información sobre el jet tur.\nPide precio: no\nPide crédito: no\nCaja de compra: no\nPide otras: no\nOtro vehículo: jet tur',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'En Jetour tenemos X70 y T1. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59805095',
+      customerText: 'Y el jet tur',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('jetour');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/MARCA VIGENTE: jetour/i);
+    expect(system).toMatch(/x70|t1/i);
+    expect(system).not.toMatch(/no tenemos vehículos de esa marca/i);
+    expect(system).not.toMatch(/Di que no tenemos jetour/i);
+  });
+
+  it('59821597 Explorer 2018 se presenta aunque el embedding traiga la 1998', async () => {
+    const explorers = [
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4 t/a 4.0',
+        year: 1998,
+        price: 6800,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'exp-2018',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+        price: 33900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(explorers);
+    openai.embed.mockResolvedValue([0.1]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'exp-1998',
+          content: 'ford explorer xlt 1998',
+          metadata: {
+            brand: 'ford',
+            model: 'explorer xlt 4x4 t/a 4.0',
+            year: 1998,
+            inventory_id: 'exp-1998',
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere información sobre la ford explorer.\nPide precio: no\nPide crédito: sí\nCaja de compra: no\nPide otras: no\nOtro vehículo: ford explorer',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos la Explorer XLT 2018 blanca.',
+        meta: { vehiculo: { inventory_id: 'exp-2018' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59821597',
+      customerText: 'una ford explorer\ndisculpe cuentan con credito directo',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('exp-2018');
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
+    expect(system).not.toMatch(/No hay Explorer 2018/i);
+  });
+
+  it('59821597 pide la Explorer 2018 y no confirma que no esté', async () => {
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4 t/a 4.0',
+        year: 1998,
+        price: 6800,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'exp-2018',
+        brand: 'ford',
+        model: 'explorer xlt ac 3.5 5p 4x4 ta',
+        year: 2018,
+        price: 33900,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+    ]);
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'una ford explorer' },
+      {
+        role: 'assistant',
+        content:
+          'Tenemos una Ford Explorer XLT 4x4 del año 1998 color blanco.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: ford explorer\nSOLICITUD ACTUAL:\nCliente quiere confirmar que la Ford Explorer 2018 ya no está disponible.\nPide precio: no\nPide crédito: no\nCaja de compra: no\nPide otras: no\nOtro vehículo: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí tenemos la Explorer XLT 2018 blanca.',
+        meta: { vehiculo: { inventory_id: 'exp-2018' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59821597',
+      customerText: 'pero vi q tienen una 2018\nesa ya no esta disponible',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('exp-2018');
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio|ELIGIÓ esta unidad/i);
+    expect(system).not.toMatch(/No hay Explorer 2018/i);
+  });
+
+  it('42346446 F150 Lariat no se niega aunque el embedding traiga la Explorer', async () => {
+    const fords = [
+      {
+        id: 'exp-1998',
+        brand: 'ford',
+        model: 'explorer xlt 4x4 t/a 4.0',
+        year: 1998,
+        price: 6800,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'lariat-2015',
+        brand: 'ford',
+        model: 'f150 lariat sc ecoboost ac 3.5 cd',
+        year: 2015,
+        price: 34990,
+        typeBody: 'doble cabina',
+        color: 'negro',
+      },
+      {
+        id: 'f150-2014',
+        brand: 'ford',
+        model: 'f150 rc ac 3.7 cs 4x4 ta',
+        year: 2014,
+        price: 22990,
+        typeBody: 'cabina simple',
+        color: 'verde',
+      },
+    ];
+    catalog.listByBrand.mockResolvedValue(fords);
+    openai.embed.mockResolvedValue([0.1]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'exp-1998',
+          content: 'ford explorer xlt 1998',
+          metadata: {
+            brand: 'ford',
+            model: 'explorer xlt 4x4 t/a 4.0',
+            year: 1998,
+            inventory_id: 'exp-1998',
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere confirmar que el Ford F150 Lariat sigue disponible y solicita fotos.\nPide precio: no\nCaja de compra: no\nPide otras: no\nOtro vehículo: Ford F150 Lariat',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Sí, la F150 Lariat 2015 negra sigue disponible.',
+        meta: { vehiculo: { inventory_id: 'lariat-2015' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '42346446',
+      customerText:
+        'Hola sigue disponible este vehículo?\n{\n  "marca": "Ford",\n  "modelo": "F150 Lariat",\n  "tipo": "Pickup",\n  "color": "Plata"\n}\nSí, por favor',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/lariat-2015/);
+    expect(system).not.toContain('exp-1998');
+    expect(system).not.toMatch(/No hay (F150|Lariat)/i);
+    expect(system).not.toMatch(/no tenemos disponible el Ford F150 Lariat/i);
+  });
+
+  it('53370610 Dmax 2022 no se presenta como si faltara la 2018', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'dmax-2023',
+      brand: 'chevrolet',
+      model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+      year: 2023,
+      price: 28990,
+      typeBody: 'doble cabina',
+      color: 'plateado',
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('chevrolet');
+    conversation.recentMessages.mockResolvedValue([
+      { role: 'user', content: 'Una Chevrolet 4x4 ls doble cabina 2018' },
+      {
+        role: 'assistant',
+        content:
+          'No tenemos exacta, pero disponible está una Chevrolet D-Max 2023 plateada.',
+      },
+    ]);
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'dmax-2023',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x2 tm diesel',
+        year: 2023,
+        price: 28990,
+        typeBody: 'doble cabina',
+        color: 'plateado',
+      },
+      {
+        id: 'dmax-2022',
+        brand: 'chevrolet',
+        model: 'd-max crdi 2.5 cd 4x4 tm diesel',
+        year: 2022,
+        price: 32990,
+        typeBody: 'doble cabina',
+        color: 'vino',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Chevrolet D-Max CRDI 2.5 CD 4x2 TM Diesel 2023 color plateado\nContexto: Cliente pidió una Chevrolet 4x4 ls doble cabina 2018, se ofreció una D-Max 2023 4x2 y ahora muestra interés en una Dmax 2022.\nSOLICITUD ACTUAL:\nCliente quiere información sobre la Chevrolet Dmax 2022 y solicita fotos.\nPide precio: no\nCaja de compra: no\nPide otras: no\nOtro vehículo: Chevrolet Dmax 2022',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Estimado, la Chevrolet D-max CRDI 2.5 CD 4x4 2022 color vino.',
+        meta: { vehiculo: { inventory_id: 'dmax-2022' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '53370610',
+      customerText: 'Hola. Me interesa la Chevrolet Dmax 2022',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('dmax-2022');
+    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
+    expect(system).toMatch(/Pidió el 2022/i);
+    expect(system).not.toMatch(/No hay Dmax 2018/i);
+    expect(system).not.toMatch(/no tenemos Dmax 2018/i);
+  });
+
   it('Pide otras y el precio: no se clava en la unidad ya mostrada', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'sp-2019',

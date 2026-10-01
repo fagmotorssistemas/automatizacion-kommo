@@ -157,6 +157,8 @@ describe('marca y tres filas', () => {
 
   it('marca o modelo mal escrito se reconoce igual', () => {
     expect(detectBrand('El jeptour Blanco 2023', TEST_LEXICON)).toBe('jetour');
+    expect(detectBrand('Y el jet tur', TEST_LEXICON)).toBe('jetour');
+    expect(detectBrand('jetourx70', TEST_LEXICON)).toBe('jetour');
     expect(detectBrand('Estaba interesada en el jeptour', TEST_LEXICON)).toBe(
       'jetour',
     );

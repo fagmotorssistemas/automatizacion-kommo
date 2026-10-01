@@ -11,6 +11,15 @@ describe('nombre de vehículo mal escrito', () => {
     expect(
       fuzzyBrandHits('Chebrolec', TEST_LEXICON).map((hit) => hit.name),
     ).toEqual(['chevrolet']);
+    expect(
+      fuzzyBrandHits('Y el jet tur', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['jetour']);
+    expect(
+      fuzzyBrandHits('jettur', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['jetour']);
+    expect(
+      fuzzyBrandHits('jetourx70', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['jetour']);
   });
 
   it('reconoce modelos del patio con typo', () => {

@@ -158,4 +158,29 @@ describe('resolveThreadYear', () => {
       span: null,
     });
   });
+
+  it('Dmax 2022 no hereda el 2018 de una Chevrolet 4x4 anterior', () => {
+    expect(
+      yearOf(
+        ['Una Chevrolet 4x4 ls doble cabina 2018'],
+        'Hola. Me interesa la Chevrolet Dmax 2022',
+        2022,
+      ),
+    ).toEqual({
+      year: 2022,
+      onward: false,
+      span: null,
+    });
+    expect(
+      yearOf(
+        ['Una Chevrolet 4x4 ls doble cabina 2018'],
+        'Hola. Me interesa la Chevrolet Dmax 2022',
+        null,
+      ),
+    ).toEqual({
+      year: 2022,
+      onward: false,
+      span: null,
+    });
+  });
 });
