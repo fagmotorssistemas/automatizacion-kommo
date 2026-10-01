@@ -136,7 +136,23 @@ export function stripShownUnitCashPrice(text: string, price: number): string {
     .trim();
 }
 
-export function appendUnloadedPrice(text: string): string {
+export function appendUnloadedPrice(
+  text: string,
+  options?: { keepAmounts?: boolean; unitHasPrice?: boolean },
+): string {
+  if (options?.unitHasPrice) {
+    return stripUnloadedPriceClaim(text);
+  }
+  if (options?.keepAmounts) {
+    const body = stripUnloadedPriceClaim(text).trim();
+    if (!body) {
+      return PRICE_UNLOADED;
+    }
+    if (body.includes('aún no está cargado') || body.includes('aun no esta cargado')) {
+      return body;
+    }
+    return `${body}\n\n${PRICE_UNLOADED}`;
+  }
   const body = stripListedPriceAmounts(stripUnloadedPriceClaim(text)).trim();
   return body ? `${body}\n\n${PRICE_UNLOADED}` : PRICE_UNLOADED;
 }

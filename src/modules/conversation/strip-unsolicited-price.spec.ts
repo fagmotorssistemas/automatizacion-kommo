@@ -206,6 +206,26 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     ).toBe('');
   });
 
+  it('con keepAmounts no borra montos; si la unidad tiene price no agrega la frase', () => {
+    const withPrice =
+      'El Creta está $22,990. El precio de esta unidad aún no está cargado en patio.';
+    expect(
+      appendUnloadedPrice(withPrice, { keepAmounts: true, unitHasPrice: true }),
+    ).toMatch(/22,?990/);
+    expect(
+      appendUnloadedPrice(withPrice, { keepAmounts: true, unitHasPrice: true }),
+    ).not.toMatch(/aún no está cargado/i);
+    const alts =
+      'No hay X70 blanco. El X70 II 2023 está $17990 y el Plus $21600.';
+    const added = appendUnloadedPrice(alts, {
+      keepAmounts: true,
+      unitHasPrice: false,
+    });
+    expect(added).toMatch(/17990/);
+    expect(added).toMatch(/21600/);
+    expect(added).toContain(PRICE_UNLOADED);
+  });
+
   it('A76116 el listado de Rangers no deja $ inventados', () => {
     const invented =
       'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo está en $70,000, y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en $65,000. ¿Cuál desea ver?';

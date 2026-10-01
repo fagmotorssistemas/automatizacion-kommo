@@ -142,6 +142,7 @@ import {
   ensureListedSetPrices,
   hasLoadedPrice,
   isStrippedReplyStub,
+  stripUnloadedPriceClaim,
   type ListedSetUnit,
   parsePricedUnitsFromReview,
   stripShownUnitCashPrice,
@@ -1910,6 +1911,32 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           lastAssistantMsg?.content,
         );
       }
+      const precioDeLaPedida = (() => {
+        if (
+          patioAsk?.family &&
+          interested &&
+          rowMentionsFamily(interested.model, patioAsk.family) &&
+          hasLoadedPrice(interested.price)
+        ) {
+          return Math.round(interested.price as number);
+        }
+        const deLista = (revision.listedUnits ?? []).find(
+          (car) =>
+            patioAsk?.family &&
+            rowMentionsFamily(car.model, patioAsk.family) &&
+            hasLoadedPrice(car.price),
+        );
+        if (deLista?.price) {
+          return Math.round(deLista.price);
+        }
+        if (interested && hasLoadedPrice(interested.price) && stayOnShown) {
+          return Math.round(interested.price as number);
+        }
+        return unitPrice;
+      })();
+      if (askedPrice && hasLoadedPrice(precioDeLaPedida)) {
+        parsed.mensaje = stripUnloadedPriceClaim(parsed.mensaje);
+      }
       if (listedPrice != null) {
         parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
         parsed.meta.precioMostrado = true;
@@ -1926,9 +1953,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         askedPrice &&
         hasConfirmedUnit &&
         unitPrice == null &&
-        !quotingListedSet
+        !quotingListedSet &&
+        !hasLoadedPrice(precioDeLaPedida)
       ) {
-        parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
+        parsed.mensaje = appendUnloadedPrice(parsed.mensaje, {
+          keepAmounts: true,
+          unitHasPrice: false,
+        });
         parsed.meta.precioMostrado = false;
       }
       if (
@@ -2549,12 +2580,12 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     return {
       text: formatted.text,
       holdVehicle: formatted.holdVehicle,
-      sendId: formatted.sendId,
-      unitPrice,
+      sendId: alts.length > 0 ? null : formatted.sendId,
+      unitPrice: alts.length > 0 ? null : unitPrice,
       listedUnits: formatted.listedUnits,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(alts.length > 0 ? alts : [shown]),
-      choseFromShown,
+      choseFromShown: alts.length > 0 ? false : choseFromShown,
       ...(noCoincideAnio ? { noCoincideAnio } : {}),
       ...(noCoincideDato ? { noCoincideDato } : {}),
     };
