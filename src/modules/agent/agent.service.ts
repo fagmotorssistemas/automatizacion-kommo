@@ -2958,7 +2958,10 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       !wantsListedPrices &&
       !yearPick &&
       !colorPick &&
-      !pideOtras &&
+      !(
+        pideOtras &&
+        (resumenFaltaVehiculo(resumen) || Boolean(reference))
+      ) &&
       !listedFollowUp &&
       !askedCab &&
       !askedDriveEarly &&
@@ -3003,6 +3006,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
         : detectVehicleKind(customerText);
     if (
       pideOtras &&
+      resumenFaltaVehiculo(resumen) &&
       !asked &&
       !targetBrand &&
       !reference &&
@@ -3246,14 +3250,19 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       };
     }
     if (cashBudgetEarly) {
+      const kindForBudget =
+        tipoPatio && tipoPatio !== 'no'
+          ? tipoPatio
+          : detectVehicleKind(customerText) ||
+            detectVehicleKind(solicitud);
       const patio = await this.carsAvailableExcept('_');
       const pick = carsForOpenBudget(patio, cashBudgetEarly, {
         exceptId: reference?.inventoryId,
-        kind: kindForAsk,
+        kind: kindForBudget,
       });
       const missAsk =
-        pick.cars.length === 0 && !pick.overBudget && kindForAsk
-          ? `No hay ${kindForAsk} en ese tope. No ofrezcas más caras. `
+        pick.cars.length === 0 && !pick.overBudget && kindForBudget
+          ? `No hay ${kindForBudget} en ese tope. No ofrezcas más caras. `
           : '';
       const revision = formatOpenBudgetRevision({
         budget: cashBudgetEarly,
@@ -3279,6 +3288,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
     }
     if (
       pideOtras &&
+      resumenFaltaVehiculo(resumen) &&
       !asked &&
       !kindForAsk &&
       !targetBrand &&
@@ -4123,7 +4133,13 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           compact: compactAsk,
           askedBrand: asked.brand || targetBrand,
         };
-        if (compactAsk) {
+        alternatives = pickClosestToMissingModel(
+          listed,
+          asked.family,
+          except,
+          pickOpts,
+        );
+        if (alternatives.length === 0) {
           const patio = await this.carsAvailableExcept('_');
           const shownPatio = carsShownInHistory(history, patio, resumen);
           alternatives = pickClosestToMissingModel(
@@ -4135,26 +4151,6 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
             },
             pickOpts,
           );
-        } else {
-          alternatives = pickClosestToMissingModel(
-            listed,
-            asked.family,
-            except,
-            pickOpts,
-          );
-          if (alternatives.length === 0) {
-            const patio = await this.carsAvailableExcept('_');
-            const shownPatio = carsShownInHistory(history, patio, resumen);
-            alternatives = pickClosestToMissingModel(
-              patio,
-              asked.family,
-              {
-                ...except,
-                ids: shownPatio.map((car) => car.id),
-              },
-              pickOpts,
-            );
-          }
         }
       }
       alternatives = preferCurrentYears(

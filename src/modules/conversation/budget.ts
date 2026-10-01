@@ -209,10 +209,23 @@ export function carsForOpenBudget(
     }
     return true;
   });
-  const under = pool
+  const underRanked = pool
     .filter((car) => (car.price ?? 0) <= budget)
-    .sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
-    .slice(0, 4);
+    .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+  const closest = underRanked[0];
+  const current = preferCurrentYears(underRanked);
+  const under: StockCar[] = [];
+  const seenUnder = new Set<string>();
+  for (const car of closest ? [closest, ...current] : current) {
+    if (seenUnder.has(car.id)) {
+      continue;
+    }
+    seenUnder.add(car.id);
+    under.push(car);
+    if (under.length >= 4) {
+      break;
+    }
+  }
   const overBudget =
     pool
       .filter(
@@ -237,7 +250,7 @@ export function formatOpenBudgetRevision(input: {
   const listed = input.overBudget
     ? [...input.cars, input.overBudget]
     : input.cars;
-  const header = `PRESUPUESTO DE CONTADO: $${input.budget}. Lista estas unidades CON su $. Pregunta cuál de ESTAS le interesa. PROHIBIDO preguntar qué carro le interesa como si no hubiera opciones. PROHIBIDO armar cuota. PROHIBIDO visita en este turno.`;
+  const header = `PRESUPUESTO DE CONTADO: $${input.budget}. Lista estas unidades CON su $. Pregunta cuál de ESTAS le interesa. Prohibido decir que no hay un tipo si hay uno abajo. PROHIBIDO preguntar qué carro le interesa como si no hubiera opciones. PROHIBIDO armar cuota. PROHIBIDO visita en este turno.`;
   if (input.cars.length === 0 && !input.overBudget) {
     return {
       text: `${header}

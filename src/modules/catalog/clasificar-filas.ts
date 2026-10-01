@@ -641,12 +641,20 @@ const COMPACT_ASK_NAMES = new Set([
   'spark',
 ]);
 
-/** 208 / i10 / Aveo 3p / Forsa / Getz: compacto. 2008 / 3008 (4 dígitos) es SUV. */
+/** 208 / i10 / Aveo 3p / Forsa / Getz: compacto. 2008 / 3008 y Ram 700 no. */
+const COMPACT_DIGIT_FAMILIES = new Set([
+  '206',
+  '207',
+  '208',
+  '307',
+  '308',
+]);
+
 export function isCompactAskFamily(family: string): boolean {
   const wanted = modelFamily(family);
   return (
     isCityLetterCode(wanted) ||
-    /^\d{3}$/.test(wanted) ||
+    COMPACT_DIGIT_FAMILIES.has(wanted) ||
     COMPACT_ASK_NAMES.has(wanted)
   );
 }
