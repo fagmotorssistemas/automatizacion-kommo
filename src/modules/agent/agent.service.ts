@@ -1954,10 +1954,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         !quotingListedSet &&
         !hasLoadedPrice(precioDeLaPedida)
       ) {
-        parsed.mensaje = appendUnloadedPrice(parsed.mensaje, {
-          keepAmounts: true,
-          unitHasPrice: false,
-        });
+        parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
         parsed.meta.precioMostrado = false;
       }
       if (
@@ -2594,8 +2591,8 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     return {
       text: formatted.text,
       holdVehicle: formatted.holdVehicle,
-      sendId: alts.length > 0 ? null : formatted.sendId,
-      unitPrice: alts.length > 0 ? null : unitPrice,
+      sendId: formatted.sendId,
+      unitPrice,
       listedUnits: formatted.listedUnits,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(alts.length > 0 ? alts : [shown]),

@@ -150,6 +150,37 @@ describe('compra vs toma', () => {
     expect(asked?.brand).toMatch(/jetour/i);
   });
 
+  it('el respaldo no toma un catálogo de varios años ni dos marcas', () => {
+    expect(
+      detectPedidoPatio({
+        resumen: 'Falta vehículo: sí\nQuiere comprar: no\nSu carro: no',
+        customerText:
+          'Hola. ¿Puedo obtener más información sobre esto {Ranger 2026 Tracker 2022 Santa Fe 2018}',
+        lastAssistantText: '',
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBeNull();
+    expect(
+      detectPedidoPatio({
+        resumen: 'Cliente quiere 3 filas Nissan o Hyundai.\nQuiere comprar: no',
+        customerText: 'Nissan, Hyunday. O cuales dosponen',
+        lastAssistantText: '',
+        lexicon: TEST_LEXICON,
+      }),
+    ).toBeNull();
+  });
+
+  it('el respaldo no copia el año de la solicitud si el cliente no lo dijo', () => {
+    const asked = detectPedidoPatio({
+      resumen: 'Cliente quiere el Prado 2015.\nQuiere comprar: no',
+      customerText: 'Hola. Me interesa el Toyota Land Cruiser Prado',
+      lastAssistantText: '',
+      lexicon: TEST_LEXICON,
+    });
+    expect(asked?.family).toMatch(/prado/i);
+    expect(asked?.year).toBeNull();
+  });
+
   it('Pide precio: sí es incompleta si la respuesta no trae el $ (22,990 = 22.990 = 22990)', () => {
     expect(
       respuestaIncompletaPrecio({

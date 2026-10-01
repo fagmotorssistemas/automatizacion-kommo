@@ -9,10 +9,9 @@ import {
   resumenTipoPatio,
   resumenTomaFicha,
   resumenTraccionPedida,
-  solicitudSinBanderas,
 } from '../intelligence/parse-resumen';
 import type { NamedModelAsk, VehicleLexicon } from './vehicle-brand';
-import { detectNamedModelAsk, colorMatches } from './vehicle-brand';
+import { detectNamedModelAsk, detectBrands, colorMatches } from './vehicle-brand';
 import {
   damerauLevenshtein,
   evidenciaReal,
@@ -225,8 +224,16 @@ export function detectPedidoPatio(input: {
       return asked;
     }
   }
-  const blob = `${solicitudSinBanderas(input.resumen)}\n${input.customerText}`;
-  const fallback = detectNamedModelAsk(blob, input.lexicon);
+  const blobYears = new Set(
+    (input.customerText.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number),
+  );
+  if (
+    blobYears.size >= 2 ||
+    detectBrands(input.customerText, input.lexicon).length > 1
+  ) {
+    return null;
+  }
+  const fallback = detectNamedModelAsk(input.customerText, input.lexicon);
   if (!fallback || askEsSuCarro(fallback, suyo)) {
     return null;
   }
