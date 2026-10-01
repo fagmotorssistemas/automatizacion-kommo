@@ -7628,6 +7628,78 @@ Pide precio: no`,
     expect(system).not.toMatch(/no tenemos Dmax 2018/i);
   });
 
+  it('59382335 más información del Sportage 2019 no presenta la Explorer', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'exp-2018',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4 ta',
+      year: 2018,
+      price: 33900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    });
+    conversation.loadVehicleBrand.mockResolvedValue('ford');
+    const sportage = {
+      id: 'sportage-2019',
+      brand: 'kia',
+      model: 'sportage r gti lx ac 2.0 ta',
+      year: 2019,
+      price: 22900,
+      typeBody: 'jeep',
+      color: 'negro',
+    };
+    const explorer = {
+      id: 'exp-2018',
+      brand: 'ford',
+      model: 'explorer xlt ac 3.5 5p 4x4 ta',
+      year: 2018,
+      price: 33900,
+      typeBody: 'jeep',
+      color: 'blanco',
+    };
+    catalog.listByBrand.mockImplementation(async (marca: string) =>
+      marca === 'kia' ? [sportage] : marca === 'ford' ? [explorer] : [],
+    );
+    catalog.listAvailableExcept.mockResolvedValue([sportage, explorer]);
+    openai.embed.mockResolvedValue([0.1]);
+    catalog.searchByQuery.mockResolvedValue(
+      JSON.stringify([
+        {
+          id: 'exp-2018',
+          content: 'ford explorer 2018',
+          metadata: {
+            brand: 'ford',
+            model: 'explorer xlt',
+            year: 2018,
+            inventory_id: 'exp-2018',
+          },
+        },
+      ]),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: Ford Explorer XLT AC 3.5 5p 4x4 automático 2018 color blanco\nSOLICITUD ACTUAL:\nCliente quiere más información pero no ha especificado vehículo.\nPide precio: no\nPide otras: no\nOtro vehículo: Kia Sportage 2019',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El Kia Sportage 2019 negro.',
+        meta: { vehiculo: { inventory_id: 'sportage-2019' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '59382335',
+      customerText: 'Hola. Quiero más información sobre el Kia Sportage 2019',
+    });
+
+    expect(catalog.listByBrand).toHaveBeenCalledWith('kia');
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('sportage-2019');
+    expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO QUE YA MOSTRAMOS.*Explorer/i);
+    expect(system).not.toMatch(/inventory_id=exp-2018/);
+  });
+
   it('Pide otras y el precio: no se clava en la unidad ya mostrada', async () => {
     persistence.latestInterestedCar.mockResolvedValue({
       inventoryId: 'sp-2019',
