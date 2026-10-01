@@ -165,7 +165,7 @@ export function stripUnsolicitedPriceAndPlate(
   );
   // El modelo copia el primer bloque hex del UUID (62434e00) y el strip del UUID completo no lo ve.
   out = out.replace(
-    /\b((?:la\s+)?placa\s*(?:es|:)?)\s*([A-Za-z0-9-]{2,})\b\.?/gi,
+    /\b((?:la\s+)?placa\s*(?:es|:))\s*([A-Za-z0-9-]{2,})\b\.?/gi,
     (full, label: string, token: string) => {
       const short = sanitizePlateShort(token);
       return short ? `${label} ${short}` : '';
@@ -186,7 +186,19 @@ export function stripUnsolicitedPriceAndPlate(
 
   if (!keepPlateShort) {
     out = out.replace(
+      /\b(?:la\s+)?placa\b[^.?!]*?(?:es|:)\s*[A-Z]{1,3}-?\d{1,3}\b\.?/gi,
+      '',
+    );
+    out = out.replace(
       /\b(?:la\s+)?placa\s*(?:es|:)?\s*[A-Z]\d\b\.?/gi,
+      '',
+    );
+    out = out.replace(
+      /[^.?!]*\bplaca empieza con\b[^.?!]*[.?!]?/gi,
+      '',
+    );
+    out = out.replace(
+      /[^.?!]*\bplaca se la confirmo\b[^.?!]*[.?!]?/gi,
       '',
     );
   }

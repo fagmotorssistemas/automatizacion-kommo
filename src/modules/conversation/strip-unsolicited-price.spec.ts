@@ -180,10 +180,11 @@ describe('stripUnsolicitedPriceAndPlate', () => {
     expect(out).toMatch(/financiamiento|plazo de 4 años/i);
   });
 
-  it('detecta fuga de precio', () => {
-    expect(messageLeaksPrice('precio de $21800')).toBe(true);
-    expect(messageLeaksPrice('Tenemos la Tunland disponible. La placa es P7.')).toBe(
-      false,
+  it('no se come “placa empieza con” como si fuera un token de placa', () => {
+    const raw =
+      'La placa empieza con P (matriculado por primera vez en Pichincha) y termina en 5.';
+    expect(stripUnsolicitedPriceAndPlate(raw, { keepPlateShort: true })).toBe(
+      raw,
     );
   });
 

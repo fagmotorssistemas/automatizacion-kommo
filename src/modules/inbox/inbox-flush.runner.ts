@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AgentTurnResult, looksLikeAgentJson } from '../agent/parse-agent-output';
+import { filtrarCamposInternos } from '../catalog/placa-provincia';
 import { AgentService } from '../agent/agent.service';
 import { stayFieldsForRunLog } from '../conversation/otro-vehiculo';
 import { ConversationService } from '../conversation/conversation.service';
@@ -280,6 +281,10 @@ export class InboxFlushRunner {
         unidadesContexto: turn.unidadesContexto ?? [],
         rawLlm: turn.rawLlm ?? null,
         ...(turn.negacionSinContexto ? { negacionSinContexto: true } : {}),
+        ...(turn.campoFiltrado ? { campoFiltrado: true } : {}),
+        ...(turn.placaNoCoincide
+          ? { placaNoCoincide: turn.placaNoCoincide }
+          : {}),
         ...stayFieldsForRunLog(stay),
         stayBandera: stay?.stayBandera ?? null,
         banderaSinEvidencia: stay?.banderaSinEvidencia ?? null,
@@ -292,6 +297,14 @@ export class InboxFlushRunner {
 
     if (looksLikeAgentJson(turn.reply.mensaje)) {
       turn.reply.mensaje = '¿Qué carro le interesa?';
+    }
+    const campos = filtrarCamposInternos(turn.reply.mensaje);
+    turn.reply.mensaje = campos.mensaje;
+    if (campos.campoFiltrado && !turn.campoFiltrado) {
+      Object.defineProperty(turn, 'campoFiltrado', {
+        value: true,
+        enumerable: false,
+      });
     }
 
     const inventoryId = turn.reply.meta.vehiculo?.inventory_id?.trim() ?? '';

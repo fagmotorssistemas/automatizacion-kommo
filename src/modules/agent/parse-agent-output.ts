@@ -49,6 +49,10 @@ export type AgentTurnResult = {
   rawLlm?: string;
   /** Dijo que no hay y el turno no tenía ficha de esa unidad. */
   negacionSinContexto?: boolean;
+  /** El control final quitó nombres de campos internos del mensaje. */
+  campoFiltrado?: boolean;
+  /** La respuesta mencionó una placa que no coincide con la unidad de referencia. */
+  placaNoCoincide?: { dijo: string; correcto: string };
 };
 
 const EMPTY_META: AgentMeta = {
@@ -163,6 +167,9 @@ export function firstBalancedJsonObject(raw: string): string | null {
 export function looksLikeAgentJson(text: string): boolean {
   const t = (text || '').trim();
   if (!t) {
+    return false;
+  }
+  if (t.startsWith('{{')) {
     return false;
   }
   if (t.startsWith('{')) {

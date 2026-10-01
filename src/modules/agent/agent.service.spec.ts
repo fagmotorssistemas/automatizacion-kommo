@@ -2429,7 +2429,8 @@ Es despedida: no`;
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/d-max crdi 2\.5 cd 4x2 tm diesel/i);
-    expect(system).toMatch(/sin plate_short/i);
+    expect(system).toMatch(/sin placa/i);
+    expect(system).not.toMatch(/plate_short/i);
     expect(system).not.toMatch(/D-max MAX/i);
     expect(result?.reply.mensaje).not.toMatch(/placa/i);
     expect(result?.reply.mensaje).not.toMatch(/La placa es 77613/i);
@@ -2574,6 +2575,136 @@ Es despedida: no`;
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('km=144904');
     expect(system).toMatch(/resumen y el HISTORIAL/i);
+  });
+
+  const bydFa52672a = {
+    inventoryId: 'fa52672a',
+    brand: 'byd',
+    model: 'song plus',
+    year: 2024,
+    price: 28990,
+    typeBody: 'jeep',
+    plateShort: 'P5',
+  };
+
+  it('¿Qué placa es el carro? lexicaliza P5 de Pichincha', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(bydFa52672a);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: BYD Song Plus\nSOLICITUD ACTUAL:\nCliente pregunta la placa.',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '{{placa}}',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '41643589',
+      customerText: '¿Qué placa es el carro?',
+    });
+
+    expect(result?.reply.mensaje).toBe(
+      'La placa empieza con P (matriculado por primera vez en Pichincha) y termina en 5.',
+    );
+  });
+
+  it('¿Pichincha o Bolívar amigo? la ficha trae matrícula y la respuesta usa {{placa}}', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(bydFa52672a);
+    openai.complete
+      .mockResolvedValueOnce(
+        'RESUMEN PREVIO:\nVehículo: BYD Song Plus\nSOLICITUD ACTUAL:\nCliente pregunta si la placa es de Pichincha o Bolívar.\nPide ubicación: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '{{placa}}',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '41643589',
+      customerText: '¿Pichincha o Bolívar amigo?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('matrícula: Pichincha');
+    expect(system).not.toMatch(/plate_short/i);
+    expect(result?.rawLlm).toMatch(/\{\{placa\}\}/);
+    expect(result?.reply.mensaje).toBe(
+      'La placa empieza con P (matriculado por primera vez en Pichincha) y termina en 5.',
+    );
+    expect(result?.reply.mensaje).not.toContain('{{');
+  });
+
+  it('unidad sin plate_short no inventa placa', async () => {
+    persistence.latestInterestedCar.mockResolvedValue({
+      ...bydFa52672a,
+      plateShort: null,
+    });
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente pregunta la placa.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: '{{placa}}',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: '¿Qué placa es el carro?',
+    });
+
+    expect(result?.reply.mensaje).toBe(
+      'La placa se la confirmo en un momento.',
+    );
+  });
+
+  it('quita plate_short. del mensaje y marca campoFiltrado', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(bydFa52672a);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente pregunta la caja.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'transmisión automática. plate_short.',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: 'es automática?',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/plate_short/i);
+    expect(result?.campoFiltrado).toBe(true);
+  });
+
+  it('registra placaNoCoincide si el LLM inventa otra placa', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(bydFa52672a);
+    openai.complete
+      .mockResolvedValueOnce('RESUMEN\nCliente pregunta la placa.')
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'empieza con B y termina en 3',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '41643589',
+      customerText: '¿Qué placa es el carro?',
+    });
+
+    expect(result?.placaNoCoincide).toEqual({ dijo: 'B3', correcto: 'P5' });
+    expect(result?.reply.mensaje).toMatch(/empieza con B y termina en 3/i);
   });
 
   it('precio del Nissan no se queda en el Sportage ya mostrado', async () => {

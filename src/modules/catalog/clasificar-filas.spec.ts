@@ -492,7 +492,8 @@ describe('clasificar filas', () => {
     expect(named.text).toMatch(/x-trail sense/i);
     expect(named.text).toMatch(/2016/);
     expect(named.text).not.toMatch(/X-Trail TRAIL/i);
-    expect(named.text).toMatch(/sin plate_short/i);
+    expect(named.text).toMatch(/sin placa/i);
+    expect(named.text).not.toMatch(/plate_short/i);
   });
 
   it('Land Cruiser Prado pega con prado del inventario', () => {
@@ -667,8 +668,14 @@ describe('clasificar filas', () => {
     expect(named.text).toMatch(/líneas distintas/i);
     expect(named.text).toMatch(/2022/);
     expect(named.text).toMatch(/2016/);
-    expect(named.text).toContain('P4');
-    expect(named.text).toContain('P8');
+    expect(named.text).toContain('inventory_id=sport-2022');
+    expect(named.text).toContain('inventory_id=montero-2016');
+    expect(named.text).toContain('color=negro');
+    expect(named.text).toContain('color=blanco');
+    expect(named.text).toContain('placa={{placa}}');
+    expect(named.text).not.toMatch(/plate_short/);
+    expect(named.text).not.toMatch(/\bP4\b/);
+    expect(named.text).not.toMatch(/\bP8\b/);
     expect(named.text).not.toMatch(/este modelo hay 2/i);
   });
 
@@ -692,7 +699,8 @@ describe('clasificar filas', () => {
     expect(text).toContain('modelo=golf comfortline 4p');
     expect(text).toContain('caja=sin dato');
     expect(text).toContain('puertas=4');
-    expect(text).toContain('plate_short=P8');
+    expect(text).toContain('placa={{placa}} (matrícula: Pichincha)');
+    expect(text).not.toMatch(/plate_short/i);
     expect(text).toContain('km=276968');
     expect(text).not.toMatch(/caja=4p/i);
     expect(text).toMatch(/NUNCA "transmisión 4p"/i);

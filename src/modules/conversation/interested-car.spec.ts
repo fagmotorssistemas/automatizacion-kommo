@@ -560,7 +560,8 @@ describe('vehículo de interés', () => {
     });
     expect(text).toContain('km=144904');
     expect(text).toMatch(/km vs año/i);
-    expect(text).toContain('plate_short=L5');
+    expect(text).toContain('placa={{placa}} (matrícula: Loja)');
+    expect(text).not.toMatch(/plate_short/i);
     expect(text).toMatch(/estos datos van etiquetados/i);
     expect(text).not.toMatch(/La placa es/i);
   });

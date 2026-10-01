@@ -73,4 +73,15 @@ describe('parseAgentOutput', () => {
     expect(parsed.mensaje).toBe('Buenos días');
     expect(looksLikeAgentJson(parsed.mensaje)).toBe(false);
   });
+
+  it('{{placa}} no se confunde con el JSON del agente', () => {
+    const parsed = extractClientMessage(
+      JSON.stringify({
+        respuesta_cliente: '{{placa}}',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+    expect(parsed.mensaje).toBe('{{placa}}');
+    expect(looksLikeAgentJson('{{placa}}')).toBe(false);
+  });
 });

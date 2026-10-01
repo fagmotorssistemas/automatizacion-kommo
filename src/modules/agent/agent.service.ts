@@ -352,6 +352,13 @@ import {
   inventorySearchPlan,
 } from '../catalog/inventory-search-plan';
 import {
+  filtrarCamposInternos,
+  lexicalizarPlaca,
+  medirPlacaNoCoincide,
+  plateShortDeReferencia,
+  preguntaProvinciaPlaca,
+} from '../catalog/placa-provincia';
+import {
   carsForSpecLookup,
   factsFromResearch,
   formatSpecNotes,
@@ -1685,8 +1692,17 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }
     }
 
+    const plateRef = plateShortDeReferencia({
+      inventoryId: parsed.meta.vehiculo?.inventory_id,
+      interested,
+      listedUnits: revision.listedUnits,
+    });
+    parsed.mensaje = lexicalizarPlaca(parsed.mensaje, plateRef);
+
     if (parsed.mensaje) {
-      const askedPlate = asksForPlate(input.customerText);
+      const askedPlate =
+        asksForPlate(input.customerText) ||
+        preguntaProvinciaPlaca(input.customerText);
       const replyId = parsed.meta.vehiculo?.inventory_id;
       const firstPresentation =
         Boolean(replyId) &&
@@ -1906,10 +1922,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       }),
       metaId: parsed.meta.vehiculo?.inventory_id ?? null,
     });
-    parsed.mensaje = numeros.mensaje;
+    parsed.mensaje = lexicalizarPlaca(numeros.mensaje, plateRef);
     if (looksLikeAgentJson(parsed.mensaje)) {
       parsed.mensaje = '¿Qué carro le interesa?';
     }
+    const campos = filtrarCamposInternos(parsed.mensaje);
+    parsed.mensaje = campos.mensaje;
+    const placaNoCoincide = medirPlacaNoCoincide(parsed.mensaje, plateRef);
 
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
@@ -1995,6 +2014,18 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     if (negacionSinContexto) {
       Object.defineProperty(turn, 'negacionSinContexto', {
         value: true,
+        enumerable: false,
+      });
+    }
+    if (campos.campoFiltrado) {
+      Object.defineProperty(turn, 'campoFiltrado', {
+        value: true,
+        enumerable: false,
+      });
+    }
+    if (placaNoCoincide) {
+      Object.defineProperty(turn, 'placaNoCoincide', {
+        value: placaNoCoincide,
         enumerable: false,
       });
     }
