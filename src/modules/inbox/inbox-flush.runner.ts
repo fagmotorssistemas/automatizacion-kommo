@@ -231,6 +231,7 @@ export class InboxFlushRunner {
         this.agentService.handleTurn({
           contactId: data.contactId,
           customerText,
+          ctwa: synced.ctwa,
         }),
         AGENT_TURN_TIMEOUT_MS,
         'handleTurn',
@@ -296,6 +297,12 @@ export class InboxFlushRunner {
         ...(turn.faltaAclararNoExiste
           ? { faltaAclararNoExiste: turn.faltaAclararNoExiste }
           : {}),
+        ...(turn.catalogoPorPresupuesto ? { catalogoPorPresupuesto: true } : {}),
+        ...(turn.rechazosActivos?.length
+          ? { rechazosActivos: turn.rechazosActivos }
+          : {}),
+        ...(turn.anclaPorAnuncio ? { anclaPorAnuncio: true } : {}),
+        ...(turn.anclaPorKm ? { anclaPorKm: true } : {}),
         texto: customerText.slice(0, 500),
       },
     });
