@@ -269,7 +269,7 @@ function bestKey(
   if (winner || mode !== 'brand') {
     return winner?.key ?? null;
   }
-  // «jetourx70»: marca + versión pegada. No «un»+«peugeot».
+  // «jetourx70»: marca + código de modelo pegado. El resto debe traer un dígito.
   for (const key of keys) {
     if (token.length <= key.length) {
       continue;
@@ -279,7 +279,7 @@ function bestKey(
     }
     const head = token.slice(0, key.length);
     const rest = token.slice(key.length);
-    if (rest.length < 2) {
+    if (rest.length < 2 || !/\d/.test(rest)) {
       continue;
     }
     if (!closeEnough(head, key, mode)) {

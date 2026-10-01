@@ -1,4 +1,4 @@
-import { fuzzyBrandHits, fuzzyModelHits } from './fuzzy-vehicle-name';
+import { buildLexicon, fuzzyBrandHits, fuzzyModelHits } from './fuzzy-vehicle-name';
 import { TEST_LEXICON } from './test-lexicon';
 
 describe('nombre de vehículo mal escrito', () => {
@@ -64,6 +64,28 @@ describe('nombre de vehículo mal escrito', () => {
       fuzzyBrandHits('video del yunda', TEST_LEXICON).map((hit) => hit.name),
     ).toEqual(['hyundai']);
     expect(fuzzyModelHits('el yundad', TEST_LEXICON)).toEqual([]);
+  });
+
+  it('el pegado marca+resto no toma palabras comunes sin dígito', () => {
+    const patio = buildLexicon([
+      ...TEST_LEXICON.models.map((row) => ({
+        brand: row.brand,
+        model: row.family,
+      })),
+      { brand: 'zx auto', model: 'x' },
+      { brand: 'mini', model: 'x' },
+      { brand: 'mazda', model: 'x' },
+    ]);
+    expect(fuzzyBrandHits('automático', patio)).toEqual([]);
+    expect(fuzzyBrandHits('autonomía', patio)).toEqual([]);
+    expect(fuzzyBrandHits('mínimo', patio)).toEqual([]);
+    expect(fuzzyBrandHits('mandando', patio)).toEqual([]);
+    expect(fuzzyBrandHits('jetourx70', patio).map((hit) => hit.name)).toEqual([
+      'jetour',
+    ]);
+    expect(fuzzyBrandHits('Y el jet tur', patio).map((hit) => hit.name)).toEqual(
+      ['jetour'],
+    );
   });
 
   it('no junta dos palabras si una ya es marca', () => {
