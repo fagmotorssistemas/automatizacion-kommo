@@ -15,6 +15,7 @@ import {
   pickClosestToMissingModel,
   pickShownByYear,
   preferCurrentYears,
+  unitsNamedByClient,
   rowMentionsFamily,
   textMentionsModel,
   unitCaja,
@@ -978,5 +979,31 @@ describe('preferCurrentYears', () => {
         (car) => car.year,
       ),
     ).toEqual([2022, 2016]);
+  });
+});
+
+describe('unitsNamedByClient', () => {
+  it('sin año lista hasta 3 de la más nueva a la más vieja, incluso antiguas', () => {
+    expect(
+      unitsNamedByClient([
+        { id: 'e-1998', year: 1998 },
+        { id: 'e-2018', year: 2018 },
+        { id: 'e-2015', year: 2015 },
+        { id: 'e-2012', year: 2012 },
+      ]).map((car) => car.id),
+    ).toEqual(['e-2018', 'e-2015', 'e-2012']);
+  });
+
+  it('con año no mezcla las demás de la familia', () => {
+    expect(
+      unitsNamedByClient(
+        [
+          { id: 'e-1998', year: 1998 },
+          { id: 'e-2018', year: 2018 },
+          { id: 'e-2015', year: 2015 },
+        ],
+        2018,
+      ).map((car) => car.id),
+    ).toEqual(['e-2018']);
   });
 });

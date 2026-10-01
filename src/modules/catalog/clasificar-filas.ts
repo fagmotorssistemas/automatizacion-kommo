@@ -535,6 +535,30 @@ export function preferCurrentYears<T extends { year?: number | null }>(
   return [...kept].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
 }
 
+/**
+ * El cliente nombró el modelo: no se recorta por año vigente.
+ * Sin año se listan hasta 3, de la más nueva a la más vieja.
+ * Con año o “en adelante” se respeta ese filtro.
+ */
+export function unitsNamedByClient<T extends { year?: number | null }>(
+  cars: T[],
+  askedYear?: number | null,
+  onward = false,
+): T[] {
+  if (onward) {
+    return preferCurrentYears(cars, askedYear, true);
+  }
+  if (askedYear != null) {
+    const exact = cars.filter((car) => car.year === askedYear);
+    return exact.length > 0
+      ? exact
+      : preferCurrentYears(cars, askedYear, false);
+  }
+  return [...cars]
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+    .slice(0, 3);
+}
+
 function notaPrecioFicha(car: StockCar, decirlo: boolean): string {
   const amount = car.price && car.price > 0 ? Math.round(car.price) : null;
   if (decirlo) {
