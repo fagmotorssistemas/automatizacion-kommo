@@ -1752,7 +1752,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       parsed.img_prefix = '';
     }
     if (parsed.meta.vehiculo) {
-      if (unitPrice != null) {
+      const precioDeAltSinPedido =
+        revision.choseFromShown === false && !askedPrice;
+      if (unitPrice != null && !precioDeAltSinPedido) {
         parsed.meta.vehiculo.precio = unitPrice;
       } else {
         delete parsed.meta.vehiculo.precio;
@@ -1950,9 +1952,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       } else if (
         askedPrice &&
         hasConfirmedUnit &&
-        unitPrice == null &&
         !quotingListedSet &&
-        !hasLoadedPrice(precioDeLaPedida)
+        !hasLoadedPrice(unitPrice)
       ) {
         parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
         parsed.meta.precioMostrado = false;
@@ -2585,8 +2586,10 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     const send = patio.find((car) => car.id === formatted.sendId) ?? shown;
     const choseFromShown = alts.length === 0 && Boolean(formatted.sendId);
     const unitPrice =
-      choseFromShown && send.price && send.price > 0
-        ? Math.round(send.price)
+      formatted.sendId &&
+      send.id === formatted.sendId &&
+      hasLoadedPrice(send.price)
+        ? Math.round(send.price as number)
         : null;
     return {
       text: formatted.text,

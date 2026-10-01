@@ -887,6 +887,137 @@ describe('AgentService', () => {
     expect(result?.reply.meta.vehiculo).toEqual({ inventory_id: 'fiat500' });
   });
 
+  it('Picanto manual: la única alternativa con $ se cotiza; no dice precio no cargado', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'sedan',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'fiat500',
+        brand: 'fiat',
+        model: '500 lounge ac 1.4 3p 4x2 tm',
+        year: 2017,
+        price: 13990,
+        typeBody: 'hatckback',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere el precio del Picanto manual.',
+          'Pide precio: sí',
+          'Caja de compra: manual',
+          'Quiere comprar: Picanto',
+          'Su carro: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay Picanto manual. El Fiat 500 manual está en $13,990.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: '¿cuánto cuesta el Picanto manual?',
+    });
+
+    expect(result?.reply.mensaje).toMatch(/13,?990/);
+    expect(result?.reply.mensaje).not.toMatch(/aún no está cargado/i);
+    expect(openai.runSalesAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('inventory_id=fiat500'),
+      }),
+    );
+  });
+
+  it('Picanto manual: si la única alternativa no tiene $ sí dice precio no cargado', async () => {
+    conversation.loadVehicleBrand.mockResolvedValue('kia');
+    persistence.latestInterestedCar.mockResolvedValue({
+      inventoryId: 'picanto',
+      brand: 'kia',
+      model: 'picanto lx ac 1.2 4p 4x2 ta',
+      year: 2023,
+      price: 15990,
+      typeBody: 'sedan',
+    });
+    catalog.listByBrand.mockResolvedValue([
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 ta',
+        year: 2023,
+        price: 15990,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'picanto-tm',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 tm',
+        year: 2023,
+        price: 0,
+        typeBody: 'sedan',
+      },
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'picanto-tm',
+        brand: 'kia',
+        model: 'picanto lx ac 1.2 4p 4x2 tm',
+        year: 2023,
+        price: 0,
+        typeBody: 'sedan',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere el precio del Picanto manual.',
+          'Pide precio: sí',
+          'Caja de compra: manual',
+          'Quiere comprar: Picanto',
+          'Su carro: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay Picanto manual. El Fiat 500 está en $13,990. El precio de esta unidad aún no está cargado en patio.',
+        meta: { vehiculo: { inventory_id: 'fiat500', precio: 13990 } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '1',
+      customerText: '¿cuánto cuesta el Picanto manual?',
+    });
+
+    expect(result?.reply.mensaje).not.toMatch(/13,?990/);
+    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+  });
+
   it('falta carro + toma: no usa el atajo, contesta el agente y cierra con la pregunta del carro', async () => {
     openai.complete
       .mockResolvedValueOnce(
