@@ -633,9 +633,35 @@ export function isCityLetterCode(family: string): boolean {
   return /^[iy]\d{1,2}$/i.test(family);
 }
 
-/** 208 / i10: compacto. 2008 / 3008 (4 dígitos) es SUV. */
+const COMPACT_ASK_NAMES = new Set([
+  'aveo',
+  'forsa',
+  'getz',
+  'alto',
+  'spark',
+]);
+
+/** 208 / i10 / Aveo 3p / Forsa / Getz: compacto. 2008 / 3008 (4 dígitos) es SUV. */
 export function isCompactAskFamily(family: string): boolean {
-  return isCityLetterCode(family) || /^\d{3}$/.test(family);
+  const wanted = modelFamily(family);
+  return (
+    isCityLetterCode(wanted) ||
+    /^\d{3}$/.test(wanted) ||
+    COMPACT_ASK_NAMES.has(wanted)
+  );
+}
+
+export function textNamesCompactAsk(text: string): boolean {
+  const n = normalizeModelText(text);
+  if (!n.trim()) {
+    return false;
+  }
+  if (COMPACT_ASK_NAMES.has(modelFamily(n)) || isCityLetterCode(modelFamily(n))) {
+    return true;
+  }
+  return [...COMPACT_ASK_NAMES].some((name) =>
+    new RegExp(`\\b${name}s?\\b`).test(n),
+  );
 }
 
 /** Tipo según type_body de patio, no según una lista de nombres. */
@@ -850,6 +876,8 @@ export function pickClosestToMissingModel(
     minYear?: number | null;
     budget?: number | null;
     kind?: VehicleKind | null;
+    compact?: boolean;
+    askedBrand?: string | null;
   },
 ): StockCar[] {
   const excluded = new Set(
@@ -857,6 +885,7 @@ export function pickClosestToMissingModel(
       (id): id is string => Boolean(id),
     ),
   );
+  const compactAsk = Boolean(opts?.compact) || isCompactAskFamily(family);
   const pool = cars.filter((car) => {
     if (excluded.has(car.id)) {
       return false;
@@ -873,25 +902,45 @@ export function pickClosestToMissingModel(
     }
     if (
       opts?.kind &&
+      !compactAsk &&
       !matchesVehicleKind(car.typeBody, opts.kind)
     ) {
       return false;
     }
     return true;
   });
-  const byPrice = (a: StockCar, b: StockCar) =>
-    (a.price ?? Number.POSITIVE_INFINITY) -
-    (b.price ?? Number.POSITIVE_INFINITY);
+  const brandRank = (car: StockCar): number => {
+    const wanted = opts?.askedBrand?.trim().toLowerCase();
+    if (!wanted) {
+      return 1;
+    }
+    return car.brand.trim().toLowerCase() === wanted ? 0 : 1;
+  };
+  const byPrice = (a: StockCar, b: StockCar) => {
+    const price =
+      (a.price ?? Number.POSITIVE_INFINITY) -
+      (b.price ?? Number.POSITIVE_INFINITY);
+    if (price !== 0) {
+      return price;
+    }
+    return brandRank(a) - brandRank(b);
+  };
   const pickFrom = (candidates: StockCar[]): StockCar[] => {
     if (candidates.length === 0) {
       return [];
     }
     if (opts?.budget != null) {
-      return nearestToBudget(candidates, opts.budget);
+      const near = nearestToBudget(candidates, opts.budget);
+      if (near.length <= 1) {
+        return near;
+      }
+      return [...near].sort(
+        (a, b) => brandRank(a) - brandRank(b) || byPrice(a, b),
+      ).slice(0, 1);
     }
     return [[...candidates].sort(byPrice)[0]];
   };
-  if (isCompactAskFamily(family)) {
+  if (compactAsk) {
     const hatches = pool.filter(
       (car) => kindFromTypeBody(car.typeBody) === 'hatchback',
     );
@@ -903,9 +952,6 @@ export function pickClosestToMissingModel(
     );
     if (sedans.length > 0) {
       return pickFrom(sedans);
-    }
-    if (opts?.budget != null) {
-      return pickFrom(pool);
     }
     return [];
   }

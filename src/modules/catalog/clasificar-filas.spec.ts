@@ -147,6 +147,41 @@ describe('clasificar filas', () => {
     expect(close.map((car) => car.id)).toEqual(['picanto-1']);
   });
 
+  it('Aveo 3p no se sustituye por un Grand Vitara de la misma u otra marca', () => {
+    const close = pickClosestToMissingModel(
+      [
+        {
+          id: 'd38ea60d',
+          brand: 'suzuki',
+          model: 'grand vitara sz next',
+          year: 2015,
+          price: 13800,
+          typeBody: 'jeep',
+        },
+        {
+          id: 'fiat-500',
+          brand: 'fiat',
+          model: '500 lounge 1.4',
+          year: 2015,
+          price: 8900,
+          typeBody: 'hatchback',
+        },
+        {
+          id: 'qq3',
+          brand: 'chery',
+          model: 'qq3 1.1',
+          year: 2012,
+          price: 5800,
+          typeBody: 'hatchback',
+        },
+      ],
+      'aveo',
+      undefined,
+      { compact: true, askedBrand: 'suzuki' },
+    );
+    expect(close.map((car) => car.id)).toEqual(['qq3']);
+  });
+
   it('si no hay Sonet ofrece un SUV Kia, no el Picanto rechazado', () => {
     const close = pickClosestToMissingModel(
       [

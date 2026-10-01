@@ -323,6 +323,8 @@ import {
   normalizeModelText,
   rowMentionsFamily,
   textMentionsModel,
+  textNamesCompactAsk,
+  isCompactAskFamily,
   userNamedModel,
 } from '../catalog/clasificar-filas';
 import {
@@ -2832,6 +2834,9 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       currentRejected().families.includes(askedNamed.family)
         ? null
         : askedNamed;
+    const compactAsk =
+      Boolean(asked && isCompactAskFamily(asked.family)) ||
+      textNamesCompactAsk(`${customerText}\n${nombraAhora}`);
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras =
       resumenPideOtras(resumen) && !otrasDiferidas(customerText);
@@ -3024,6 +3029,12 @@ vehiculo null.`,
       } else {
         listed = hits;
       }
+    }
+    if (compactAsk) {
+      listed = listed.filter((car) => {
+        const kind = kindFromTypeBody(car.typeBody);
+        return kind === 'hatchback' || kind === 'sedan';
+      });
     }
     const offerCars = lastListedUnits(
       history,
@@ -3232,6 +3243,12 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
         pool = pool.filter((car) =>
           matchesVehicleKind(car.typeBody, kindPool),
         );
+      }
+      if (compactAsk) {
+        pool = pool.filter((car) => {
+          const kind = kindFromTypeBody(car.typeBody);
+          return kind === 'hatchback' || kind === 'sedan';
+        });
       }
       if (askedCab || askedDriveEarly) {
         pool = pickCabDriveOffer(pool, askedCab, askedDriveEarly).cars;
@@ -4040,15 +4057,11 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         const pickOpts = {
           minYear: yearOnward ? floorYear : null,
           budget: threadBudget,
-          kind: kindForAsk,
+          kind: compactAsk ? null : kindForAsk,
+          compact: compactAsk,
+          askedBrand: asked.brand || targetBrand,
         };
-        alternatives = pickClosestToMissingModel(
-          listed,
-          asked.family,
-          except,
-          pickOpts,
-        );
-        if (alternatives.length === 0) {
+        if (compactAsk) {
           const patio = await this.carsAvailableExcept('_');
           const shownPatio = carsShownInHistory(history, patio, resumen);
           alternatives = pickClosestToMissingModel(
@@ -4060,6 +4073,26 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
             },
             pickOpts,
           );
+        } else {
+          alternatives = pickClosestToMissingModel(
+            listed,
+            asked.family,
+            except,
+            pickOpts,
+          );
+          if (alternatives.length === 0) {
+            const patio = await this.carsAvailableExcept('_');
+            const shownPatio = carsShownInHistory(history, patio, resumen);
+            alternatives = pickClosestToMissingModel(
+              patio,
+              asked.family,
+              {
+                ...except,
+                ids: shownPatio.map((car) => car.id),
+              },
+              pickOpts,
+            );
+          }
         }
       }
       alternatives = preferCurrentYears(
@@ -4073,7 +4106,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         alternatives,
         includePrice,
         yearOnward,
-        kindForAsk,
+        compactAsk ? null : kindForAsk,
       );
       return {
         ...missing,

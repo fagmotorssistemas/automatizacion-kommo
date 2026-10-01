@@ -461,6 +461,96 @@ describe('AgentService', () => {
     expect(system).toMatch(/jac-s5|s5/i);
   });
 
+  it('aveos de tres puertas y suzuki no ofrece Grand Vitara; ofrece hatch o sedán', async () => {
+    const patioCompacto = [
+      {
+        id: 'd38ea60d',
+        brand: 'suzuki',
+        model: 'grand vitara sz next',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'fiat-500',
+        brand: 'fiat',
+        model: '500 lounge 1.4 3p',
+        year: 2015,
+        price: 8900,
+        typeBody: 'hatchback',
+        color: 'rojo',
+      },
+      {
+        id: 'qq3',
+        brand: 'chery',
+        model: 'qq3 1.1',
+        year: 2012,
+        price: 5800,
+        typeBody: 'hatchback',
+        color: 'plateado',
+      },
+      {
+        id: 'golf',
+        brand: 'volkswagen',
+        model: 'golf comfortline 2.0',
+        year: 2005,
+        price: 9800,
+        typeBody: 'sedan',
+        color: 'azul',
+      },
+      {
+        id: 'picanto',
+        brand: 'kia',
+        model: 'picanto lx 1.2',
+        year: 2018,
+        price: 9200,
+        typeBody: 'hatchback',
+        color: 'blanco',
+      },
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patioCompacto);
+    catalog.listByBrand.mockImplementation(async (brand: string) =>
+      patioCompacto.filter(
+        (car) => car.brand.toLowerCase() === brand.toLowerCase(),
+      ),
+    );
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente busca Aveo de tres puertas y un Suzuki compacto.',
+          'Pide otras: sí',
+          'Otro vehículo: no',
+          'Quiere comprar: Aveo 3p',
+          'Falta vehículo: no',
+          'Tipo de patio: hatchback',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'No hay Aveo. Hay Fiat 500 a $8900, QQ3 a $5800, Golf a $9800 y Picanto a $9200. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '52737915-aveo',
+      customerText: 'aveos de tres puertas y los susuki uno',
+    });
+
+    const blob = `${result?.reply.mensaje ?? ''}\n${JSON.stringify(result?.photoQueue ?? [])}`;
+    expect(blob).not.toMatch(/vitara|d38ea60d/i);
+    expect(blob).toMatch(/fiat-500|qq3|golf|picanto|Fiat 500|QQ3|Golf|Picanto/i);
+    if (openai.runSalesAgent.mock.calls.length > 0) {
+      const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+      expect(system).not.toMatch(/vitara|d38ea60d/i);
+      expect(system).toMatch(/fiat 500|qq3|golf|picanto/i);
+    }
+  });
+
   it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
     responderFaltaCarro(
       'Buenas tardes, estimado. ¿Qué carro le interesa?',
