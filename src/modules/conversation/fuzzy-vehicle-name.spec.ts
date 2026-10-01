@@ -66,6 +66,15 @@ describe('nombre de vehículo mal escrito', () => {
     expect(fuzzyModelHits('el yundad', TEST_LEXICON)).toEqual([]);
   });
 
+  it('no junta dos palabras si una ya es marca', () => {
+    expect(
+      fuzzyBrandHits('un kia sportage', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['kia']);
+    expect(
+      fuzzyBrandHits('el ford explorer', TEST_LEXICON).map((hit) => hit.name),
+    ).toEqual(['ford']);
+  });
+
   it('no toma fotos por Foton si Foton no está o la palabra es fotos', () => {
     expect(fuzzyBrandHits('Ayúdeme con fotos', TEST_LEXICON)).toEqual([]);
   });

@@ -103,7 +103,7 @@ function tokens(text: string): { token: string; index: number }[] {
   return out;
 }
 
-/** Junta “jet tur” / “d max” en un token, como si viniera pegado. */
+/** Junta “d max” en un token, como si viniera pegado. */
 function withJoinedNeighbors(
   base: { token: string; index: number }[],
 ): { token: string; index: number }[] {
@@ -117,13 +117,44 @@ function withJoinedNeighbors(
   return out;
 }
 
+/**
+ * “jet tur” → jetour. No junta si alguno de los dos ya es una marca,
+ * ni pares que no queden a 0 o 1 letra de una marca.
+ */
+function withJoinedBrandNeighbors(
+  base: { token: string; index: number }[],
+  keys: string[],
+): { token: string; index: number }[] {
+  const out = [...base];
+  for (let i = 0; i < base.length - 1; i += 1) {
+    const left = base[i].token;
+    const right = base[i + 1].token;
+    if (bestKey(left, keys, 'brand') || bestKey(right, keys, 'brand')) {
+      continue;
+    }
+    const joined = `${left}${right}`;
+    const match = bestKey(joined, keys, 'brand');
+    if (!match) {
+      continue;
+    }
+    if (levenshtein(joined, match) > 1) {
+      continue;
+    }
+    out.push({ token: joined, index: base[i].index });
+  }
+  return out;
+}
+
 /** Misma norma que el patio (d-max → dmax) y junta “d max”. */
 function modelTokens(text: string): { token: string; index: number }[] {
   return withJoinedNeighbors(tokens(normalizeModelText(text)));
 }
 
-function brandTokens(text: string): { token: string; index: number }[] {
-  return withJoinedNeighbors(tokens(text));
+function brandTokens(
+  text: string,
+  keys: string[],
+): { token: string; index: number }[] {
+  return withJoinedBrandNeighbors(tokens(text), keys);
 }
 
 function levenshtein(a: string, b: string): number {
@@ -284,11 +315,14 @@ export function fuzzyBrandHits(
       hits.push({ name: brand, index });
     }
   }
-  const keys = lexicon.brands.flatMap((brand) =>
-    brand.split(/\s+/).filter((part) => part.length >= 3),
-  );
-  for (const { token, index } of brandTokens(text)) {
-    const match = bestKey(token, [...lexicon.brands, ...keys]);
+  const keys = [
+    ...lexicon.brands,
+    ...lexicon.brands.flatMap((brand) =>
+      brand.split(/\s+/).filter((part) => part.length >= 3),
+    ),
+  ];
+  for (const { token, index } of brandTokens(text, keys)) {
+    const match = bestKey(token, keys);
     if (!match) {
       continue;
     }
