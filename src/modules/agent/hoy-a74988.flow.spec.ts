@@ -111,6 +111,8 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     saveTomaChecklist: jest.fn(),
     loadCashBudget: jest.fn(),
     saveCashBudget: jest.fn(),
+    loadRejectedCars: jest.fn(),
+    saveRejectedCars: jest.fn(),
     loadPreviousResumen: jest.fn(),
     savePreviousResumen: jest.fn(),
   };
@@ -178,6 +180,12 @@ describe('flujo A74988 (mensajes de hoy)', () => {
     conversation.loadCashBudget.mockReset();
     conversation.loadCashBudget.mockResolvedValue(null);
     conversation.saveCashBudget.mockReset();
+    conversation.loadRejectedCars.mockReset();
+    conversation.loadRejectedCars.mockImplementation(async () => ({
+      ids: [] as string[],
+      families: [] as string[],
+    }));
+    conversation.saveRejectedCars.mockReset();
     conversation.loadPreviousResumen.mockReset();
     conversation.loadPreviousResumen.mockResolvedValue(null);
     conversation.savePreviousResumen.mockReset();

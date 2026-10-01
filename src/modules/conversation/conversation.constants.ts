@@ -24,6 +24,9 @@ export const tomaChecklistKey = (contactId: string) =>
 export const cashBudgetKey = (contactId: string) =>
   `conversation:cash-budget:${contactId}`;
 
+export const rejectedCarsKey = (contactId: string) =>
+  `conversation:rejected-cars:${contactId}`;
+
 export const previousResumenKey = (contactId: string) =>
   `conversation:previous-resumen:${contactId}`;
 

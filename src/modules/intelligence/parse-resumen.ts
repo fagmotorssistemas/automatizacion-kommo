@@ -158,11 +158,17 @@ export function resumenSuCarro(resumen: string): string | null {
   return resumenLineaVehiculo(resumen, 'su\\s+carro');
 }
 
+/** Marca/modelo/unidad que el cliente rechaza en ESTE mensaje. No es Rechaza aplicar. */
+export function resumenRechaza(resumen: string): string | null {
+  return resumenLineaVehiculo(resumen, 'rechaza');
+}
+
 function stripIsolatedResumenLines(text: string): string {
   return text
     .replace(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*quiere\s+comprar:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*su\s+carro:\s*.*/gi, '')
+    .replace(/(?:^|\n)\s*rechaza:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*tracci[oó]n\s+pedida:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*color\s+pedido:\s*.*/gi, '')
     .trim();

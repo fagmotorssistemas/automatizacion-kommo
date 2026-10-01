@@ -41,6 +41,8 @@ describe('AgentService', () => {
     saveTomaChecklist: jest.fn(),
     loadCashBudget: jest.fn(),
     saveCashBudget: jest.fn(),
+    loadRejectedCars: jest.fn(),
+    saveRejectedCars: jest.fn(),
     loadPreviousResumen: jest.fn(),
     savePreviousResumen: jest.fn(),
   };
@@ -107,6 +109,12 @@ describe('AgentService', () => {
     conversation.loadCashBudget.mockReset();
     conversation.loadCashBudget.mockResolvedValue(null);
     conversation.saveCashBudget.mockReset();
+    conversation.loadRejectedCars.mockReset();
+    conversation.loadRejectedCars.mockImplementation(async () => ({
+      ids: [] as string[],
+      families: [] as string[],
+    }));
+    conversation.saveRejectedCars.mockReset();
     conversation.loadPreviousResumen.mockReset();
     conversation.loadPreviousResumen.mockResolvedValue(null);
     conversation.savePreviousResumen.mockReset();
@@ -333,6 +341,124 @@ describe('AgentService', () => {
       /Termina con UNA sola pregunta: qué carro le interesa/,
     );
     expect(result?.reply.mensaje).not.toMatch(/^¿Qué carro le interesa\?$/);
+  });
+
+  it('rechaza Grand Vitara y el turno siguiente no lista d38ea60d ni e4f2046f', async () => {
+    const vitaras = [
+      {
+        id: 'd38ea60d',
+        brand: 'suzuki',
+        model: 'grand vitara sz next',
+        year: 2015,
+        price: 13800,
+        typeBody: 'jeep',
+        color: 'blanco',
+      },
+      {
+        id: 'e4f2046f',
+        brand: 'suzuki',
+        model: 'grand vitara 2.0',
+        year: 2014,
+        price: 12500,
+        typeBody: 'jeep',
+        color: 'gris',
+      },
+    ];
+    const jac = {
+      id: 'jac-s5',
+      brand: 'jac',
+      model: 's5 2.0',
+      year: 2018,
+      price: 14990,
+      typeBody: 'jeep',
+      color: 'negro',
+    };
+    const patioVitara = [...vitaras, jac];
+    let storedRejected = { ids: [] as string[], families: [] as string[] };
+    conversation.loadRejectedCars.mockImplementation(async () => ({
+      ids: [...storedRejected.ids],
+      families: [...storedRejected.families],
+    }));
+    conversation.saveRejectedCars.mockImplementation(
+      async (_id: string, value: { ids: string[]; families: string[] }) => {
+        storedRejected = {
+          ids: [...value.ids],
+          families: [...value.families],
+        };
+      },
+    );
+    catalog.listAvailableExcept.mockResolvedValue(patioVitara);
+    catalog.listByBrand.mockResolvedValue(vitaras);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Tenemos un Suzuki Grand Vitara SZ Next 2015 blanco a $13800 y un Grand Vitara 2014 gris a $12500. ¿Cuál le interesa?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente no quiere el Grand Vitara y pide otras.',
+          'Pide otras: sí',
+          'Rechaza: Grand Vitara',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+          'Falta vehículo: no',
+          'Tipo de patio: suv',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Entendido. También está el JAC S5 a $14,990. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '52737915',
+      customerText: 'El gran vitara no grasias',
+    });
+
+    expect(storedRejected.ids).toEqual(
+      expect.arrayContaining(['d38ea60d', 'e4f2046f']),
+    );
+    expect(storedRejected.families).toContain('vitara');
+
+    openai.complete.mockReset();
+    openai.runSalesAgent.mockReset();
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere ver otras SUV.',
+          'Pide otras: sí',
+          'Rechaza: no',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+          'Falta vehículo: no',
+          'Tipo de patio: suv',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El JAC S5 2018 está a $14,990. ¿Cuál le interesa de estas?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: '52737915',
+      customerText: 'y qué otras hay?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).not.toMatch(/d38ea60d/);
+    expect(system).not.toMatch(/e4f2046f/);
+    expect(system).toMatch(/jac-s5|s5/i);
   });
 
   it('clic de Facebook sin carro pregunta cuál y no lista', async () => {

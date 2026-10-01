@@ -90,6 +90,8 @@ function buildService(opts?: { patio?: typeof santaFe[]; resumen?: string }) {
     saveTomaChecklist: jest.fn(),
     loadCashBudget: jest.fn().mockResolvedValue(null),
     saveCashBudget: jest.fn(),
+    loadRejectedCars: jest.fn().mockResolvedValue({ ids: [], families: [] }),
+    saveRejectedCars: jest.fn(),
     loadPreviousResumen: jest.fn().mockResolvedValue(null),
     savePreviousResumen: jest.fn(),
   };

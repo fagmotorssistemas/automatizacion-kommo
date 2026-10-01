@@ -31,6 +31,7 @@ import {
   resumenOtroVehiculo,
   resumenQuiereComprar,
   resumenSuCarro,
+  resumenRechaza,
   resumenPideOtroColor,
   previousResumenForLlm,
   vehicleQueSigue,
@@ -455,6 +456,9 @@ describe('resumenTraccionPedida y Color pedido', () => {
       resumenSuCarro('Su carro: jeptour x70 2022 | no'),
     ).toBe('jeptour x70 2022');
     expect(resumenSuCarro('Su carro: no')).toBeNull();
+    expect(resumenRechaza('Rechaza: Grand Vitara')).toBe('Grand Vitara');
+    expect(resumenRechaza('Rechaza: no')).toBeNull();
+    expect(resumenRechaza('Rechaza aplicar: sí')).toBeNull();
     expect(
       resumenTomaFicha(
         'Toma: sí\nToma ficha: Kia Niro 2019 | no',

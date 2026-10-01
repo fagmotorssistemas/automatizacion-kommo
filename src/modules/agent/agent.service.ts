@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { CatalogService } from '../catalog/catalog.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { getDealershipClock, hourInGuayaquil } from '../intelligence/dealership-hours';
@@ -212,6 +213,7 @@ import {
   resumenOtroVehiculo,
   resumenQuiereComprar,
   resumenSuCarro,
+  resumenRechaza,
   resumenPideHorario,
   resumenStaysOnShownUnit,
   resumenAsientos,
@@ -324,6 +326,16 @@ import {
   userNamedModel,
 } from '../catalog/clasificar-filas';
 import {
+  EMPTY_REJECTED,
+  carsMatchingRejectLabel,
+  excludeRejected,
+  familyOfRejectLabel,
+  mergeRejected,
+  restoreNamedFamily,
+  sameRejected,
+  type RejectedCars,
+} from '../conversation/rejected-cars';
+import {
   appendBudgetFinancingAsk,
   appendBudgetPickShown,
   carFitsBudget,
@@ -396,6 +408,12 @@ function unidadesParaTurno(
   unidades: UnidadContexto[],
 ): { unidadesContexto: UnidadContexto[] } | Record<string, never> {
   return unidades.length ? { unidadesContexto: unidades } : {};
+}
+
+const rejectedStore = new AsyncLocalStorage<RejectedCars>();
+
+function currentRejected(): RejectedCars {
+  return rejectedStore.getStore() ?? EMPTY_REJECTED;
 }
 
 function namedOfferId(
@@ -576,6 +594,25 @@ export class AgentService {
     return this.stayDecisions.take(contactId);
   }
 
+  private fetchBrandRows(brand: string): Promise<StockCar[]> {
+    return this.catalog.listByBrand(brand);
+  }
+
+  private fetchAvailableExcept(brand: string): Promise<StockCar[]> {
+    return this.catalog.listAvailableExcept(brand);
+  }
+
+  private async carsByBrand(brand: string): Promise<StockCar[]> {
+    return excludeRejected(await this.fetchBrandRows(brand), currentRejected());
+  }
+
+  private async carsAvailableExcept(brand: string): Promise<StockCar[]> {
+    return excludeRejected(
+      await this.fetchAvailableExcept(brand),
+      currentRejected(),
+    );
+  }
+
   async handleTurn(input: {
     contactId: string;
     customerText: string;
@@ -617,6 +654,12 @@ export class AgentService {
     const rememberedBudget = await this.conversation.loadCashBudget(
       input.contactId,
     );
+    let rejected = await this.conversation.loadRejectedCars(input.contactId);
+    const rememberedRejected: RejectedCars = {
+      ids: [...rejected.ids],
+      families: [...rejected.families],
+    };
+    rejectedStore.enterWith(rejected);
     const previousResumen = await this.conversation.loadPreviousResumen(
       input.contactId,
     );
@@ -650,6 +693,54 @@ export class AgentService {
       .filter((item) => item.role === 'assistant')
       .map((item) => item.content);
     const ultimosBotEarly = textosBotEarly.slice(-3);
+    const rechazaLabel = resumenRechaza(resumen);
+    if (
+      rechazaLabel &&
+      evidenciaReal(rechazaLabel, input.customerText, ultimosBotEarly)
+    ) {
+      const hits = carsMatchingRejectLabel(
+        rechazaLabel,
+        await this.fetchAvailableExcept('_'),
+        lexicon,
+      );
+      Object.assign(
+        rejected,
+        mergeRejected(rejected, {
+          ids: hits.map((car) => car.id),
+          families: [
+            ...new Set(
+              hits
+                .map((car) => modelFamily(car.model))
+                .filter((family) => family.length > 0),
+            ),
+          ],
+        }),
+      );
+    }
+    const namedNowForReject = detectNamedModelAsk(
+      input.customerText,
+      lexicon,
+    );
+    const rechazaFamily = rechazaLabel
+      ? familyOfRejectLabel(rechazaLabel, lexicon)
+      : null;
+    if (
+      namedNowForReject?.family &&
+      namedNowForReject.family !== rechazaFamily &&
+      rejected.families.includes(namedNowForReject.family)
+    ) {
+      Object.assign(
+        rejected,
+        restoreNamedFamily(
+          rejected,
+          namedNowForReject.family,
+          await this.fetchAvailableExcept('_'),
+        ),
+      );
+    }
+    if (!sameRejected(rejected, rememberedRejected)) {
+      await this.conversation.saveRejectedCars(input.contactId, rejected);
+    }
     const patioAsk = detectPedidoPatio({
       resumen,
       customerText: input.customerText,
@@ -831,7 +922,7 @@ export class AgentService {
       !otherBrandNow;
     let patioDisponible: StockCar[] | null = null;
     if (stayFollowUp && !pideHorario) {
-      patioDisponible = await this.catalog.listAvailableExcept('_');
+      patioDisponible = await this.carsAvailableExcept('_');
       const shown = lastSingleShownUnit(history, patioDisponible);
       if (shown) {
         interested = {
@@ -881,7 +972,7 @@ export class AgentService {
         if (!patio) {
           patio = patioFamiliesCacheFresh()
             ? []
-            : await this.catalog.listAvailableExcept('_');
+            : await this.carsAvailableExcept('_');
         }
         sospecha = sospechaOtroVehiculo(
           input.customerText,
@@ -1151,8 +1242,8 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
           : detectNamedModelAsk(input.customerText, lexicon));
       if (named) {
         const listed = named.brand
-          ? await this.catalog.listByBrand(named.brand)
-          : await this.catalog.listAvailableExcept('_');
+          ? await this.carsByBrand(named.brand)
+          : await this.carsAvailableExcept('_');
         const ranked = this.carsMatchingAskedFamily(
           this.filterByAskedYear(
             await this.lookupNamedByEmbedding(
@@ -1768,7 +1859,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       const presented = [...(revision.listedUnits ?? [])];
       if (toolInventoryIds.length) {
         const patio =
-          patioDisponible ?? (await this.catalog.listAvailableExcept('_'));
+          patioDisponible ?? (await this.carsAvailableExcept('_'));
         patioDisponible = patio;
         for (const id of toolInventoryIds) {
           const car = patio.find((row) => row.id === id);
@@ -2337,8 +2428,8 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         const named = detectNamedModelAsk(similarText, lexicon);
         if (named) {
           const stock = named.brand
-            ? await this.catalog.listByBrand(named.brand)
-            : await this.catalog.listAvailableExcept('_');
+            ? await this.carsByBrand(named.brand)
+            : await this.carsAvailableExcept('_');
           kind = kindFromStockFamily(stock, named.family);
         }
       }
@@ -2502,7 +2593,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     const group =
       bodyGroupOf(kindFromTypeBody(shown.typeBody)) ??
       bodyGroupOf(input.kindForAsk);
-    const others = await this.catalog.listAvailableExcept('_');
+    const others = await this.carsAvailableExcept('_');
     const seen = new Set<string>();
     const patio: StockCar[] = [];
     for (const car of [...input.listed, ...others]) {
@@ -2617,9 +2708,9 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     let patio: StockCar[] | null = null;
     const lines: string[] = [];
     for (const name of names) {
-      let cars = await this.catalog.listByBrand(name);
+      let cars = await this.carsByBrand(name);
       if (cars.length === 0) {
-        patio ??= await this.catalog.listAvailableExcept('_');
+        patio ??= await this.carsAvailableExcept('_');
         cars = carsMatchingName(patio, name);
       }
       if (cars.length === 0) {
@@ -2733,9 +2824,14 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
         : named && rawYear && String(rawYear) === named.family
           ? null
           : rawYear;
-    const asked = named
+    const askedNamed = named
       ? { ...named, year: yearSaidNow ?? named.year }
       : null;
+    const asked =
+      askedNamed &&
+      currentRejected().families.includes(askedNamed.family)
+        ? null
+        : askedNamed;
     const phrase = pedido ? askedModelPhrase(pedido, lexicon) : '';
     const pideOtras =
       resumenPideOtras(resumen) && !otrasDiferidas(customerText);
@@ -2857,7 +2953,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       !cashBudgetEarly &&
       !tresFilas
     ) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       return patioKindPriceSummary(patio);
     }
 
@@ -2879,13 +2975,13 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       };
     }
     let listed = targetBrand
-      ? await this.catalog.listByBrand(targetBrand)
-      : await this.catalog.listAvailableExcept('_');
+      ? await this.carsByBrand(targetBrand)
+      : await this.carsAvailableExcept('_');
     if (brandsNow.length > 1 && (!asked || tresFilas)) {
       const merged: StockCar[] = [];
       const seen = new Set<string>();
       for (const item of brandsNow) {
-        for (const car of await this.catalog.listByBrand(item)) {
+        for (const car of await this.carsByBrand(item)) {
           if (seen.has(car.id)) {
             continue;
           }
@@ -2896,7 +2992,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       listed = merged;
     } else if (tresFilas && !asked && brandsNow.length === 0 && !targetBrand && anyTresFilasBrand) {
       listed = pickTresFilasCandidates(
-        await this.catalog.listAvailableExcept('_'),
+        await this.carsAvailableExcept('_'),
       );
     }
     let pedidoPinned = false;
@@ -2931,7 +3027,7 @@ vehiculo null.`,
     }
     const offerCars = lastListedUnits(
       history,
-      await this.catalog.listAvailableExcept('_'),
+      await this.carsAvailableExcept('_'),
     );
     const rememberedBrand = brand?.trim().toLowerCase() ?? '';
     const leftListedBrand =
@@ -3007,7 +3103,7 @@ vehiculo null.`,
     ) {
       listedPool = lastListedUnits(
         history,
-        await this.catalog.listAvailableExcept('_'),
+        await this.carsAvailableExcept('_'),
       );
     }
     if (
@@ -3073,7 +3169,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
     if (spaceAsk && !asked && !tresFilas) {
       let pool = pickLargePassengerCars(listed);
       if (pool.length === 0) {
-        const others = await this.catalog.listAvailableExcept(targetBrand || '_');
+        const others = await this.carsAvailableExcept(targetBrand || '_');
         pool = pickLargePassengerCars(others);
       }
       return {
@@ -3087,7 +3183,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       };
     }
     if (cashBudgetEarly) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       const pick = carsForOpenBudget(patio, cashBudgetEarly, {
         exceptId: reference?.inventoryId,
         kind: kindForAsk,
@@ -3117,7 +3213,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       !resumenAsientos(resumen) &&
       !tresFilas
     ) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       return patioKindPriceSummary(patio);
     }
     if (
@@ -3127,7 +3223,7 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       !tresFilas &&
       !switchedBrand
     ) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       const exceptId = reference?.inventoryId;
       let pool = patio.filter((car) => car.id !== exceptId);
       const kindPool =
@@ -3196,7 +3292,7 @@ PIDIÓ OTRAS, no la unidad que ya vio. Nombra ESTAS. PROHIBIDO volver a presenta
         rowMentionsFamily(car.model, reference.family ?? ''),
       );
       if (pool.length === 0) {
-        const others = await this.catalog.listAvailableExcept(
+        const others = await this.carsAvailableExcept(
           targetBrand || '_',
         );
         pool = others.filter((car) =>
@@ -3953,7 +4049,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           pickOpts,
         );
         if (alternatives.length === 0) {
-          const patio = await this.catalog.listAvailableExcept('_');
+          const patio = await this.carsAvailableExcept('_');
           const shownPatio = carsShownInHistory(history, patio, resumen);
           alternatives = pickClosestToMissingModel(
             patio,
@@ -4034,7 +4130,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           (!kindForAsk || matchesVehicleKind(car.typeBody, kindForAsk)),
       );
       if (inBrand.length === 0) {
-        const others = await this.catalog.listAvailableExcept(
+        const others = await this.carsAvailableExcept(
           targetBrand || '_',
         );
         return {
@@ -4071,7 +4167,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
       if (inBrand?.sameModel) {
         stock = inBrand.cars;
       } else {
-        const others = await this.catalog.listAvailableExcept(
+        const others = await this.carsAvailableExcept(
           targetBrand || '_',
         );
         const pick = pickGearboxAlternatives({
@@ -4338,7 +4434,7 @@ ${missing.text}`,
     includePrice: boolean;
     exceptId?: string | null;
   }): Promise<BrandReview> {
-    const patio = (await this.catalog.listAvailableExcept('_')).filter(
+    const patio = (await this.carsAvailableExcept('_')).filter(
       (car) => car.id !== input.exceptId,
     );
     const group = bodyGroupOf(input.kind);
@@ -4447,7 +4543,7 @@ ${missing.text}`,
       };
     }
     if (looked.seats != null && looked.seats < min) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       const pool = pickCarsWithMinSeats(
         patio.filter((car) => car.id !== looked.stock.id),
         min,
@@ -4490,7 +4586,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     car: InterestedCarSnapshot,
   ): Promise<StockCar> {
     const listed = car.brand
-      ? await this.catalog.listByBrand(car.brand)
+      ? await this.carsByBrand(car.brand)
       : [];
     if (car.inventoryId) {
       const byId = listed.find((item) => item.id === car.inventoryId);
@@ -4575,7 +4671,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
       return '';
     }
     const listed = car.brand
-      ? await this.catalog.listByBrand(car.brand)
+      ? await this.carsByBrand(car.brand)
       : [];
     const fromPatio = listed.find((item) => item.id === car.inventoryId);
     const patioCapacity =
@@ -4705,7 +4801,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
   ): Promise<BrandReview> {
     let alts = pickSpanAlternatives(listed, family, kind, span);
     if (alts.length === 0) {
-      const patio = await this.catalog.listAvailableExcept('_');
+      const patio = await this.carsAvailableExcept('_');
       alts = pickSpanAlternatives(patio, family, kind, span);
     }
     const missing = formatMissingNamedModel(
@@ -4811,7 +4907,7 @@ ${rule}`,
     if (!family) {
       return [];
     }
-    const others = await this.catalog.listAvailableExcept(exceptBrand || '_');
+    const others = await this.carsAvailableExcept(exceptBrand || '_');
     return others.filter(
       (car) =>
         rowMentionsFamily(car.model, family) &&

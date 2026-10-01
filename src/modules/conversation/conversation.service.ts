@@ -13,6 +13,7 @@ import {
   lastSeenKey,
   tomaChecklistKey,
   cashBudgetKey,
+  rejectedCarsKey,
   previousResumenKey,
   vehicleBrandKey,
   vehicleKindKey,
@@ -26,6 +27,11 @@ import {
   isRealCustomerText,
   keepCustomerFacingMessages,
 } from './is-real-customer-text';
+import {
+  parseRejectedCars,
+  serializeRejectedCars,
+  type RejectedCars,
+} from './rejected-cars';
 import {
   InboundTextResult,
   resolveInboundText,
@@ -172,6 +178,45 @@ export class ConversationService {
     } catch (error) {
       this.logger.error(
         `No se pudo guardar tope de contado contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  async loadRejectedCars(contactId: string): Promise<RejectedCars> {
+    if (!contactId) {
+      return { ids: [], families: [] };
+    }
+
+    try {
+      return parseRejectedCars(await this.redis.get(rejectedCarsKey(contactId)));
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer rechazos contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { ids: [], families: [] };
+    }
+  }
+
+  async saveRejectedCars(
+    contactId: string,
+    rejected: RejectedCars,
+  ): Promise<void> {
+    if (!contactId) {
+      return;
+    }
+
+    try {
+      await this.redis.set(
+        rejectedCarsKey(contactId),
+        serializeRejectedCars(rejected),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar rechazos contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
     }
