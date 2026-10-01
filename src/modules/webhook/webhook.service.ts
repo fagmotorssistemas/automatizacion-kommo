@@ -11,6 +11,7 @@ import { MediaService } from '../media/media.service';
 import { InboxService } from '../inbox/inbox.service';
 import { PersistenceService } from '../persistence/persistence.service';
 import { RunLogService } from '../runs/run-log.service';
+import type { RunLogInput } from '../runs/run-log.types';
 import { VacanteService } from '../vacante/vacante.service';
 import {
   isCustomerInbound,
@@ -19,6 +20,14 @@ import {
   kommoInboundMessageSchema,
 } from './dto/kommo-inbound-message.schema';
 import { extractKommoMessageCandidate } from './kommo-webhook.parser';
+
+function webhookPayloadSnippet(body: unknown): string {
+  try {
+    return JSON.stringify(body ?? null).slice(0, 4000);
+  } catch {
+    return '';
+  }
+}
 
 export type WebhookHandleResult =
   | {
@@ -59,12 +68,25 @@ export class WebhookService {
     private readonly vacante: VacanteService,
   ) {}
 
+  private async recordWebhook(
+    body: unknown,
+    input: RunLogInput,
+  ): Promise<void> {
+    await this.runLog.record({
+      ...input,
+      detail: {
+        payload: webhookPayloadSnippet(body),
+        ...(input.detail ?? {}),
+      },
+    });
+  }
+
   async handleKommo(body: unknown): Promise<WebhookHandleResult> {
     try {
       return await this.handleKommoUnsafe(body);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         step: 'webhook',
         status: 'error',
         reason: 'excepcion',
@@ -79,7 +101,7 @@ export class WebhookService {
   ): Promise<WebhookHandleResult> {
     const candidate = extractKommoMessageCandidate(body);
     if (!candidate) {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         step: 'webhook',
         status: 'skipped',
         reason: 'not_a_message_event',
@@ -90,7 +112,7 @@ export class WebhookService {
     const parsed = kommoInboundMessageSchema.safeParse(candidate);
     if (!parsed.success) {
       this.logger.warn('Webhook Kommo con message[add] inválido');
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         step: 'webhook',
         status: 'error',
         reason: 'invalid_message',
@@ -107,7 +129,7 @@ export class WebhookService {
     };
 
     if (isExcludedLead(parsed.data.leadId)) {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'webhook',
         status: 'skipped',
@@ -119,7 +141,7 @@ export class WebhookService {
     const inbound = isCustomerInbound(parsed.data);
     const sellerNote = isSellerOutgoing(parsed.data);
     if (!inbound && !sellerNote) {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'webhook',
         status: 'skipped',
@@ -137,7 +159,7 @@ export class WebhookService {
       parsed.data.messageId,
     );
     if (claim === 'duplicate') {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'webhook',
         status: 'skipped',
@@ -146,7 +168,7 @@ export class WebhookService {
       return { accepted: false, reason: 'duplicate' };
     }
     if (claim === 'unavailable') {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'webhook',
         status: 'error',
@@ -167,7 +189,7 @@ export class WebhookService {
         attachmentType: parsed.data.attachmentType,
         messageType: parsed.data.messageType,
       });
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'vacante',
         status: vacante === 'held' ? 'error' : 'ok',
@@ -202,6 +224,7 @@ export class WebhookService {
           inbound,
           contactId,
           parsed: parsed.data,
+          body,
         });
       }
 
@@ -210,7 +233,7 @@ export class WebhookService {
     }
 
     if (!inbound) {
-      await this.runLog.record({
+      await this.recordWebhook(body, {
         ...ctx,
         step: 'webhook',
         status: 'skipped',
@@ -251,7 +274,7 @@ export class WebhookService {
       ...(assignedTo ? { assignedTo } : {}),
     });
 
-    await this.runLog.record({
+    await this.recordWebhook(body, {
       ...ctx,
       step: 'webhook',
       status: debounce === 'scheduled' ? 'ok' : 'error',
@@ -289,6 +312,7 @@ export class WebhookService {
     inbound: boolean;
     contactId: string;
     parsed: KommoInboundMessage;
+    body: unknown;
   }): Promise<WebhookHandleResult> {
     const kind = classifyMessageKind({
       attachmentType: input.parsed.attachmentType,
@@ -317,7 +341,7 @@ export class WebhookService {
     }
 
     const reason = input.inbound ? 'bot_stopped' : 'handoff_note';
-    await this.runLog.record({
+    await this.recordWebhook(input.body, {
       ...input.ctx,
       step: 'webhook',
       status: 'skipped',

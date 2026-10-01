@@ -187,6 +187,24 @@ describe('WebhookService', () => {
     });
   });
 
+  it('guarda el body del webhook recortado en el log', async () => {
+    await service.handleKommo(kommoWabaTextBody);
+    expect(runLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({
+          payload: expect.stringMatching(/message/),
+        }),
+      }),
+    );
+    const payload = runLog.record.mock.calls
+      .map(
+        (call) =>
+          (call[0] as { detail?: { payload?: string } }).detail?.payload,
+      )
+      .find((value) => typeof value === 'string');
+    expect(payload && payload.length <= 4000).toBe(true);
+  });
+
   it('Instagram no se corta aunque atiende IA? esté marcado', async () => {
     crm.inspectLead.mockResolvedValue({ stopped: true, raw: {} });
 

@@ -16,10 +16,14 @@ export function parseCtwaMatch(data: unknown): CtwaMatch {
 
   const headline = row.ad_headline;
   const capturedAt = row.captured_at;
+  const retailer = row.product_retailer_id;
+  const productRetailerId =
+    typeof retailer === 'string' && retailer.trim() ? retailer.trim() : null;
   return {
     matched: row.matched === true,
     adHeadline: typeof headline === 'string' && headline.trim() ? headline : null,
     capturedAt:
       typeof capturedAt === 'string' && capturedAt.trim() ? capturedAt : null,
+    ...(productRetailerId ? { productRetailerId } : {}),
   };
 }

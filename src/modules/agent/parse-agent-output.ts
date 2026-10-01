@@ -57,6 +57,10 @@ export type AgentTurnResult = {
   campoFiltrado?: boolean;
   /** La respuesta mencionó una placa que no coincide con la unidad de referencia. */
   placaNoCoincide?: { dijo: string; correcto: string };
+  catalogoPorPresupuesto?: boolean;
+  rechazosActivos?: string[];
+  anclaPorAnuncio?: boolean;
+  anclaPorKm?: boolean;
 };
 
 const EMPTY_META: AgentMeta = {

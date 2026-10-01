@@ -38,7 +38,7 @@ import {
 } from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
 import { PersistenceService } from '../persistence/persistence.service';
-import { InterestedCarSnapshot } from '../persistence/lead.types';
+import { InterestedCarSnapshot, type CtwaMatch } from '../persistence/lead.types';
 import { isUuid } from '../persistence/is-uuid';
 import { buildResumenInput } from '../conversation/build-resumen-input';
 import { isRealCustomerText } from '../conversation/is-real-customer-text';
@@ -328,6 +328,14 @@ import {
   userNamedModel,
 } from '../catalog/clasificar-filas';
 import {
+  askedMileageKm,
+  carsNearMileage,
+  formatAnchoredAdRevision,
+  formatFeaturedAdRevision,
+  formatMileageAnchorRevision,
+  pickFeaturedAdUnits,
+} from '../conversation/ad-anchor';
+import {
   EMPTY_REJECTED,
   carsMatchingRejectLabel,
   excludeRejected,
@@ -453,6 +461,8 @@ type BrandReview = {
     ofrecido: string;
     token: string;
   };
+  catalogoPorPresupuesto?: boolean;
+  anclaPorKm?: boolean;
 };
 
 /** "La 2018" no es un Peugeot 2008: el año dicho no es esa familia. */
@@ -618,6 +628,7 @@ export class AgentService {
   async handleTurn(input: {
     contactId: string;
     customerText: string;
+    ctwa?: CtwaMatch | null;
   }): Promise<AgentTurnResult | null> {
     if (!isRealCustomerText(input.customerText)) {
       this.stayDecisions.discard(input.contactId);
@@ -626,8 +637,10 @@ export class AgentService {
     this.stayDecisions.discard(input.contactId);
 
     const lexicon = await this.catalog.getLexicon();
-    const adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
-    const bareMoreInfo =
+    let adVehicle = facebookOpenerVehicle(input.customerText, lexicon);
+    let adUnit: StockCar | null = null;
+    let anclaPorAnuncio = false;
+    let bareMoreInfo =
       isFacebookMoreInfoOpener(input.customerText) && !adVehicle;
 
     if (!this.openai.isReady()) {
@@ -662,6 +675,16 @@ export class AgentService {
       families: [...rejected.families],
     };
     rejectedStore.enterWith(rejected);
+    const retailer = input.ctwa?.productRetailerId?.trim();
+    if (retailer) {
+      const patio = await this.fetchAvailableExcept('_');
+      adUnit = patio.find((car) => car.id === retailer) ?? null;
+      if (adUnit) {
+        adVehicle = `${adUnit.brand} ${adUnit.model}`;
+        anclaPorAnuncio = true;
+        bareMoreInfo = false;
+      }
+    }
     const previousResumen = await this.conversation.loadPreviousResumen(
       input.contactId,
     );
@@ -1230,6 +1253,23 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         stayOnShown ? null : motivo,
       );
     }
+    if (adUnit && !(revision.sendId || (revision.listedUnits?.length ?? 0))) {
+      revision = formatAnchoredAdRevision(adUnit);
+      anclaPorAnuncio = true;
+    } else if (
+      bareMoreInfo &&
+      !adUnit &&
+      !revision.text.trim() &&
+      history.length === 0
+    ) {
+      const featured = pickFeaturedAdUnits(
+        await this.carsAvailableExcept('_'),
+        3,
+      );
+      if (featured.length > 0) {
+        revision = formatFeaturedAdRevision(featured);
+      }
+    }
     if (
       !revision.text.trim() &&
       !bareMoreInfo &&
@@ -1541,7 +1581,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !asksAnyBrand(input.customerText) &&
       !resumenTopeContado(resumen) &&
       !(tipoAhoraHint && tipoAhoraHint !== 'no') &&
-      !resumenPideOtras(resumen)
+      !resumenPideOtras(resumen) &&
+      !revision.sendId &&
+      !(revision.listedUnits && revision.listedUnits.length > 0)
         ? bareMoreInfo
           ? 'NO HAY CARRO DEFINIDO: pidió información pero no dijo de qué vehículo. Solo UNA pregunta: qué carro le interesa. PROHIBIDO dirección, mapa, horario, visita, ficha, precio o fotos. PROHIBIDO inventar una unidad.'
           : 'NO HAY CARRO DEFINIDO: el cliente aún no dijo cuál quiere. Contesta TODO lo que pidió que no dependa del carro (con tus filas: ubicación, horario, toma…). Lo que depende del carro (precio, fotos, cuota) queda pendiente: dile que se lo pasas apenas diga cuál. Termina con UNA sola pregunta: qué carro le interesa. PROHIBIDO inventar una unidad, precio o ficha. PROHIBIDO cerrar con otra pregunta (visita, agendar).'
@@ -2223,6 +2265,14 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       })
         ? { respuestaIncompleta: true }
         : {}),
+      ...(revision.catalogoPorPresupuesto ? { catalogoPorPresupuesto: true } : {}),
+      ...((() => {
+        const active = currentRejected();
+        const rechazosActivos = [...active.ids, ...active.families];
+        return rechazosActivos.length ? { rechazosActivos } : {};
+      })()),
+      ...(anclaPorAnuncio ? { anclaPorAnuncio: true } : {}),
+      ...(revision.anclaPorKm ? { anclaPorKm: true } : {}),
     };
     Object.defineProperty(turn, 'rawLlm', {
       value: raw.slice(0, 4000),
@@ -2914,7 +2964,8 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       !askedDriveEarly &&
       !phrase &&
       !tresFilas &&
-      !detectYearSpan(customerText)
+      !detectYearSpan(customerText) &&
+      !askedMileageKm(customerText)
     ) {
       return empty;
     }
@@ -2940,7 +2991,8 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       !namesBrandNow &&
       !(mightNameModel(customerText) && !staysOnShown) &&
       !listedFollowUp &&
-      !detectYearSpan(customerText)
+      !detectYearSpan(customerText) &&
+      !askedMileageKm(customerText)
     ) {
       return empty;
     }
@@ -3213,7 +3265,17 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
         text: `${missAsk}${revision.text}`,
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(pick.cars) ?? kindForAsk,
+        catalogoPorPresupuesto: true,
       };
+    }
+    const mileageAsk =
+      !asked && !listedFollowUp && askedMileageKm(customerText);
+    if (mileageAsk) {
+      const patio = await this.carsAvailableExcept('_');
+      const hits = carsNearMileage(patio, mileageAsk);
+      if (hits.length === 1) {
+        return formatMileageAnchorRevision(hits[0]);
+      }
     }
     if (
       pideOtras &&

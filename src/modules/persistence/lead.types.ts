@@ -141,4 +141,5 @@ export type CtwaMatch = {
   matched: boolean;
   adHeadline: string | null;
   capturedAt: string | null;
+  productRetailerId?: string | null;
 };

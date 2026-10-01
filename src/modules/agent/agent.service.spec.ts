@@ -202,6 +202,165 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
   });
 
+  it('59820719 ancla el Explorer del product_retailer_id', async () => {
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: '479b66bd',
+        brand: 'ford',
+        model: 'explorer xlt',
+        year: 2018,
+        price: 24990,
+        typeBody: 'jeep',
+        color: 'blanco',
+        mileage: 62000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente pide información del anuncio.',
+          'Pide otras: no',
+          'Falta vehículo: sí',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos disponible el Ford Explorer XLT 2018 blanco.',
+        meta: { vehiculo: { inventory_id: '479b66bd' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59820719',
+      customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
+      ctwa: {
+        matched: true,
+        adHeadline: null,
+        capturedAt: null,
+        productRetailerId: '479b66bd',
+      },
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/479b66bd|explorer/i);
+    expect(system).not.toMatch(
+      /Termina con UNA sola pregunta: qué carro le interesa/,
+    );
+    expect(result?.anclaPorAnuncio).toBe(true);
+    expect(result?.reply.mensaje).toMatch(/explorer/i);
+  });
+
+  it('anuncio genérico sin unidad muestra 3 tipos con precio', async () => {
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'explorer-1',
+        brand: 'ford',
+        model: 'explorer xlt',
+        year: 2018,
+        price: 24990,
+        typeBody: 'jeep',
+      },
+      {
+        id: 'golf',
+        brand: 'volkswagen',
+        model: 'golf',
+        year: 2005,
+        price: 9800,
+        typeBody: 'sedan',
+      },
+      {
+        id: 'qq3',
+        brand: 'chery',
+        model: 'qq3',
+        year: 2012,
+        price: 5800,
+        typeBody: 'hatchback',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente pide más información del anuncio.',
+          'Pide otras: no',
+          'Falta vehículo: sí',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos Explorer $24990, Golf $9800 y QQ3 $5800. ¿Maneja un presupuesto o un tipo?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'ad-gen',
+      customerText: 'Hola. ¿Puedo obtener más información sobre esto?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/ANUNCIO GENÉRICO/);
+    expect(system).toMatch(/presupuesto o tipo/i);
+    expect(system).not.toMatch(/Solo UNA pregunta: qué carro le interesa/);
+    expect(result?.reply.mensaje).not.toMatch(/^¿Qué carro le interesa\?$/);
+  });
+
+  it('59821727 ancla el BYD Yuan por 25000km', async () => {
+    catalog.listAvailableExcept.mockResolvedValue([
+      {
+        id: 'yuan-1',
+        brand: 'byd',
+        model: 'yuan plus',
+        year: 2024,
+        price: 21990,
+        typeBody: 'jeep',
+        mileage: 25199,
+      },
+      {
+        id: 'golf',
+        brand: 'volkswagen',
+        model: 'golf',
+        year: 2005,
+        price: 9800,
+        typeBody: 'sedan',
+        mileage: 140000,
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente busca el auto de 25000 km.',
+          'Pide otras: no',
+          'Falta vehículo: no',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'Tenemos el BYD Yuan Plus con 25199 km.',
+        meta: { vehiculo: { inventory_id: 'yuan-1' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59821727',
+      customerText: 'el auto que tiene 25000km',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/yuan/i);
+    expect(system).toMatch(/25199/);
+    expect(result?.anclaPorKm).toBe(true);
+  });
+
   it('clic de Facebook con sí pegado sigue preguntando cuál', async () => {
     responderFaltaCarro('¿Qué carro le interesa?');
     const result = await service.handleTurn({
@@ -299,6 +458,7 @@ describe('AgentService', () => {
     );
     expect(result?.reply.mensaje).toMatch(/5,?800/);
     expect(result?.reply.mensaje).toMatch(/9,?800/);
+    expect(result?.catalogoPorPresupuesto).toBe(true);
   });
 
   it('06:17 de cuáles dispone resume el patio por tipo, sin pregunta seca de modelo', async () => {
