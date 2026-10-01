@@ -1,6 +1,5 @@
 import { modelFamily, StockCar, unitCaja, unitDoors, unitDrive } from './clasificar-filas';
 import { hasLoadedMileage } from './mileage';
-import { sanitizePlateShort } from './plate-short';
 
 export const COMPLIANCE_SYSTEM_PROMPT = `Eres el revisor de inventario de una concesionaria. Decides qué vehículos CUMPLEN el pedido del cliente.
 
@@ -13,7 +12,6 @@ REGLAS:
 - Si fichas_tecnicas trae seguro=true, ese dato es un hecho de la ficha técnica de ese modelo y año. Si confirma el pedido, cumple. No lo trates como duda.
 - Si seguro=false o el dato es "no consta", y la ficha del patio tampoco lo trae, no cumple. No pongas en duda a los que sí tienen ficha confirmada.
 - El chasis es solo para distinguir la unidad. No lo repitas en la respuesta.
-- plate_short solo si el cliente preguntó por la placa. No inventes ni completes la placa larga.
 - Devuelve JSON válido y nada más:
 {"cumplen":["id"],"parecidos":["id"],"no_cumplen":["id"]}
 - cumplen: solo los que sí cumplen. Si ninguno cumple, va vacío.
@@ -52,7 +50,6 @@ export function carsForReview(cars: StockCar[]): Record<string, unknown>[] {
     add('transmision', unitCaja(car));
     add('combustible', car.fuelType);
     add('traccion', unitDrive(car));
-    add('plate_short', sanitizePlateShort(car.plateShort));
     add('chasis', car.vin);
     return row;
   });

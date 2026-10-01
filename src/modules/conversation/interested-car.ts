@@ -55,7 +55,7 @@ import {
 } from '../intelligence/parse-resumen';
 import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
-import { sanitizePlateShort } from '../catalog/plate-short';
+import { etiquetaPlacaFicha } from '../catalog/placa-provincia';
 import { hasLoadedPrice } from './strip-unsolicited-price';
 
 export type ShownCarContext = {
@@ -745,7 +745,6 @@ export function formatInterestedCar(
     const tipoLine = tipo
       ? `\nTipo de este carro: ${tipo}.`
       : '';
-    const plate = sanitizePlateShort(car.plateShort);
     const caja = unitCaja(car);
     const puertas = unitDoors(car);
     const traccion = unitDrive(car);
@@ -757,7 +756,7 @@ export function formatInterestedCar(
       `caja=${caja ?? 'sin dato'}`,
       puertas != null ? `puertas=${puertas}` : '',
       `tracción=${traccion ?? 'sin dato'}`,
-      plate ? `plate_short=${plate}` : '',
+      etiquetaPlacaFicha(car.plateShort),
     ]
       .filter(Boolean)
       .join('\n');
@@ -765,7 +764,7 @@ export function formatInterestedCar(
 ${car.brand} ${car.model}${year}${shown}
 inventory_id=${car.inventoryId}${interno}${tipoLine}
 ${facts}
-PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km, caja, tracción). Tono de asesor que retoma el hilo: claro, cercano, vendedor. PROHIBIDO “tenemos disponible”, “estimado”, abrir como si fuera el primer contacto. PROHIBIDO responder solo con km y mecánico. PROHIBIDO precio salvo que el resumen lo pida. Placa solo si preguntó o la ficha trae plate_short.`;
+PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km, caja, tracción). Tono de asesor que retoma el hilo: claro, cercano, vendedor. PROHIBIDO “tenemos disponible”, “estimado”, abrir como si fuera el primer contacto. PROHIBIDO responder solo con km y mecánico. PROHIBIDO precio salvo que el resumen lo pida. Si preguntan placa o provincia, escribe exactamente {{placa}}.`;
   }
   if (options?.slimAfterFicha) {
     const after = options?.afterFicha;
@@ -778,6 +777,7 @@ PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km
     const priceNote = hasLoadedPrice(car.price)
       ? ''
       : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
+    const placaLine = `\n${etiquetaPlacaFicha(car.plateShort)}`;
     const close = options?.creditFollowUp
       ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
       : after === 'location'
@@ -793,14 +793,13 @@ PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km
       : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';
     return `VEHÍCULO DE INTERÉS (la ficha YA se presentó en el hilo)
 ${car.brand} ${car.model}${year}${shown}
-inventory_id=${car.inventoryId}${interno}${km}${priceNote}
+inventory_id=${car.inventoryId}${interno}${km}${priceNote}${placaLine}
 ${close}`;
   }
   const tipo = kindFromTypeBody(car.typeBody);
   const tipoLine = tipo
     ? `\nTipo de este carro: ${tipo}. Sigue con este tipo salvo que nombre un modelo de otro tipo.`
     : '';
-  const plate = sanitizePlateShort(car.plateShort);
   const caja = unitCaja(car);
   const puertas = unitDoors(car);
   const traccion = unitDrive(car);
@@ -816,7 +815,7 @@ ${close}`;
     `caja=${caja ?? 'sin dato'}`,
     puertas != null ? `puertas=${puertas}` : '',
     `tracción=${traccion ?? 'sin dato'}`,
-    plate ? `plate_short=${plate}` : '',
+    etiquetaPlacaFicha(car.plateShort),
   ]
     .filter(Boolean)
     .join('\n');
@@ -825,7 +824,7 @@ ${close}`;
     : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
   const factsLine = facts
     ? `\n${facts}
-Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es sin dato, no la menciones). 4p/5p = puertas, no transmisión. 4x2/4x4 = tracción, no transmisión. Placa: solo plate_short (nunca inventes una placa; el km no es placa).`
+Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es sin dato, no la menciones). 4p/5p = puertas, no transmisión. 4x2/4x4 = tracción, no transmisión. Si preguntan placa o provincia, escribe exactamente {{placa}} (nunca inventes letras ni números; el km no es placa).`
     : '';
   return `VEHÍCULO DE INTERÉS (interested_cars, el último que pidió)
 ${car.brand} ${car.model}${year}${shown}

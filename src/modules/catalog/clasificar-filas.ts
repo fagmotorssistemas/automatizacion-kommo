@@ -4,7 +4,7 @@ import {
   type VehicleKind,
 } from '../conversation/vehicle-kind';
 import { hasLoadedMileage } from './mileage';
-import { sanitizePlateShort } from './plate-short';
+import { etiquetaPlacaFicha } from './placa-provincia';
 
 export type FilaClase = 'tres_filas' | 'posible' | 'no' | 'no_consta';
 
@@ -427,7 +427,7 @@ export function unitDrive(car: UnitFactSource): string | null {
 }
 
 export const UNIT_FIELD_LEGEND =
-  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). cabina=cs/cd si el modelo lo trae (si es sin dato, no la inventes). tm=manual, ta/cvt=automática. plate_short="La placa es P8".';
+  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). cabina=cs/cd si el modelo lo trae (si es sin dato, no la inventes). tm=manual, ta/cvt=automática. placa={{placa}} (matrícula: provincia de la primera matrícula). Si preguntan placa o provincia, escribe exactamente {{placa}}. Nunca letras ni números de placa.';
 
 function etiqueta(car: StockCar, includePrice = false): string {
   const price =
@@ -444,7 +444,6 @@ export function describeUnit(car: StockCar, includePrice = false): string {
   const puertas = unitDoors(car);
   const traccion = unitDrive(car);
   const cabina = unitCab(car);
-  const plate = sanitizePlateShort(car.plateShort);
   const km = hasLoadedMileage(car.mileage)
     ? `km=${Math.round(car.mileage as number)}`
     : 'km=sin dato (aún no cargado. NO digas 0 km)';
@@ -462,9 +461,7 @@ export function describeUnit(car: StockCar, includePrice = false): string {
       : includePrice
         ? 'precio=aún no cargado (PROHIBIDO inventar un $)'
         : '',
-    plate
-      ? `plate_short=${plate}`
-      : 'sin plate_short (PROHIBIDO inventar placa; el km NO es placa)',
+    etiquetaPlacaFicha(car.plateShort),
     `inventory_id=${car.id}`,
   ].filter(Boolean);
   return `${UNIT_FIELD_LEGEND}\n${fields.join(' | ')}`;
