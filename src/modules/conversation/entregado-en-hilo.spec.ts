@@ -86,6 +86,19 @@ describe('entregadoEnHilo', () => {
     expect(pedido).toContain('$22900');
     expect(formatEntregadoForPedido(entregadoEnHilo([]))).toBeNull();
   });
+
+  it('marca pedidoFotosAvaluo solo si el último mensaje del bot pidió fotos o traer el carro', () => {
+    const asked = entregadoEnHilo([
+      bot(
+        'Con los datos de su Jetour X70 2022 avanzamos al avalúo. ¿Podría traerlo o enviarnos fotos?',
+      ),
+    ]);
+    expect(asked.pedidoFotosAvaluo).toBe(true);
+    expect(
+      entregadoEnHilo([bot('El Hyundai Creta 2022 tiene un precio de $22990.')])
+        .pedidoFotosAvaluo,
+    ).toBeUndefined();
+  });
 });
 
 describe('buildResumenInput con lo entregado', () => {

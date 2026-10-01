@@ -4,6 +4,15 @@ import {
   isDriveFamily,
 } from './vehicle-brand';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
+import {
+  resumenAsksForCredit,
+  resumenAsksForListedPrice,
+  resumenAsksForLocation,
+  resumenEsToma,
+  resumenPideFicha,
+  resumenPideHorario,
+  resumenQuiereComprar,
+} from '../intelligence/parse-resumen';
 
 export const TOMA_SLOTS = [
   'marca',
@@ -458,4 +467,37 @@ CHECKLIST TOMA (${cars.length} carro${cars.length > 1 ? 's' : ''} que nos VENDE;
 ${lines.join('\n')}
 ${next}
 Si ofrece traer el carro, reconócelo. PROHIBIDO repetir marca+color+año+km en cada turno.`;
+}
+
+export const TOMA_AVALUO_CORTO =
+  'Si más adelante quiere el avalúo de su carro, puede traerlo o enviar fotos.';
+
+export function turnoPideOtraCosaQueToma(resumen: string): boolean {
+  return (
+    resumenAsksForListedPrice(resumen) ||
+    resumenPideFicha(resumen) ||
+    resumenPideHorario(resumen) ||
+    resumenAsksForLocation(resumen) ||
+    resumenAsksForCredit(resumen) ||
+    Boolean(resumenQuiereComprar(resumen))
+  );
+}
+
+/** Inyecta el checklist de toma solo si este turno habla del suyo y no pide otra cosa. */
+export function tomaPedidoDelTurno(input: {
+  checklist: TomaChecklist | null;
+  hablaDeSuCarro: boolean;
+  resumen: string;
+  pedidoFotosAvaluo?: boolean;
+}): string {
+  if (!input.hablaDeSuCarro && !resumenEsToma(input.resumen)) {
+    return '';
+  }
+  if (input.pedidoFotosAvaluo) {
+    return '';
+  }
+  if (turnoPideOtraCosaQueToma(input.resumen)) {
+    return TOMA_AVALUO_CORTO;
+  }
+  return formatTomaPedido(input.checklist);
 }

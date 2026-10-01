@@ -14,6 +14,7 @@ export type EntregadoEnHilo = {
   precio: number | null;
   horario: boolean;
   preguntaAplica: boolean;
+  pedidoFotosAvaluo?: boolean;
 };
 
 function botMessages(history: HiloMessage[] | undefined): string[] {
@@ -31,6 +32,15 @@ function saysAddress(text: string): boolean {
   return hasDealershipAddress(text) || text.includes(MAP_URL);
 }
 
+function saysFotosAvaluo(text: string): boolean {
+  return (
+    /aval[uú]o/i.test(text) &&
+    /\b(?:fotos?|traer(?:lo|los|el|la)?|mand(?:e|ar|en)?\s+fotos|envi(?:e|ar|en)?\s+fotos)\b/i.test(
+      text,
+    )
+  );
+}
+
 function saysSchedule(text: string): boolean {
   return /\b0?8[:h]30\b/.test(text) && /\b18[:h]00\b/.test(text);
 }
@@ -44,7 +54,9 @@ export function entregadoEnHilo(
   options?: { unitPrice?: number | null },
 ): EntregadoEnHilo {
   const bot = botMessages(history);
+  const lastBot = bot.at(-1) ?? '';
   const unitPrice = options?.unitPrice ?? null;
+  const pedidoFotosAvaluo = saysFotosAvaluo(lastBot);
   return {
     direccion: bot.some(saysAddress),
     precio:
@@ -55,6 +67,7 @@ export function entregadoEnHilo(
         : null,
     horario: bot.some(saysSchedule),
     preguntaAplica: bot.some(replyAsksIfApplies),
+    ...(pedidoFotosAvaluo ? { pedidoFotosAvaluo: true } : {}),
   };
 }
 
@@ -73,6 +86,9 @@ export function formatEntregadoForResumen(
   }
   if (entregado.preguntaAplica) {
     lines.push('- La pregunta de si ayudamos a ver si aplica al crédito');
+  }
+  if (entregado.pedidoFotosAvaluo) {
+    lines.push('- El pedido de fotos o de traer el carro para el avalúo');
   }
   return lines.length ? lines.join('\n') : null;
 }

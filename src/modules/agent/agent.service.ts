@@ -384,7 +384,7 @@ import {
 } from './su-carro';
 import {
   applyInboundTomaPhotos,
-  formatTomaPedido,
+  tomaPedidoDelTurno,
   mergeTomaChecklist,
   parseTomaChecklistFromResumen,
 } from '../conversation/toma-checklist';
@@ -1559,7 +1559,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             faltaCarroHint,
             cashDeliveryHint,
             precioHint,
-            selling ? formatTomaPedido(tomaChecklist) : '',
+            tomaPedidoDelTurno({
+              checklist: tomaChecklist,
+              hablaDeSuCarro: Boolean(selling || esToma),
+              resumen,
+              pedidoFotosAvaluo: entregado.pedidoFotosAvaluo === true,
+            }),
           ]
         : [
             saludoHint,
@@ -1600,7 +1605,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
               ? PRECIO_NO_HORARIO
               : '',
             formatVisitHourHint(input.customerText),
-            selling ? formatTomaPedido(tomaChecklist) : '',
+            tomaPedidoDelTurno({
+              checklist: tomaChecklist,
+              hablaDeSuCarro: Boolean(selling || esToma),
+              resumen,
+              pedidoFotosAvaluo: entregado.pedidoFotosAvaluo === true,
+            }),
             spaceAsk ? formatLargePassengerPedido(spaceText) : '',
             creditoHint,
             colorHint,

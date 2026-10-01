@@ -7,6 +7,8 @@ import {
   missingTomaSlots,
   parseHaveFacts,
   parseTomaChecklistFromResumen,
+  tomaPedidoDelTurno,
+  TOMA_AVALUO_CORTO,
 } from './toma-checklist';
 
 describe('toma-checklist', () => {
@@ -228,5 +230,32 @@ Toma pendiente: no
     expect(conFotos).toMatch(/fotos YA recibidas/);
     expect(conFotos).toMatch(/PROHIBIDO pedir más fotos/);
     expect(conFotos).not.toMatch(/mandar fotos/);
+  });
+
+  it('no inyecta el avalúo si el turno pide precio o ya se pidieron fotos', () => {
+    const checklist = {
+      have: { marca: 'Jetour', modelo: 'X70', anio: '2022' },
+      pending: ['fotos' as const],
+    };
+    const resumenPrecio = [
+      'Pide precio: sí',
+      'Quiere comprar: Hyundai Creta 2022',
+      'Toma: sí',
+    ].join('\n');
+    expect(
+      tomaPedidoDelTurno({
+        checklist,
+        hablaDeSuCarro: true,
+        resumen: resumenPrecio,
+      }),
+    ).toBe(TOMA_AVALUO_CORTO);
+    expect(
+      tomaPedidoDelTurno({
+        checklist,
+        hablaDeSuCarro: true,
+        resumen: 'Toma: sí\nPide precio: no',
+        pedidoFotosAvaluo: true,
+      }),
+    ).toBe('');
   });
 });
