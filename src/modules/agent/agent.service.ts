@@ -161,6 +161,13 @@ import {
 import { stripInventedHoliday } from '../conversation/strip-invented-holiday';
 import { resumenBrandFitsShown, textoQueNombra } from '../conversation/named-this-turn';
 import {
+  banderasCompraQueSonDeToma,
+  detectPedidoPatio,
+  mismoVehiculoPorTokens,
+  otroVehiculoEfectivo,
+  textoPedidoPatio,
+} from '../conversation/compra-vs-toma';
+import {
   buildTurnPlan,
   turnPlanLog,
   type LegacyPath,
@@ -199,6 +206,8 @@ import {
   resumenFaltaVehiculo,
   vehicleQueSigue,
   resumenOtroVehiculo,
+  resumenQuiereComprar,
+  resumenSuCarro,
   resumenPideHorario,
   resumenStaysOnShownUnit,
   resumenAsientos,
@@ -632,7 +641,24 @@ export class AgentService {
       input.customerText,
       lastAssistantForFlags,
     );
-    const nombra = textoQueNombra(resumen, input.customerText, lexicon);
+    const textosBotEarly = history
+      .filter((item) => item.role === 'assistant')
+      .map((item) => item.content);
+    const ultimosBotEarly = textosBotEarly.slice(-3);
+    const patioAsk = detectPedidoPatio({
+      resumen,
+      customerText: input.customerText,
+      lastAssistantText: ultimosBotEarly,
+      lexicon,
+    });
+    const banderasToma = banderasCompraQueSonDeToma({
+      resumen,
+      customerText: input.customerText,
+      lastAssistantText: ultimosBotEarly,
+    });
+    const nombra =
+      textoPedidoPatio(patioAsk) ||
+      textoQueNombra(resumen, input.customerText, lexicon);
     const brandSaidNow = detectBrand(nombra, lexicon);
     let pedido = detectNamedModelAsk(nombra, lexicon)
       ? null
@@ -647,7 +673,9 @@ export class AgentService {
     if (nextResumen) {
       await this.conversation.savePreviousResumen(input.contactId, nextResumen);
     }
-    const cajaCompra = resumenCajaCompra(resumen);
+    const cajaCompra = banderasToma.includes('caja')
+      ? 'no'
+      : resumenCajaCompra(resumen);
     // Ya no hay salida rápida de «¿qué carro?»: siempre responde el agente, que
     // contesta todo lo pedido y cierra preguntando el carro (faltaCarroHint).
     await this.conversation.appendMessage(input.contactId, {
@@ -659,7 +687,7 @@ export class AgentService {
       history,
       input.customerText,
       kindFromTypeBody(interested?.typeBody),
-      resumenTipoPatio(resumen),
+      banderasToma.includes('tipo') ? null : resumenTipoPatio(resumen),
       resumenPideOtras(resumen),
     );
     const topeNow = resumenTopeContado(resumen);
@@ -669,6 +697,8 @@ export class AgentService {
       await this.conversation.saveCashBudget(input.contactId, topeNow);
     }
     const esToma = resumenEsToma(resumen);
+    const tomaFicha =
+      resumenTomaFicha(resumen) ?? resumenSuCarro(resumen);
     const tomaChecklist = applyInboundTomaPhotos(
       mergeTomaChecklist(
         rememberedToma,
@@ -683,12 +713,12 @@ export class AgentService {
       );
     }
     const purchaseText = esToma
-      ? stripTomaFacts(input.customerText, resumenTomaFicha(resumen))
+      ? stripTomaFacts(input.customerText, tomaFicha)
       : input.customerText;
     const brand = await this.rememberBrand(
       input.contactId,
       history,
-      esToma ? purchaseText : nombra,
+      patioAsk ? nombra : esToma ? purchaseText : nombra,
       lexicon,
     );
     let concreteAsk = await this.rememberConcreteAsk(
@@ -836,7 +866,7 @@ export class AgentService {
       lastListed: lastAssistantListed,
       lastOfferText,
     };
-    let otro = resumenOtroVehiculo(resumen);
+    let otro = otroVehiculoEfectivo(resumen);
     let otroOverride: string | null = null;
     let sospecha: string | null = null;
     let verificado: string | null = null;
@@ -855,6 +885,14 @@ export class AgentService {
           lexicon,
           pedido,
         );
+        const suyo = resumenSuCarro(resumen) ?? resumenTomaFicha(resumen);
+        if (
+          sospecha &&
+          suyo &&
+          mismoVehiculoPorTokens(sospecha, suyo)
+        ) {
+          sospecha = null;
+        }
         if (sospecha) {
           try {
             const raw = await withTimeout(
@@ -873,10 +911,18 @@ export class AgentService {
             if (!parsed.ok) {
               verificado = 'error';
             } else if (parsed.otro) {
-              otro = parsed.otro;
-              otroOverride = parsed.otro;
-              verificado = parsed.otro;
-            }
+              const suyoAhora =
+                resumenSuCarro(resumen) ?? resumenTomaFicha(resumen);
+              if (
+                suyoAhora &&
+                mismoVehiculoPorTokens(parsed.otro, suyoAhora)
+              ) {
+                verificado = null;
+              } else {
+                otro = parsed.otro;
+                otroOverride = parsed.otro;
+                verificado = parsed.otro;
+              }
           } catch (error) {
             const msg = error instanceof Error ? error.message : '';
             verificado = /tardó más de/.test(msg) ? 'timeout' : 'error';
@@ -942,6 +988,7 @@ export class AgentService {
       verificado,
       stayBandera: stayBandera === 'n/a' ? null : stayBandera,
       banderaSinEvidencia,
+      banderaDeToma: banderasToma.length ? banderasToma : null,
     });
     this.logger.log(
       formatStayLog({
@@ -2545,16 +2592,33 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const lastAsst = lastOfferAssistantText(history);
+    const lastBots = history
+      .filter((item) => item.role === 'assistant')
+      .map((item) => item.content)
+      .slice(-3);
+    const patioAsk = detectPedidoPatio({
+      resumen,
+      customerText,
+      lastAssistantText: lastBots,
+      lexicon,
+    });
+    const ignoradasToma = banderasCompraQueSonDeToma({
+      resumen,
+      customerText,
+      lastAssistantText: lastBots,
+    });
     const listedFollowUp = lastOfferIsUnitList(lastAsst);
     const staysOnShown = resumenStaysOnShownUnit(resumen);
-    const nombraAhora =
-      stayMotivo && reference?.inventoryId
+    const nombraAhora = patioAsk
+      ? textoPedidoPatio(patioAsk)
+      : stayMotivo && reference?.inventoryId
         ? customerText
         : textoQueNombra(resumen, customerText, lexicon);
     const brandSaidInTurn = detectBrand(nombraAhora, lexicon);
     const namesBrandNow = Boolean(brandSaidInTurn);
     const detectedAsk = detectNamedModelAsk(nombraAhora, lexicon);
     const stillOnShownAsk =
+      !patioAsk &&
       !stayMotivo &&
       staysOnShown &&
       Boolean(reference?.inventoryId || reference?.family) &&
@@ -2569,19 +2633,21 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       lexicon,
     );
     const fromSolicitud =
+      patioAsk ||
       (namesBrandNow && !fromText) ||
       (cajaCompra === 'no' && solicitudAsk?.year == null)
         ? null
         : solicitudAsk;
     const named =
-      (fromText &&
+      patioAsk ??
+      ((fromText &&
       !isDriveFamily(fromText.family) &&
       !familyIsOtherYear(customerText, fromText.family)
         ? fromText
         : null) ??
       (fromSolicitud && !isDriveFamily(fromSolicitud.family)
         ? fromSolicitud
-        : null);
+        : null));
     const yearSaidNow =
       cajaCompra === 'no' && !named
         ? null
@@ -2600,7 +2666,9 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
         : cashBudget;
     const wantsListedPrices = includePrice && listedFollowUp;
     const yearPick = yearSaidNow;
-    const colorPick = detectColorInText(customerText);
+    const colorPick = ignoradasToma.includes('color')
+      ? null
+      : detectColorInText(customerText);
     const targetBrand = asked?.brand || brandSaidInTurn || brand;
     const cabDriveText = `${solicitudSinBanderas(resumen)}\n${concreteAsk ?? ''}\n${customerText}`;
     const askedCab = resumenCabina(resumen) ?? detectAskedCab(cabDriveText);
@@ -3096,7 +3164,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       };
     }
     const yearAsk = yearSaidNow;
-    const colorAsk = detectColorInText(customerText);
+    const colorAsk = ignoradasToma.includes('color')
+      ? null
+      : detectColorInText(customerText);
     const askedFacts: AskedFacts = {
       gearbox:
         cajaCompra === 'manual' || cajaCompra === 'automatica'

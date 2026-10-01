@@ -27,6 +27,8 @@ import {
   resumenTraccionPedida,
   resumenColorPedido,
   resumenOtroVehiculo,
+  resumenQuiereComprar,
+  resumenSuCarro,
   resumenPideOtroColor,
   previousResumenForLlm,
   vehicleQueSigue,
@@ -444,6 +446,14 @@ describe('resumenTraccionPedida y Color pedido', () => {
     ).toBe('jet tur');
     expect(resumenOtroVehiculo('Otro vehículo: no | no')).toBeNull();
     expect(
+      resumenQuiereComprar('Quiere comprar: Hyundai Creta 2022 | no'),
+    ).toBe('Hyundai Creta 2022');
+    expect(resumenQuiereComprar('Quiere comprar: no | no')).toBeNull();
+    expect(
+      resumenSuCarro('Su carro: jeptour x70 2022 | no'),
+    ).toBe('jeptour x70 2022');
+    expect(resumenSuCarro('Su carro: no')).toBeNull();
+    expect(
       resumenTomaFicha(
         'Toma: sí\nToma ficha: Kia Niro 2019 | no',
       ),
@@ -636,6 +646,11 @@ describe('resumenEsToma', () => {
     expect(resumenTomaFicha(
       'SOLICITUD ACTUAL:\nCliente quiere ver camioneta y vendernos su Nativa 2011 automática.\nToma: sí',
     )).toBe('Nativa 2011 automática');
+    expect(
+      resumenEsToma(
+        'Toma: no\nSu carro: jeptour x70 2022\nToma ficha: no',
+      ),
+    ).toBe(true);
     expect(
       stripTomaFacts(
         'Quiero una camioneta usada y vendo un nativa año 2011 automático',

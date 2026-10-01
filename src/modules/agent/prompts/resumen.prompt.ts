@@ -77,7 +77,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, pide las letras, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no. Pide crédito: sí. SOLICITUD: quiere la cuota. Aunque el bot haya preguntado si aplica demasiado pronto, si AHORA da plazo o pide las letras no es “acepta ver si aplica”: primero la letra.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tracción pedida: 4x2|4x4|no   y   Color pedido: [color o no]   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Otro vehículo: [literal o no]   y   Quiere comprar: [marca modelo año o no]   y   Su carro: [marca modelo año del suyo o no]   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tracción pedida: 4x2|4x4|no   y   Color pedido: [color o no]   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
 
 REGLA DE PIDE OTRAS (OBLIGATORIA):
 Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el pedido concreto (precio, ficha, ubicación, horario, la unidad que nombró).
@@ -140,6 +140,8 @@ Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
 Otro vehículo: [marca/modelo/año/versión copiado LITERAL] | no
+Quiere comprar: [marca modelo año, como lo escribió el cliente] | no
+Su carro: [marca modelo año del carro que ES DEL CLIENTE] | no
 Pide ficha: sí|no
 Caja de compra: automática|manual|no
 Cabina: simple|doble|no
@@ -287,6 +289,12 @@ Lee el sentido, no una frase fija. ¿Pidió un color concreto para el carro que 
 - Color pedido: no si el color es del carro SUYO (toma).
 - Si pide otro color sin nombrar cuál: Pide otro color: sí. Color pedido: no.
 - Color pedido: no si no pidió color en ESTE mensaje. No copies el del turno anterior.
+
+REGLA QUIERE COMPRAR / SU CARRO (OBLIGATORIA):
+Quiere comprar: el carro de PATIO que pide ver, cotizar o comprar. Como lo escribió el cliente (marca modelo año). "no" si en ESTE turno no pide uno de patio.
+Su carro: el que el cliente TIENE, vende o da en parte de pago ("tengo un", "mi carro", "el mío", "para cambiar con el suyo"). "no" si no habla del suyo.
+NUNCA el mismo carro en los dos. Si Su carro no es no, Toma debe ser sí.
+El de Su carro no va en Otro vehículo ni en Color pedido / Caja de compra / Tipo de patio.
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.

@@ -1,3 +1,5 @@
+import { resumenQuiereComprar } from '../intelligence/parse-resumen';
+
 const SELLING_INTENTS = new Set(['venta', 'tomavehicular', 'intercambio']);
 const BUYING_INTENTS = new Set([
   'compra',
@@ -56,16 +58,23 @@ export function turnAlsoWantsToBuy(
 ): boolean {
   if (isPropertyNotVehicleSale(`${resumen}\n${customerText}`)) {
     return (
+      Boolean(resumenQuiereComprar(resumen)) ||
       RESUMEN_COMPRA_OTRO.test(resumen) ||
       promptNames.some((name) => BUYING_INTENTS.has(name))
     );
   }
   const resumenBuys = RESUMEN_COMPRA_OTRO.test(resumen);
-  if (RESUMEN_VENDE.test(resumen) && !resumenBuys) {
+  if (
+    RESUMEN_VENDE.test(resumen) &&
+    !resumenBuys &&
+    !resumenQuiereComprar(resumen)
+  ) {
     return false;
   }
   return (
-    resumenBuys || promptNames.some((name) => BUYING_INTENTS.has(name))
+    Boolean(resumenQuiereComprar(resumen)) ||
+    resumenBuys ||
+    promptNames.some((name) => BUYING_INTENTS.has(name))
   );
 }
 

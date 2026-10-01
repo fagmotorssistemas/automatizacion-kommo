@@ -93,7 +93,7 @@ export function previousResumenForLlm(
   let solicitud = solicitudSinBanderas(text);
   if (!solicitud) {
     const match = text.match(
-      /(?:^|\n)\s*SOLICITUD(?:\s+ACTUAL)?:\s*(.+?)(?=\n(?:Pide |Objeci|Acepta |Rechaza |Prefiere |Otro veh[ií]culo:|Caja de |Cabina:|Tracci|Color pedido:|Tope |Falta |Tipo de |Asientos:|Tres filas:|Toma |Tiene duda:|Es )|$)/is,
+      /(?:^|\n)\s*SOLICITUD(?:\s+ACTUAL)?:\s*(.+?)(?=\n(?:Pide |Objeci|Acepta |Rechaza |Prefiere |Otro veh[ií]culo:|Quiere comprar:|Su carro:|Caja de |Cabina:|Tracci|Color pedido:|Tope |Falta |Tipo de |Asientos:|Tres filas:|Toma |Tiene duda:|Es )|$)/is,
     );
     solicitud = stripResumenFlags(match?.[1] ?? '').trim();
   }
@@ -129,9 +129,10 @@ export function cutFlagValue(raw: string): string {
   return (parts[0] ?? '').trim();
 }
 
-/** Lee "Otro vehículo: X" del resumen crudo. null si falta, está vacío o es "no". */
-export function resumenOtroVehiculo(resumen: string): string | null {
-  const match = resumen.match(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*(.+?)(?:\n|$)/i);
+function resumenLineaVehiculo(resumen: string, name: string): string | null {
+  const match = resumen.match(
+    new RegExp(`(?:^|\\n)\\s*${name}:\\s*(.+?)(?:\\n|$)`, 'i'),
+  );
   if (!match) {
     return null;
   }
@@ -142,9 +143,26 @@ export function resumenOtroVehiculo(resumen: string): string | null {
   return raw;
 }
 
+/** Lee "Otro vehículo: X" del resumen crudo. null si falta, está vacío o es "no". */
+export function resumenOtroVehiculo(resumen: string): string | null {
+  return resumenLineaVehiculo(resumen, 'otro\\s+veh[ií]culo');
+}
+
+/** Patio que pide ver/cotizar/comprar. Corta en el primer "|". */
+export function resumenQuiereComprar(resumen: string): string | null {
+  return resumenLineaVehiculo(resumen, 'quiere\\s+comprar');
+}
+
+/** Carro que ES DEL CLIENTE (toma / parte de pago). Corta en el primer "|". */
+export function resumenSuCarro(resumen: string): string | null {
+  return resumenLineaVehiculo(resumen, 'su\\s+carro');
+}
+
 function stripIsolatedResumenLines(text: string): string {
   return text
     .replace(/(?:^|\n)\s*otro\s+veh[ií]culo:\s*.*/gi, '')
+    .replace(/(?:^|\n)\s*quiere\s+comprar:\s*.*/gi, '')
+    .replace(/(?:^|\n)\s*su\s+carro:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*tracci[oó]n\s+pedida:\s*.*/gi, '')
     .replace(/(?:^|\n)\s*color\s+pedido:\s*.*/gi, '')
     .trim();
@@ -217,6 +235,8 @@ function stripResumenFlags(text: string): string {
     .replace(/pide\s+negociar:\s*(s[ií]|no)/gi, '')
     .replace(/pide\s+otras:\s*(s[ií]|no)/gi, '')
     .replace(/otro\s+veh[ií]culo:\s*[^\n]*/gi, '')
+    .replace(/quiere\s+comprar:\s*[^\n]*/gi, '')
+    .replace(/su\s+carro:\s*[^\n]*/gi, '')
     .replace(/pide\s+ficha:\s*(s[ií]|no)/gi, '')
     .replace(/caja\s+de\s+compra:\s*(autom[aá]tica|manual|no)/gi, '')
     .replace(/cabina:\s*(simple|doble|no)/gi, '')
@@ -728,6 +748,9 @@ function tomaFichaLine(resumen: string): string | null {
 
 /** El analizador leyó que habla del carro SUYO (toma), no de uno de patio. */
 export function resumenEsToma(resumen: string): boolean {
+  if (resumenSuCarro(resumen)) {
+    return true;
+  }
   const flag = flagSiNo(resumen, 'toma');
   if (flag === true) {
     return true;

@@ -3,6 +3,7 @@ import {
   cutFlagValue,
   resumenEsToma,
   resumenOtroVehiculo,
+  resumenSuCarro,
   resumenTomaFicha,
 } from '../intelligence/parse-resumen';
 import {
@@ -37,6 +38,7 @@ export type StayFila1Decision = {
   verificado?: string | null;
   stayBandera?: string | null;
   banderaSinEvidencia?: string | null;
+  banderaDeToma?: string[] | null;
 };
 
 export function stayFieldsForRunLog(stay: StayFila1Decision | null): {
@@ -521,9 +523,10 @@ export function mismaUnidadPorFila(
 
 function tomaCorpus(resumen: string): string {
   const ficha = resumenTomaFicha(resumen) ?? '';
+  const suyo = resumenSuCarro(resumen) ?? '';
   const yaMatch = resumen.match(/toma\s+ya:\s*(.+?)(?:\n|$)/i);
   const ya = yaMatch ? cutFlagValue(yaMatch[1]) : '';
-  return `${ficha} ${ya}`.trim();
+  return `${ficha} ${suyo} ${ya}`.trim();
 }
 
 function otroEsLaToma(input: Fila1NuevaInput, otro: string): boolean {
@@ -588,6 +591,23 @@ export function decideStayOnShown(
 ): { stay: boolean; motivo: string } {
   const car = input.car;
   if (!car) {
+    const fila1 = fila1Nueva({
+      resumen: input.resumen ?? '',
+      customerText: input.text,
+      lastAssistantText: lastAssistantFrom(input),
+      car: {
+        inventoryId: '',
+        brand: '',
+        model: '',
+        year: null,
+        price: null,
+      },
+      otroEsLaMostrada: input.otroEsLaMostrada ?? null,
+      otroOverride: input.otroOverride,
+    });
+    if (fila1.motivo === 'es_toma') {
+      return { stay: false, motivo: 'es_toma' };
+    }
     return { stay: false, motivo: 'sin_unidad' };
   }
   if (shownLeavesByColor(input)) {
