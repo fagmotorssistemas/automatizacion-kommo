@@ -166,6 +166,7 @@ import {
   mismoVehiculoPorTokens,
   otroVehiculoEfectivo,
   textoPedidoPatio,
+  unidadAAnclar,
 } from '../conversation/compra-vs-toma';
 import {
   buildTurnPlan,
@@ -1138,7 +1139,11 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
       !closing &&
       !(selling && !buying)
     ) {
-      const named = detectNamedModelAsk(input.customerText, lexicon);
+      const named =
+        patioAsk ??
+        (resumenEsToma(resumen)
+          ? null
+          : detectNamedModelAsk(input.customerText, lexicon));
       if (named) {
         const listed = named.brand
           ? await this.catalog.listByBrand(named.brand)
@@ -1736,6 +1741,31 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         parsed.meta.vehiculo.precio = unitPrice;
       } else {
         delete parsed.meta.vehiculo.precio;
+      }
+    }
+    if (resumenQuiereComprar(resumen) && patioAsk) {
+      const presented = [...(revision.listedUnits ?? [])];
+      if (toolInventoryIds.length) {
+        const patio =
+          patioDisponible ?? (await this.catalog.listAvailableExcept('_'));
+        patioDisponible = patio;
+        for (const id of toolInventoryIds) {
+          const car = patio.find((row) => row.id === id);
+          if (car && !presented.some((row) => row.id === car.id)) {
+            presented.push(car);
+          }
+        }
+      }
+      const anchor = unidadAAnclar({
+        family: patioAsk.family,
+        sendId: parsed.meta.vehiculo?.inventory_id ?? revision.sendId,
+        presented,
+      });
+      if (anchor) {
+        await this.persistence.saveChosenInterestedCar(
+          input.contactId,
+          anchor,
+        );
       }
     }
 

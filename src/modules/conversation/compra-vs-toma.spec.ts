@@ -5,6 +5,7 @@ import {
   detectPedidoPatio,
   mismoVehiculoPorTokens,
   otroVehiculoEfectivo,
+  unidadAAnclar,
 } from './compra-vs-toma';
 import { solicitudSinBanderas } from '../intelligence/parse-resumen';
 
@@ -101,6 +102,32 @@ describe('compra vs toma', () => {
         car: null,
       }),
     ).toEqual({ stay: false, motivo: 'es_toma' });
+  });
+
+  it('ancla la única Creta presentada aunque el contexto traiga Jetours', () => {
+    const creta = {
+      id: 'b7d3649a-c700-4070-b4e2-21289a45b330',
+      brand: 'hyundai',
+      model: 'creta ac 1.5 5p 4x2 tm',
+      year: 2022,
+      price: 22990,
+      typeBody: 'jeep',
+    };
+    const jetour = {
+      id: '11b5a9f7-da7d-4c9d-9fb4-3b8af3b4b12e',
+      brand: 'jetour',
+      model: 'x70 ii ac 1.5 5p 4x2 tm',
+      year: 2023,
+      price: 17990,
+      typeBody: 'jeep',
+    };
+    expect(
+      unidadAAnclar({
+        family: 'creta',
+        sendId: null,
+        presented: [jetour, creta],
+      }),
+    ).toBe(creta.id);
   });
 
   it('control: Jetour de patio sin toma sí se pide', () => {

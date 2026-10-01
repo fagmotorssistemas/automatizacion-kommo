@@ -21,6 +21,10 @@ import {
 } from './otro-vehiculo';
 import { parseTomaChecklistFromResumen } from './toma-checklist';
 import { colorMatches } from './vehicle-brand';
+import {
+  rowMentionsFamily,
+  type StockCar,
+} from '../catalog/clasificar-filas';
 
 function distinctiveTokens(valor: string): string[] {
   return tokensDe(valor).filter(
@@ -234,4 +238,27 @@ export function textoPedidoPatio(ask: NamedModelAsk | null): string {
     return '';
   }
   return [ask.brand, ask.family, ask.year].filter(Boolean).join(' ').trim();
+}
+
+/**
+ * La unidad de "Quiere comprar" que se presentó: sendId de esa familia,
+ * o la única de esa familia entre las mostradas (ficha o herramienta).
+ */
+export function unidadAAnclar(input: {
+  family: string | null | undefined;
+  sendId: string | null | undefined;
+  presented: StockCar[];
+}): string | null {
+  const family = (input.family ?? '').trim();
+  const ofFamily = family
+    ? input.presented.filter((car) => rowMentionsFamily(car.model, family))
+    : [];
+  const sendId = input.sendId?.trim() || null;
+  if (sendId && (!family || ofFamily.some((car) => car.id === sendId))) {
+    return sendId;
+  }
+  if (ofFamily.length === 1) {
+    return ofFamily[0].id;
+  }
+  return null;
 }
