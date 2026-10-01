@@ -77,7 +77,7 @@ Si envía un número de cédula o dice que esa es su cédula, SOLICITUD: ya envi
 Acepta crédito: sí SOLO si el hilo YA preguntó si ayudamos a ver si aplica y AHORA acepta (lo interpreta el mensaje, no una palabra fija). Elegir banco, cooperativa o crédito directo NO es Acepta crédito. Rechaza aplicar: no. SOLICITUD: acepta ver si aplica.
 Si responde que no a ver si aplica, Acepta crédito: no. Rechaza aplicar: sí.
 Si cambia entrada o plazo, pide las letras, o este turno es la primera cuota, Acepta crédito: no. Rechaza aplicar: no. Pide crédito: sí. SOLICITUD: quiere la cuota. Aunque el bot haya preguntado si aplica demasiado pronto, si AHORA da plazo o pide las letras no es “acepta ver si aplica”: primero la letra.
-Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Otro vehículo: [literal o no]   y   Quiere comprar: [marca modelo año o no]   y   Su carro: [marca modelo año del suyo o no]   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tracción pedida: 4x2|4x4|no   y   Color pedido: [color o no]   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]
+Después de SOLICITUD ACTUAL agrega: Pide precio: sí|no   y   Pide crédito: sí|no   y   Pide otro color: sí|no   y   Objeción de precio: sí|no   y   Acepta crédito: sí|no   y   Rechaza aplicar: sí|no   y   Prefiere contado: sí|no   y   Pide negociar: sí|no   y   Pide otras: sí|no   y   Otro vehículo: [literal o no]   y   Quiere comprar: [marca modelo año o no]   y   Su carro: [marca modelo año del suyo o no]   y   Pide ficha: sí|no   y   Caja de compra: automática|manual|no   y   Cabina: simple|doble|no   y   Tracción pedida: 4x2|4x4|no   y   Color pedido: [color o no]   y   Tope de contado: [monto o no]   y   Falta vehículo: sí|no   y   Tipo de patio: suv|camioneta|sedan|hatchback|no   y   Pide horario: sí|no   y   Pide ubicación: sí|no   y   Asientos: [número o no]   y   Tres filas: sí|no   y   Toma: sí|no   y   Toma ficha: [del suyo, o no]   y   Toma ya: [marca=; color=; año=; km=]   y   Toma falta: [huecos]   y   Toma pendiente: [lo que no tiene]   y   Pide asesor: sí|no
 
 REGLA DE PIDE OTRAS (OBLIGATORIA):
 Pide otras solo dice si este turno pide un listado. La SOLICITUD sigue siendo el pedido concreto (precio, ficha, ubicación, horario, la unidad que nombró).
@@ -161,6 +161,7 @@ Toma falta: modelo, color | no  // dos: A || B
 Toma pendiente: fotos | no
 Tiene duda: sí|no
 Es despedida: sí|no
+Pide asesor: sí|no
 
 REGLA DE BANDERAS DE COMPRA (OBLIGATORIA):
 Aplica a Caja de compra, Cabina, Tipo de patio, Tracción pedida, Color pedido, Asientos y Tres filas.
@@ -295,6 +296,9 @@ Quiere comprar: el carro de PATIO que pide ver, cotizar o comprar. Como lo escri
 Su carro: el que el cliente TIENE, vende o da en parte de pago ("tengo un", "mi carro", "el mío", "para cambiar con el suyo"). "no" si no habla del suyo.
 NUNCA el mismo carro en los dos. Si Su carro no es no, Toma debe ser sí.
 El de Su carro no va en Otro vehículo ni en Color pedido / Caja de compra / Tipo de patio.
+
+REGLA PIDE ASESOR (OBLIGATORIA):
+Pide asesor: sí SOLO si en ESTE mensaje pide hablar con una persona, que lo llamen o un asesor. Evidencia en el mensaje del cliente. Si no lo escribió, no.
 
 REGLA DE SU VEHÍCULO (OBLIGATORIA):
 Si describe un carro que ES SUYO (lo tiene, lo vende, pide cuánto le damos, lo deja a cuenta, intercambio, o el recorrido/km de SU carro), la SOLICITUD ACTUAL debe decir que quiere vendernos ESE vehículo. No lo conviertas en un modelo que quiere comprar.

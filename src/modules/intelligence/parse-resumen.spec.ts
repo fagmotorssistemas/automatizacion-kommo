@@ -11,6 +11,8 @@ import {
   resumenHasPendingDoubt,
   resumenIsCourtesy,
   resumenIsThreadAck,
+  resumenPideAsesor,
+  textPideAsesor,
   resumenAceptaCredito,
   resumenPideNegociar,
   resumenPideOtras,
@@ -811,6 +813,32 @@ describe('resumenIsCourtesy', () => {
       resumenIsCourtesy(
         'SOLICITUD ACTUAL:\nCliente no quiere financiamiento ni visita ahora; sigue con ESA unidad.\nPide precio: no\nEs cortesía: sí\nEs despedida: no',
       ),
+    ).toBe(false);
+  });
+});
+
+describe('Pide asesor', () => {
+  it('sí solo con bandera y evidencia en el mensaje del cliente', () => {
+    expect(
+      textPideAsesor(
+        'necesito hablar con un asesor, están más confundidos',
+      ),
+    ).toBe(true);
+    expect(textPideAsesor('Me interesa conversarlo con una persona')).toBe(
+      true,
+    );
+    expect(textPideAsesor('Ayúdeme con el precio del Cretan')).toBe(false);
+    expect(
+      resumenPideAsesor(
+        'Pide asesor: sí',
+        'necesito hablar con un asesor',
+      ),
+    ).toBe(true);
+    expect(
+      resumenPideAsesor('Pide asesor: sí', 'el precio del Creta'),
+    ).toBe(false);
+    expect(
+      resumenPideAsesor('Pide asesor: no', 'necesito hablar con un asesor'),
     ).toBe(false);
   });
 });

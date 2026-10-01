@@ -229,6 +229,7 @@ function stripResumenFlags(text: string): string {
     .replace(/objeci[oó]n\s+de\s+precio:\s*(s[ií]|no)/gi, '')
     .replace(/tiene\s+duda:\s*(s[ií]|no)/gi, '')
     .replace(/es\s+despedida:\s*(s[ií]|no)/gi, '')
+    .replace(/pide\s+asesor:\s*(s[ií]|no)/gi, '')
     .replace(/acepta\s+cr[eé]dito:\s*(s[ií]|no)/gi, '')
     .replace(/rechaza\s+aplicar:\s*(s[ií]|no)/gi, '')
     .replace(/prefiere\s+contado:\s*(s[ií]|no)/gi, '')
@@ -877,4 +878,27 @@ export function resumenIsFarewell(resumen: string): boolean {
     return false;
   }
   return flagSiNo(resumen, 'es\\s+despedida') === true;
+}
+
+/** El cliente pide una persona (asesor, que lo llamen, hablar con alguien). */
+export function textPideAsesor(text: string): boolean {
+  const n = fold(text);
+  return (
+    /\basesor\b/.test(n) ||
+    /\bll[aá]menme\b/.test(n) ||
+    /\bhumano\b/.test(n) ||
+    /\bvendedor\b/.test(n) ||
+    /\bconversarlo con una persona\b/.test(n) ||
+    /\bhablar con (?:un |una )?(?:asesor|persona|alguien|humano|vendedor)\b/.test(
+      n,
+    )
+  );
+}
+
+/** Bandera más evidencia en el mensaje del cliente. */
+export function resumenPideAsesor(resumen: string, customerText = ''): boolean {
+  if (flagSiNo(resumen, 'pide\\s+asesor') !== true) {
+    return false;
+  }
+  return !customerText || textPideAsesor(customerText);
 }

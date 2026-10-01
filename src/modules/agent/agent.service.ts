@@ -235,6 +235,7 @@ import {
   resumenIsThreadAck,
   resumenIsFarewell,
   resumenIsPriceObjection,
+  resumenPideAsesor,
   textAsksForCredit,
   textAsksForImmediateDelivery,
   textAsksForOtherColor,
@@ -2124,6 +2125,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ...(numeros.hechos.length ? { hechos: numeros.hechos } : {}),
       ...unidadesParaTurno(unidadesCtx),
       ...(faltaAclararNoExiste ? { faltaAclararNoExiste } : {}),
+      ...(resumenPideAsesor(resumen, input.customerText)
+        ? { asesorPedido: true }
+        : {}),
     };
     Object.defineProperty(turn, 'rawLlm', {
       value: raw.slice(0, 4000),

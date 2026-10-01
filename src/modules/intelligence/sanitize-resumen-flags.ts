@@ -1,6 +1,6 @@
 import { isBareConfirmation } from '../inbox/first-touch';
 import { parsePassengerAsk } from '../conversation/large-passenger';
-import { isThreadAck } from './parse-resumen';
+import { isThreadAck, textPideAsesor } from './parse-resumen';
 
 function fold(text: string): string {
   return text
@@ -106,6 +106,9 @@ export function sanitizeInventedResumenFlags(
   }
   if (otrasDiferidas(customerText)) {
     out = forceFlagNo(out, 'Pide otras');
+  }
+  if (!textPideAsesor(customerText)) {
+    out = forceFlagNo(out, 'Pide asesor');
   }
   return out;
 }

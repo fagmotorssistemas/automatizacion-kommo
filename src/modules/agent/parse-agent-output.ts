@@ -43,6 +43,8 @@ export type AgentTurnResult = {
   hechos?: Array<{ id: string; km: number | null; precio: number | null }>;
   /** Unidades cuya ficha o datos vio el modelo en este turno. Solo id y origen. */
   unidadesContexto?: UnidadContexto[];
+  /** El cliente pidió un asesor; se registró (Kommo no crea tareas aún). */
+  asesorPedido?: boolean;
   /** El turno pedía aclarar que ese año no hay y la respuesta no lo dijo. */
   faltaAclararNoExiste?: { pedido: string; ofrecido: string };
   /** Respuesta cruda del LLM, antes de postprocesos. */
