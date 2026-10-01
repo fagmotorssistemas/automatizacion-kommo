@@ -139,10 +139,10 @@ Rechaza aplicar: sí|no
 Prefiere contado: sí|no
 Pide negociar: sí|no
 Pide otras: sí|no
-Rechaza: [marca/modelo/unidad que el cliente rechaza en ESTE mensaje] | no
-Otro vehículo: [marca/modelo/año/versión copiado LITERAL] | no
-Quiere comprar: [marca modelo año, como lo escribió el cliente] | no
-Su carro: [marca modelo año del carro que ES DEL CLIENTE] | no
+Rechaza: [marca/modelo/unidad] (dijo: [fragmento literal de ESTE mensaje]) | no
+Otro vehículo: [marca/modelo/año/versión] (dijo: [fragmento literal]) | no
+Quiere comprar: [marca modelo año] (dijo: [fragmento literal]) | no
+Su carro: [marca modelo año del carro que ES DEL CLIENTE] (dijo: [fragmento literal]) | no
 Pide ficha: sí|no
 Caja de compra: automática|manual|no
 Cabina: simple|doble|no
@@ -298,6 +298,9 @@ Quiere comprar: el carro de PATIO que pide ver, cotizar o comprar. Como lo escri
 Su carro: el que el cliente TIENE, vende o da en parte de pago ("tengo un", "mi carro", "el mío", "para cambiar con el suyo"). "no" si no habla del suyo.
 NUNCA el mismo carro en los dos. Si Su carro no es no, Toma debe ser sí.
 El de Su carro no va en Otro vehículo ni en Color pedido / Caja de compra / Tipo de patio.
+
+REGLA DE EVIDENCIA LITERAL (OBLIGATORIA):
+En Quiere comprar, Su carro, Otro vehículo y Rechaza escribe el valor NORMALIZADO y el fragmento literal así: Hyundai Getz 1.4 (dijo: yunda ges 1.40). El fragmento es lo que escribió el cliente (o el último del bot si aceptó esa oferta). Si no hay fragmento en el mensaje, pon "no". No inventes un (dijo: aveo) si el cliente no escribió esas letras.
 
 REGLA DE RECHAZA (OBLIGATORIA):
 Rechaza: la marca, modelo o unidad que el cliente rechaza EN ESTE mensaje (no gracias, no me gusta, no quiero esa). Evidencia en el mensaje del cliente. "no" si no rechaza un carro. No es Rechaza aplicar (eso es el crédito). No copies un rechazo viejo.

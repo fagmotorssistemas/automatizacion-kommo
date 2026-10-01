@@ -5,6 +5,7 @@ import {
   resumenOtroVehiculo,
   resumenSuCarro,
   resumenTomaFicha,
+  splitDijoEvidence,
 } from '../intelligence/parse-resumen';
 import {
   modelFamily,
@@ -419,7 +420,23 @@ export function evidenciaReal(
   lastAssistantText: TextosBot,
   car?: { brand: string; model: string; year?: number | null } | null,
 ): boolean {
-  let valToks = evidenciaTokens(valor);
+  const { normalized, fragment } = splitDijoEvidence(valor);
+  if (fragment) {
+    const needle = foldAccents(fragment)
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!needle) {
+      return false;
+    }
+    const hay = (texto: string) =>
+      foldAccents(texto)
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .includes(needle);
+    return hay(customerText) || textosBot(lastAssistantText).some(hay);
+  }
+  let valToks = evidenciaTokens(normalized);
   if (car) {
     valToks = valToks.filter((token) => !tokenEsDelMostrado(token, car));
     if (valToks.length === 0) {

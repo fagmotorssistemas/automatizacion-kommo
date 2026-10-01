@@ -182,6 +182,16 @@ describe('fila1Nueva', () => {
   it('el token no del formato no cuenta como evidencia', () => {
     expect(evidenciaReal('no', 'no gracias', '')).toBe(false);
     expect(evidenciaReal('Aveo | no', 'no, gracias', '')).toBe(false);
+    expect(
+      evidenciaReal(
+        'Hyundai Getz 1.4 (dijo: yunda ges 1.40)',
+        'yunda ges 1.40',
+        '',
+      ),
+    ).toBe(true);
+    expect(
+      evidenciaReal('Aveo (dijo: aveo)', 'quiero visitar esta unidad', ''),
+    ).toBe(false);
   });
 
   it('59631637: Toma sí del Peugeot no suelta la Vitara', () => {

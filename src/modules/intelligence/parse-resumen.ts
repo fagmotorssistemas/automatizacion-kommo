@@ -129,6 +129,25 @@ export function cutFlagValue(raw: string): string {
   return (parts[0] ?? '').trim();
 }
 
+const DIJO_FRAGMENT = /^(.*?)\s*\(\s*dijo:\s*(.+?)\s*\)\s*$/i;
+
+/** Separa el valor normalizado del fragmento literal "(dijo: …)". */
+export function splitDijoEvidence(value: string): {
+  normalized: string;
+  fragment: string | null;
+} {
+  const match = value.trim().match(DIJO_FRAGMENT);
+  if (!match) {
+    return { normalized: value.trim(), fragment: null };
+  }
+  const normalized = match[1].trim();
+  const fragment = match[2].trim();
+  return {
+    normalized: normalized || value.trim(),
+    fragment: fragment || null,
+  };
+}
+
 function resumenLineaVehiculo(resumen: string, name: string): string | null {
   const match = resumen.match(
     new RegExp(`(?:^|\\n)\\s*${name}:\\s*(.+?)(?:\\n|$)`, 'i'),

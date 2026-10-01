@@ -32,6 +32,7 @@ import {
   resumenQuiereComprar,
   resumenSuCarro,
   resumenRechaza,
+  splitDijoEvidence,
   resumenPideOtroColor,
   previousResumenForLlm,
   vehicleQueSigue,
@@ -459,6 +460,17 @@ describe('resumenTraccionPedida y Color pedido', () => {
     expect(resumenRechaza('Rechaza: Grand Vitara')).toBe('Grand Vitara');
     expect(resumenRechaza('Rechaza: no')).toBeNull();
     expect(resumenRechaza('Rechaza aplicar: sí')).toBeNull();
+    expect(
+      resumenOtroVehiculo(
+        'Otro vehículo: Hyundai Getz 1.4 (dijo: yunda ges 1.40)',
+      ),
+    ).toBe('Hyundai Getz 1.4 (dijo: yunda ges 1.40)');
+    expect(
+      splitDijoEvidence('Hyundai Getz 1.4 (dijo: yunda ges 1.40)'),
+    ).toEqual({
+      normalized: 'Hyundai Getz 1.4',
+      fragment: 'yunda ges 1.40',
+    });
     expect(
       resumenTomaFicha(
         'Toma: sí\nToma ficha: Kia Niro 2019 | no',
