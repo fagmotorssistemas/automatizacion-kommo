@@ -31,7 +31,8 @@ import { OpenAiAgentClient } from './openai-agent.client';
 import {
   AgentTurnResult,
   ParsedAgentOutput,
-  parseAgentOutput,
+  extractClientMessage,
+  looksLikeAgentJson,
   serializeAgentTurn,
 } from './parse-agent-output';
 import { formatHandoffTurnsForSummarizer } from '../persistence/format-handoff-turns';
@@ -290,6 +291,7 @@ import {
   formatNamedUnits,
   hasUsableFicha,
   preferCurrentYears,
+  unitsNamedByClient,
   prettyFamily,
   modelFamily,
   detectAskedCab,
@@ -1075,6 +1077,46 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         stayOnShown ? null : motivo,
       );
     }
+    if (
+      !revision.text.trim() &&
+      !bareMoreInfo &&
+      !resumenFaltaVehiculo(resumen) &&
+      !closing &&
+      !(selling && !buying)
+    ) {
+      const named = detectNamedModelAsk(input.customerText, lexicon);
+      if (named) {
+        const listed = named.brand
+          ? await this.catalog.listByBrand(named.brand)
+          : await this.catalog.listAvailableExcept('_');
+        const ranked = this.carsMatchingAskedFamily(
+          this.filterByAskedYear(
+            await this.lookupNamedByEmbedding(
+              input.customerText,
+              named.brand || brand || '',
+              listed,
+              askedPrice,
+            ),
+            named.year,
+            false,
+          ),
+          listed,
+          named.family,
+          named.year,
+          false,
+        );
+        if (ranked.length > 0) {
+          revision = this.namedModelFound(
+            ranked,
+            askedPrice,
+            true,
+            false,
+            named.year,
+            false,
+          );
+        }
+      }
+    }
     if (revision.choseFromShown && revision.sendId) {
       await this.persistence.saveChosenInterestedCar(
         input.contactId,
@@ -1593,7 +1635,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       throw new Error('El agente de ventas no devolvió texto');
     }
 
-    const parsed = parseAgentOutput(raw);
+    const parsed = extractClientMessage(raw);
     if (revision.sendId) {
       parsed.meta.vehiculo = {
         ...(parsed.meta.vehiculo ?? {}),
@@ -1865,6 +1907,9 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       metaId: parsed.meta.vehiculo?.inventory_id ?? null,
     });
     parsed.mensaje = numeros.mensaje;
+    if (looksLikeAgentJson(parsed.mensaje)) {
+      parsed.mensaje = '¿Qué carro le interesa?';
+    }
 
     if (parsed.mensaje) {
       await this.conversation.appendMessage(input.contactId, {
@@ -1910,7 +1955,21 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       );
     }
 
-    return {
+    const unidadesCtx = armarUnidadesContexto({
+      interestedText,
+      interestedId: interested?.inventoryId,
+      sendId: revision.sendId,
+      listedIds: (revision.listedUnits ?? []).map((car) => car.id),
+      contextOrigin: revision.contextOrigin,
+      contextIds: revision.contextIds,
+      toolIds: toolInventoryIds,
+    });
+    const niegaStock = /\bno\s+(?:tenemos|contamos|disponemos)|no est[aá] (?:disponible|en (?:nuestro )?inventario)/i.test(
+      parsed.mensaje,
+    );
+    const negacionSinContexto = niegaStock && unidadesCtx.length === 0;
+
+    const turn: AgentTurnResult = {
       reply: parsed,
       resumen,
       alreadyShownInThread:
@@ -1926,19 +1985,20 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         : {}),
       ...(numeros.regenerado ? { regenerado: true } : {}),
       ...(numeros.hechos.length ? { hechos: numeros.hechos } : {}),
-      ...unidadesParaTurno(
-        armarUnidadesContexto({
-          interestedText,
-          interestedId: interested?.inventoryId,
-          sendId: revision.sendId,
-          listedIds: (revision.listedUnits ?? []).map((car) => car.id),
-          contextOrigin: revision.contextOrigin,
-          contextIds: revision.contextIds,
-          toolIds: toolInventoryIds,
-        }),
-      ),
+      ...unidadesParaTurno(unidadesCtx),
       ...(faltaAclararNoExiste ? { faltaAclararNoExiste } : {}),
     };
+    Object.defineProperty(turn, 'rawLlm', {
+      value: raw.slice(0, 4000),
+      enumerable: false,
+    });
+    if (negacionSinContexto) {
+      Object.defineProperty(turn, 'negacionSinContexto', {
+        value: true,
+        enumerable: false,
+      });
+    }
+    return turn;
   }
 
   private async validarNumerosDeRespuesta(input: {
@@ -2268,6 +2328,22 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     const kind = input.mismatches[0];
     const shown = input.shown;
     const family = modelFamily(shown.model) || shown.model;
+    if (kind === 'año' && input.asked.year != null) {
+      const exact = input.listed.filter(
+        (car) =>
+          car.year === input.asked.year &&
+          rowMentionsFamily(car.model, family),
+      );
+      if (exact.length > 0) {
+        return this.namedModelFound(
+          exact,
+          input.includePrice,
+          false,
+          false,
+          input.asked.year,
+        );
+      }
+    }
     const group =
       bodyGroupOf(kindFromTypeBody(shown.typeBody)) ??
       bodyGroupOf(input.kindForAsk);
@@ -2440,11 +2516,15 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     const lastAsst = lastOfferAssistantText(history);
     const listedFollowUp = lastOfferIsUnitList(lastAsst);
     const staysOnShown = resumenStaysOnShownUnit(resumen);
-    const nombraAhora = textoQueNombra(resumen, customerText, lexicon);
+    const nombraAhora =
+      stayMotivo && reference?.inventoryId
+        ? customerText
+        : textoQueNombra(resumen, customerText, lexicon);
     const brandSaidInTurn = detectBrand(nombraAhora, lexicon);
     const namesBrandNow = Boolean(brandSaidInTurn);
     const detectedAsk = detectNamedModelAsk(nombraAhora, lexicon);
     const stillOnShownAsk =
+      !stayMotivo &&
       staysOnShown &&
       Boolean(reference?.inventoryId || reference?.family) &&
       resumenBrandFitsShown(resumen, reference?.brand, lexicon) &&
@@ -2990,7 +3070,9 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
       gearbox:
         cajaCompra === 'manual' || cajaCompra === 'automatica'
           ? cajaCompra
-          : gearbox,
+          : stayMotivo
+            ? null
+            : gearbox,
       color: colorAsk,
       year: yearAsk,
       cab: askedCab,
@@ -3116,12 +3198,12 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
             listed,
             includePrice,
           ),
-          yearFromThread,
+          yearFromThread ?? yearAsk,
           yearOnward,
         ),
         listed,
         asked.family,
-        yearFromThread,
+        yearFromThread ?? yearAsk,
         yearOnward,
       );
       if (ranked[0]) {
@@ -3175,10 +3257,19 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
     }
     const skipShownYearAsSameModel =
       searchingNewPatio && Boolean(yearAsk) && !colorAsk && !trimAsk;
+    const askedFamilyMissingFromPatio =
+      Boolean(
+        asked?.family &&
+          !listed.some((car) => rowMentionsFamily(car.model, asked.family)) &&
+          !alreadyOffered.some((car) =>
+            rowMentionsFamily(car.model, asked.family),
+          ),
+      );
     if (
       (yearAsk || colorAsk || trimAsk) &&
       !wantsClosest &&
-      !skipShownYearAsSameModel
+      !skipShownYearAsSameModel &&
+      !askedFamilyMissingFromPatio
     ) {
       const offered = asked
         ? alreadyOffered.filter((car) =>
@@ -3290,7 +3381,7 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
           if (picked.length > 1) {
             return {
               ...formatNamedUnits(
-                preferCurrentYears(picked, yearAsk),
+                unitsNamedByClient(picked, yearAsk, yearOnward),
                 includePrice,
               ),
               switchedModel: true,
@@ -3347,7 +3438,9 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
         if (byFacts.length > 1) {
           return {
             ...formatNamedUnits(
-              preferCurrentYears(byFacts, yearAsk),
+              asked
+                ? unitsNamedByClient(byFacts, yearAsk, yearOnward)
+                : preferCurrentYears(byFacts, yearAsk),
               includePrice,
             ),
             switchedModel: true,
@@ -3372,7 +3465,7 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
       }
     }
     const saidBox = detectGearbox(customerText, lexicon);
-    if (wantsClosest && asked && !tresFilas) {
+    if (wantsClosest && asked && !tresFilas && !listedFollowUp) {
       const fromEmbed = namedRpcEmpty
         ? []
         : this.carsMatchingAskedFamily(
@@ -3464,9 +3557,9 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           kindForAsk ?? kindOfNamedUnits(pool),
         );
       }
-      let offer = preferCurrentYears(
+      let offer = unitsNamedByClient(
         cabPick && cabPick.cars.length > 0 ? cabPick.cars : pool,
-        yearFromThread,
+        yearFromThread ?? yearAsk,
         yearOnward,
       );
       if (!(yearOnward && offer.length === 0)) {
@@ -3976,7 +4069,7 @@ ${missing.text}`,
       );
       if (namedNow.length > 0) {
         return formatNamedUnits(
-          preferCurrentYears(namedNow, yearFromThread, yearOnward),
+          unitsNamedByClient(namedNow, yearFromThread, yearOnward),
           includePrice,
         );
       }
@@ -3985,7 +4078,7 @@ ${missing.text}`,
       );
       if (includePrice && lineas.size === 1 && cars.length > 0) {
         return formatNamedUnits(
-          preferCurrentYears(cars, yearFromThread, yearOnward),
+          unitsNamedByClient(cars, yearFromThread, yearOnward),
           includePrice,
         );
       }
@@ -4458,7 +4551,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
 
   /**
    * El embedding a veces trae otra línea (Explorer por F150) o un año viejo.
-   * Se queda en la familia pedida y, si hay unidades vigentes, esas.
+   * Familia pedida: patio + ranking. Sin año, hasta 3 de la más nueva a la más vieja.
    */
   private carsMatchingAskedFamily(
     ranked: StockCar[],
@@ -4470,28 +4563,23 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     const same = (car: StockCar) => rowMentionsFamily(car.model, family);
     const fromRank = ranked.filter(same);
     const fromListed = listed.filter(same);
-    if (fromRank.length === 0) {
-      return [];
-    }
     if (onward) {
-      return this.filterByAskedYear(fromRank, year, true);
+      const matched = fromRank.length > 0 ? fromRank : fromListed;
+      return this.filterByAskedYear(matched, year, true);
     }
     if (year != null) {
-      const exactRank = this.filterByAskedYear(fromRank, year, false);
-      return exactRank.length > 0
-        ? exactRank
-        : this.filterByAskedYear(fromListed, year, false);
+      const exactListed = this.filterByAskedYear(fromListed, year, false);
+      if (exactListed.length > 0) {
+        return exactListed;
+      }
+      const matched = fromRank.length > 0 ? fromRank : fromListed;
+      return this.filterByAskedYear(matched, year, false);
     }
-    const rankCurrent = fromRank.filter(
-      (car) => car.year == null || car.year >= 2010,
-    );
-    const listedCurrent = fromListed.filter(
-      (car) => car.year == null || car.year >= 2010,
-    );
-    if (listedCurrent.length > 0 && rankCurrent.length === 0) {
-      return preferCurrentYears(listedCurrent, null, false);
+    const byId = new Map<string, StockCar>();
+    for (const car of [...fromListed, ...fromRank]) {
+      byId.set(car.id, car);
     }
-    return fromRank;
+    return unitsNamedByClient([...byId.values()], null, false);
   }
 
   private filterByAskedYear(
@@ -4519,7 +4607,7 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     askedYear?: number | null,
     onward = false,
   ): BrandReview {
-    const shown = preferCurrentYears(cars, askedYear, onward);
+    const shown = unitsNamedByClient(cars, askedYear, onward);
     const named = formatNamedUnits(shown, includePrice);
     const via = fromEmbed ? ' (búsqueda por inventario)' : '';
     const rule = closest

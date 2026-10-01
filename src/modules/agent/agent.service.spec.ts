@@ -7435,7 +7435,8 @@ Pide precio: no`,
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toContain('exp-2018');
-    expect(system).toMatch(/hay que mandarla|SÍ está en patio/i);
+    expect(system).toContain('exp-1998');
+    expect(system).toMatch(/Nómbralas todas|hay 2 unidades/i);
     expect(system).not.toMatch(/No hay Explorer 2018/i);
   });
 
