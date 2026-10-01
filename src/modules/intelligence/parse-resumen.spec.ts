@@ -549,6 +549,31 @@ describe('resumenPidePresupuesto', () => {
       ),
     ).toBe(false);
   });
+
+  it('con tope y sin modelo nombrado es presupuesto, aunque la solicitud no diga “qué cabe”', () => {
+    expect(
+      resumenPidePresupuesto(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere ver qué vehículos hay disponibles hasta un tope de contado de 10000.',
+          'Pide otras: sí',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+          'Tope de contado: 10000',
+          'Falta vehículo: sí',
+          'Tipo de patio: no',
+        ].join('\n'),
+      ),
+    ).toBe(true);
+  });
+
+  it('un modelo nombrado no es catálogo de presupuesto', () => {
+    expect(
+      resumenPidePresupuesto(
+        'SOLICITUD ACTUAL:\nCliente quiere el Picanto.\nQuiere comprar: Kia Picanto\nOtro vehículo: no\nTope de contado: 10000\nPide otras: no',
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('resumenFaltaVehiculo', () => {

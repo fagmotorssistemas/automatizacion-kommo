@@ -708,31 +708,21 @@ export function resumenSigueEnUnidadMostrada(resumen: string): boolean {
   return resumenAsksAboutShownFacts(resumen);
 }
 
-function solicitudPideVerTope(resumen: string): boolean {
-  const s = fold(solicitudSinBanderas(resumen) || '');
-  if (!s) {
-    return false;
-  }
-  return (
-    /que cabe/.test(s) ||
-    /que hay por/.test(s) ||
-    /en ese tope/.test(s) ||
-    /presupuesto/.test(s) ||
-    /no (?:supere|pase|exceda)/.test(s) ||
-    /dispone de/.test(s) ||
-    /(?:tengo|tiene|hasta|unos)\s+\d/.test(s)
-  );
-}
-
 /**
- * ESTE turno pide ver qué cabe en un tope. Un monto copiado mientras
- * preguntan precio, km o ubicación no cuenta: la solicitud no pide el tope.
+ * Tope de contado con monto y sin modelo nombrado. Un tope copiado en un
+ * seguimiento de la unidad mostrada (precio, ubicación, crédito) no cuenta.
  */
 export function resumenPidePresupuesto(resumen: string): boolean {
   if (!resumenTopeContado(resumen)) {
     return false;
   }
-  return solicitudPideVerTope(resumen);
+  if (resumenQuiereComprar(resumen) || resumenOtroVehiculo(resumen)) {
+    return false;
+  }
+  if (resumenSigueEnUnidadMostrada(resumen)) {
+    return false;
+  }
+  return true;
 }
 
 function tomaFichaLine(resumen: string): string | null {

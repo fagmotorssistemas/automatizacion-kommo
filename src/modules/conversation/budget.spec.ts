@@ -3,8 +3,11 @@ import {
   appendBudgetPickShown,
   BUDGET_FINANCING_ASK,
   BUDGET_PICK_SHOWN,
+  carsForOpenBudget,
   carsInBudget,
   formatBudgetRevision,
+  formatOpenBudgetRevision,
+  patioKindPriceSummary,
   shouldAskBudgetFinancing,
   shouldAskWhichShown,
 } from './budget';
@@ -93,5 +96,67 @@ describe('presupuesto de contado', () => {
       }),
     ).toBe(false);
     expect(appendBudgetPickShown('De acuerdo.')).toContain(BUDGET_PICK_SHOWN);
+  });
+});
+
+describe('presupuesto abierto sin modelo', () => {
+  const patio: StockCar[] = [
+    {
+      id: 'qq3',
+      brand: 'chery',
+      model: 'qq3 1.1',
+      year: 2012,
+      price: 5800,
+      typeBody: 'hatchback',
+    },
+    {
+      id: 'golf',
+      brand: 'volkswagen',
+      model: 'golf comfortline 2.0 4p',
+      year: 2005,
+      price: 9800,
+      typeBody: 'sedan',
+    },
+    {
+      id: 'optra',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l 4p tm',
+      year: 2012,
+      price: 10900,
+      typeBody: 'sedan',
+    },
+    {
+      id: 'vitara',
+      brand: 'suzuki',
+      model: 'grand vitara sz next',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+    },
+  ];
+
+  it('hasta 4 bajo el tope (caro primero) y 1 que se pasa un poco', () => {
+    const pick = carsForOpenBudget(patio, 10000);
+    expect(pick.cars.map((car) => car.id)).toEqual(['golf', 'qq3']);
+    expect(pick.overBudget?.id).toBe('optra');
+    const text = formatOpenBudgetRevision({
+      budget: 10000,
+      cars: pick.cars,
+      overBudget: pick.overBudget,
+    });
+    expect(text.text).toMatch(/\$9800/);
+    expect(text.text).toMatch(/\$5800/);
+    expect(text.text).toMatch(/se pasa un poco/i);
+    expect(text.text).toMatch(/\$10900/);
+    expect(text.text).not.toMatch(/vitara/i);
+  });
+
+  it('resume el patio por tipo con rango de $', () => {
+    const summary = patioKindPriceSummary(patio);
+    expect(summary.text).toMatch(/CATÁLOGO POR TIPO/);
+    expect(summary.text).toMatch(/presupuesto o tipo/i);
+    expect(summary.text).toMatch(/hatchback desde \$5800/i);
+    expect(summary.text).toMatch(/sed[aá]n desde \$9800/i);
+    expect(summary.text).toMatch(/SUV desde \$13800/i);
   });
 });

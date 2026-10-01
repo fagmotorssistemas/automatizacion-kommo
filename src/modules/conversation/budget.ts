@@ -1,4 +1,5 @@
 import {
+  describeUnit,
   formatNamedUnits,
   preferCurrentYears,
   type StockCar,
@@ -172,6 +173,138 @@ export function appendBudgetFinancingAsk(text: string): string {
 
 export function appendBudgetPickShown(text: string): string {
   return appendBudgetLine(text, BUDGET_PICK_SHOWN);
+}
+
+export const OPEN_BUDGET_SLACK = 1.1;
+
+export type OpenBudgetPick = {
+  cars: StockCar[];
+  overBudget: StockCar | null;
+};
+
+/** Hasta 4 en el tope (caro primero) y como mucho 1 que se pasa un poco. */
+export function carsForOpenBudget(
+  cars: StockCar[],
+  budget: number,
+  opts?: {
+    kind?: VehicleKind | null;
+    exceptId?: string | null;
+    exceptIds?: string[];
+  },
+): OpenBudgetPick {
+  const excluded = new Set(
+    [opts?.exceptId, ...(opts?.exceptIds ?? [])].filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
+  const pool = cars.filter((car) => {
+    if (excluded.has(car.id)) {
+      return false;
+    }
+    if (car.price == null || car.price <= 0) {
+      return false;
+    }
+    if (opts?.kind && !matchesVehicleKind(car.typeBody, opts.kind)) {
+      return false;
+    }
+    return true;
+  });
+  const under = pool
+    .filter((car) => (car.price ?? 0) <= budget)
+    .sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+    .slice(0, 4);
+  const overBudget =
+    pool
+      .filter(
+        (car) =>
+          (car.price ?? 0) > budget &&
+          (car.price ?? 0) <= budget * OPEN_BUDGET_SLACK,
+      )
+      .sort((a, b) => (a.price ?? 0) - (b.price ?? 0))[0] ?? null;
+  return { cars: under, overBudget };
+}
+
+export function formatOpenBudgetRevision(input: {
+  budget: number;
+  cars: StockCar[];
+  overBudget?: StockCar | null;
+}): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  listedUnits: StockCar[];
+} {
+  const listed = input.overBudget
+    ? [...input.cars, input.overBudget]
+    : input.cars;
+  const header = `PRESUPUESTO DE CONTADO: $${input.budget}. Lista estas unidades CON su $. Pregunta cuál de ESTAS le interesa. PROHIBIDO preguntar qué carro le interesa como si no hubiera opciones. PROHIBIDO armar cuota. PROHIBIDO visita en este turno.`;
+  if (input.cars.length === 0 && !input.overBudget) {
+    return {
+      text: `${header}
+No hay unidades de patio en ese tope. Dilo claro. vehiculo null.`,
+      holdVehicle: true,
+      sendId: null,
+      listedUnits: [],
+    };
+  }
+  const named = formatNamedUnits(input.cars, true);
+  const over = input.overBudget
+    ? `Esta se pasa un poco del presupuesto (hasta 10%): ${describeUnit(input.overBudget, true)}. Dilo así. No la ventes como si cupiera.`
+    : '';
+  return {
+    text: `${header}
+${named.text}
+${over}`.trim(),
+    holdVehicle: true,
+    sendId: null,
+    listedUnits: listed,
+  };
+}
+
+const KIND_LABEL: Record<VehicleKind, string> = {
+  suv: 'SUV',
+  camioneta: 'camioneta',
+  sedan: 'sedán',
+  hatchback: 'hatchback',
+};
+
+/** Pide ver el patio sin tope ni tipo: rangos por tipo, no “qué carro”. */
+export function patioKindPriceSummary(cars: StockCar[]): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+} {
+  const kinds: VehicleKind[] = ['hatchback', 'sedan', 'suv', 'camioneta'];
+  const lines: string[] = [];
+  for (const kind of kinds) {
+    const priced = cars
+      .filter(
+        (car) =>
+          matchesVehicleKind(car.typeBody, kind) &&
+          car.price != null &&
+          car.price > 0,
+      )
+      .map((car) => car.price as number);
+    if (priced.length === 0) {
+      continue;
+    }
+    const min = Math.round(Math.min(...priced));
+    const max = Math.round(Math.max(...priced));
+    lines.push(
+      max === min
+        ? `${KIND_LABEL[kind]} desde $${min}`
+        : `${KIND_LABEL[kind]} desde $${min} hasta $${max}`,
+    );
+  }
+  const body =
+    lines.length > 0
+      ? lines.join('. ')
+      : 'Hay unidades en patio; nombra los tipos que sí hay y su rango de $.';
+  return {
+    text: `CATÁLOGO POR TIPO (pidió ver qué hay, sin tope ni tipo). Di este resumen corto: ${body}. UNA pregunta: presupuesto o tipo (SUV, sedán, hatchback, camioneta). PROHIBIDO una pregunta seca de modelo. PROHIBIDO inventar una unidad. vehiculo null.`,
+    holdVehicle: true,
+    sendId: null,
+  };
 }
 
 export function formatBudgetRevision(input: {

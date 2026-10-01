@@ -327,9 +327,9 @@ import {
   appendBudgetFinancingAsk,
   appendBudgetPickShown,
   carFitsBudget,
-  carsInBudget,
-  carsMatchingAskInBudget,
-  formatBudgetRevision,
+  carsForOpenBudget,
+  formatOpenBudgetRevision,
+  patioKindPriceSummary,
   shouldAskBudgetFinancing,
   shouldAskWhichShown,
 } from '../conversation/budget';
@@ -1437,6 +1437,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     const noRepetirHint = formatEntregadoForPedido(
       entregadoEnHilo(history, { unitPrice }),
     );
+    const tipoAhoraHint = resumenTipoPatio(resumen);
     const faltaCarroHint =
       (resumenFaltaVehiculo(resumen) || bareMoreInfo) &&
       !adVehicle &&
@@ -1444,7 +1445,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       !brandSaidNow &&
       !pedido &&
       !detectVehicleKind(input.customerText) &&
-      !asksAnyBrand(input.customerText)
+      !asksAnyBrand(input.customerText) &&
+      !resumenTopeContado(resumen) &&
+      !(tipoAhoraHint && tipoAhoraHint !== 'no') &&
+      !resumenPideOtras(resumen)
         ? bareMoreInfo
           ? 'NO HAY CARRO DEFINIDO: pidió información pero no dijo de qué vehículo. Solo UNA pregunta: qué carro le interesa. PROHIBIDO dirección, mapa, horario, visita, ficha, precio o fotos. PROHIBIDO inventar una unidad.'
           : 'NO HAY CARRO DEFINIDO: el cliente aún no dijo cuál quiere. Contesta TODO lo que pidió que no dependa del carro (con tus filas: ubicación, horario, toma…). Lo que depende del carro (precio, fotos, cuota) queda pendiente: dile que se lo pasas apenas diga cuál. Termina con UNA sola pregunta: qué carro le interesa. PROHIBIDO inventar una unidad, precio o ficha. PROHIBIDO cerrar con otra pregunta (visita, agendar).'
@@ -2853,7 +2857,8 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       !cashBudgetEarly &&
       !tresFilas
     ) {
-      return empty;
+      const patio = await this.catalog.listAvailableExcept('_');
+      return patioKindPriceSummary(patio);
     }
 
     const brandsNow = detectBrands(nombraAhora, lexicon);
@@ -3083,31 +3088,24 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
     }
     if (cashBudgetEarly) {
       const patio = await this.catalog.listAvailableExcept('_');
-      const tight = carsMatchingAskInBudget(patio, cashBudgetEarly, {
+      const pick = carsForOpenBudget(patio, cashBudgetEarly, {
         exceptId: reference?.inventoryId,
         kind: kindForAsk,
-        gearbox,
       });
-      const hits =
-        tight.length > 0
-          ? preferCurrentYears(tight.slice(0, 6))
-          : carsInBudget(patio, cashBudgetEarly, reference?.inventoryId);
       const missAsk =
-        tight.length === 0 && (kindForAsk || gearbox)
-          ? `No hay ${kindForAsk ?? 'unidad'}${gearbox ? ` ${gearbox}` : ''} en ese tope. No ofrezcas más caras. `
+        pick.cars.length === 0 && !pick.overBudget && kindForAsk
+          ? `No hay ${kindForAsk} en ese tope. No ofrezcas más caras. `
           : '';
-      const revision = formatBudgetRevision({
+      const revision = formatOpenBudgetRevision({
         budget: cashBudgetEarly,
-        cars: hits,
-        over: reference
-          ? { family: reference.family, price: reference.price }
-          : undefined,
+        cars: pick.cars,
+        overBudget: pick.overBudget,
       });
       return {
         ...revision,
         text: `${missAsk}${revision.text}`,
         switchedModel: true,
-        vehicleKind: kindOfNamedUnits(hits) ?? kindForAsk,
+        vehicleKind: kindOfNamedUnits(pick.cars) ?? kindForAsk,
       };
     }
     if (
@@ -3119,7 +3117,8 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       !resumenAsientos(resumen) &&
       !tresFilas
     ) {
-      return empty;
+      const patio = await this.catalog.listAvailableExcept('_');
+      return patioKindPriceSummary(patio);
     }
     if (
       pideOtras &&

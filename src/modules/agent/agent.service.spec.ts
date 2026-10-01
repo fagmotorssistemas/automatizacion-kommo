@@ -206,6 +206,135 @@ describe('AgentService', () => {
     expect(result?.reply.mensaje).toMatch(/¿Qué carro le interesa\?$/);
   });
 
+  const patioBarato = [
+    {
+      id: 'qq3',
+      brand: 'chery',
+      model: 'qq3 1.1',
+      year: 2012,
+      price: 5800,
+      typeBody: 'hatchback',
+      color: 'plateado',
+    },
+    {
+      id: 'golf',
+      brand: 'volkswagen',
+      model: 'golf comfortline 2.0 4p',
+      year: 2005,
+      price: 9800,
+      typeBody: 'sedan',
+      color: 'azul',
+    },
+    {
+      id: 'optra',
+      brand: 'chevrolet',
+      model: 'optra advance 1.8l 4p tm',
+      year: 2012,
+      price: 10900,
+      typeBody: 'sedan',
+      color: 'vino',
+    },
+    {
+      id: 'vitara',
+      brand: 'suzuki',
+      model: 'grand vitara sz next',
+      year: 2015,
+      price: 13800,
+      typeBody: 'jeep',
+      color: 'blanco',
+    },
+  ];
+
+  it('06:18 presupuestando 10000 lista QQ3, Golf y Optra un poco sobre el tope', async () => {
+    catalog.listAvailableExcept.mockResolvedValue(patioBarato);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere ver qué vehículos hay disponibles hasta un tope de contado de 10000.',
+          'Pide precio: no',
+          'Pide otras: sí',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+          'Tope de contado: 10000',
+          'Falta vehículo: sí',
+          'Tipo de patio: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Dentro de $10,000 tenemos el Chery QQ3 a $5,800 y el Golf a $9,800. El Optra a $10,900 se pasa un poco. ¿Cuál le interesa?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59824885',
+      customerText:
+        'Aún no tenía un modelo definido, pero es mi primer vehículo, le estaba presupuestando unos 10000',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/PRESUPUESTO DE CONTADO: \$10000/);
+    expect(system).toMatch(/qq3/i);
+    expect(system).toMatch(/\$5800/);
+    expect(system).toMatch(/golf/i);
+    expect(system).toMatch(/\$9800/);
+    expect(system).toMatch(/optra/i);
+    expect(system).toMatch(/\$10900/);
+    expect(system).toMatch(/se pasa un poco/i);
+    expect(system).not.toMatch(/NO HAY CARRO DEFINIDO/);
+    expect(system).not.toMatch(
+      /Termina con UNA sola pregunta: qué carro le interesa/,
+    );
+    expect(result?.reply.mensaje).toMatch(/5,?800/);
+    expect(result?.reply.mensaje).toMatch(/9,?800/);
+  });
+
+  it('06:17 de cuáles dispone resume el patio por tipo, sin pregunta seca de modelo', async () => {
+    catalog.listAvailableExcept.mockResolvedValue(patioBarato);
+    openai.complete
+      .mockResolvedValueOnce(
+        [
+          'SOLICITUD ACTUAL:',
+          'Cliente quiere saber qué vehículos dispone y sus precios.',
+          'Pide precio: sí',
+          'Pide otras: sí',
+          'Otro vehículo: no',
+          'Quiere comprar: no',
+          'Tope de contado: no',
+          'Falta vehículo: sí',
+          'Tipo de patio: no',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Tenemos hatchback desde $5800, sedán desde $9800 y SUV desde $13800. ¿Maneja un presupuesto o un tipo (sedán, hatchback, SUV)?',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59824885-dispone',
+      customerText: 'Des cuáles dispone y los precios?',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toMatch(/CATÁLOGO POR TIPO/);
+    expect(system).toMatch(/hatchback desde \$5800/i);
+    expect(system).toMatch(/sed[aá]n desde \$9800/i);
+    expect(system).toMatch(/presupuesto o tipo/i);
+    expect(system).not.toMatch(/NO HAY CARRO DEFINIDO/);
+    expect(system).not.toMatch(
+      /Termina con UNA sola pregunta: qué carro le interesa/,
+    );
+    expect(result?.reply.mensaje).not.toMatch(/^¿Qué carro le interesa\?$/);
+  });
+
   it('clic de Facebook sin carro pregunta cuál y no lista', async () => {
     responderFaltaCarro(
       'Buenas tardes, estimado. ¿Qué carro le interesa?',

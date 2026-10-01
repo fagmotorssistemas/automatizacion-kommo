@@ -177,6 +177,7 @@ REGLA DE TIPO DE PATIO (OBLIGATORIA):
 Lee el sentido, no una frase fija. ¿Este turno pide un tipo de carro de patio (SUV, camioneta, sedán, hatchback)? El "tipo de antes" (unidad mostrada o la que rechazó) solo se usa si ESTE turno pide otras opciones de la mostrada o acepta ver alternativas; si no, no heredes tipo.
 - Tipo de patio: suv|camioneta|sedan|hatchback si AHORA quiere ese tipo (lo dijo o el carro que pide es de ese tipo).
 - Tipo de patio: hatchback si pide un carro/auto pequeño, compacto, o uno similar a un ciudad (Picanto y similares). Eso NO es camioneta. Cabina: no.
+- Tipo de patio: hatchback (o sedan si el sentido es un auto de ciudad más grande) si pide carro para ciudad, primer carro, pequeño o económico y AÚN no dijo SUV, camioneta, sedán ni hatchback. No pidas modelo. Pide otras: sí. Falta vehículo: no.
 - Tipo de patio: hatchback si dice que quiere auto/carro y NO camioneta, o “cualquiera pero que sea auto/carro”.
 - Si pidió un tipo y no le importa la marca (cualquier, la que haya, cuáles hay): SOLICITUD: listar de patio de ESE tipo. Pide otras: sí. Falta vehículo: no. No pidas marca.
 - Si el turno anterior ofreció otras marcas u otra caja y ahora acepta verlas (claro, sí, dale): Pide otras: sí. No es la unidad automática ya mostrada. Tipo de patio: el de la unidad que rechazó, salvo que AHORA pida otro tipo.
