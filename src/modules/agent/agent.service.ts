@@ -1511,7 +1511,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : priceUnloadedHint
         ? priceUnloadedHint
       : justifyPriceAfterFicha
-        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: escribe {{precio:uN}} de ESA ficha primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO un monto a mano. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
+        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: escribe {{precio:uN}} de ESA ficha primero y justifica el valor. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO un monto a mano. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
       : canQuotePrice
       ? askedCredit
         ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Escribe {{precio:uN}} de ESA ficha (contado) Y abre financiamiento (entrada y plazo) en ESTE turno. PROHIBIDO un monto de contado a mano.'

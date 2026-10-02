@@ -3799,7 +3799,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'Estimado, no tenemos el precio cargado aún para vehículos Nissan SUV.',
+          'Estimado, el Nissan X-Trail Sense 2016 está en {{precio:u1}}.',
         meta: {
           vehiculo: { inventory_id: '62434e00-2a0e-4795-a4c9-fd544fe2c1af' },
         },
@@ -10522,7 +10522,7 @@ Pide precio: no`,
     expect(system).toMatch(/plomo/i);
     expect(system).not.toMatch(/EL HILO SIGUE CON EL VEHÍCULO/i);
     expect(system).not.toMatch(/inventory_id=sportage-1/);
-    expect(system).not.toMatch(/\$22900/);
+    expect(system).toMatch(/\{\{precio:u\d+\}\}/);
   });
 
   it('si ya envió la cédula no se la vuelve a pedir', async () => {

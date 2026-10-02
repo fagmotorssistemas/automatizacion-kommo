@@ -312,7 +312,7 @@ describe('flujo lead 42110107 (compra vs toma)', () => {
     const { result, system, stay } = await turn({
       text: 'Ayúdeme con el precio del Cretan. Yo voy a enviarle fotos de mi Yetul. Blanco mismo es.',
       resumen: RESUMEN_12_05,
-      reply: 'Claro, le confirmo el Creta.',
+      reply: 'Claro, le confirmo el Creta. El precio es {{precio:u1}}.',
       history: [{ role: 'assistant', content: fichaCreta }],
       interested: interestedCreta,
       sendId: CRETA_ID,
