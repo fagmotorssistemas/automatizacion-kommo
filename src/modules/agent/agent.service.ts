@@ -72,6 +72,8 @@ import {
 import {
   calcularUnidadesPresentadas,
   candidatosDadosAlLlm,
+  resolverReferenciaPresentadas,
+  type ResolucionPresentada,
   type UnidadPresentada,
 } from '../conversation/unidades-presentadas';
 import {
@@ -197,6 +199,7 @@ import {
   lastSingleShownUnit,
   looksLikeUnitList,
   pickListedUnit,
+  shortUnitLabel,
   toPhotoQueue,
   wantsPhotosOfListed,
   type PhotoQueueItem,
@@ -1146,6 +1149,7 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         pedido,
         tresFilas,
         stayOnShown ? null : motivo,
+        await this.conversation.loadUnidadesPresentadas(input.contactId),
       );
     }
     if (
@@ -2690,6 +2694,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
     pedido: string | null = null,
     tresFilas = false,
     stayMotivo: string | null = null,
+    presentadas: UnidadPresentada[][] = [],
   ): Promise<BrandReview> {
     const empty: BrandReview = { text: '', holdVehicle: false, sendId: null };
     const lastAsst = lastOfferAssistantText(history);
@@ -2779,6 +2784,23 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       (traccionPedida === '4x2' || traccionPedida === '4x4')
         ? traccionPedida
         : detectAskedDrive(cabDriveText);
+    if (presentadas.length > 0 && !pideOtras) {
+      const patio = await this.catalog.listAvailableExcept('_');
+      const byId = new Map(patio.map((car) => [car.id, car]));
+      const resolved = resolverReferenciaPresentadas({
+        text: customerText,
+        turnos: presentadas,
+        byId,
+        lexicon,
+      });
+      const fromRegistro = this.revisionDesdePresentadas(resolved, {
+        customerText,
+        includePrice,
+      });
+      if (fromRegistro) {
+        return fromRegistro;
+      }
+    }
     const anyBrandPedido =
       asksAnyBrand(customerText) ||
       history.some(
@@ -4915,6 +4937,49 @@ ${rule}`,
     }
 
     return JSON.stringify({ error: true, mensaje: `Tool desconocida: ${name}` });
+  }
+
+  private revisionDesdePresentadas(
+    resolved: ResolucionPresentada,
+    input: { customerText: string; includePrice: boolean },
+  ): BrandReview | null {
+    if (resolved.kind === 'ninguna') {
+      return null;
+    }
+    if (resolved.kind === 'una') {
+      const named = formatNamedUnits([resolved.car], input.includePrice);
+      return {
+        ...named,
+        text: `${named.text}
+El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay ficha: no busques de nuevo ni la presentes como otra. PROHIBIDO decir que no hay, que no tenemos o “lo más cercano”. Prohibido pedir entrada, plazo o cuota si el hilo no lo pidió. Prohibido meter otra línea.`,
+        switchedModel: true,
+        vehicleKind: kindFromTypeBody(resolved.car.typeBody),
+        listedUnits: [resolved.car],
+      };
+    }
+    if (wantsPhotosOfListed(input.customerText)) {
+      return formatListedPhotoQueue(resolved.cars);
+    }
+    if (input.includePrice && /\bprecios?\b/i.test(input.customerText)) {
+      const named = formatNamedUnits(resolved.cars, true);
+      return {
+        ...named,
+        holdVehicle: true,
+        sendId: null,
+        switchedModel: true,
+        vehicleKind: kindOfNamedUnits(resolved.cars),
+        text: `${named.text}
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+      };
+    }
+    const nombres = resolved.cars.map((car) => shortUnitLabel(car)).join(', ');
+    return {
+      text: `Ya le nombró ${resolved.cars.length} unidades (${nombres}). PROHIBIDO volver a listarlas. UNA línea: ¿cuál quiere ver? vehiculo null.`,
+      holdVehicle: true,
+      sendId: null,
+      switchedModel: true,
+      listedUnits: resolved.cars,
+    };
   }
 
   private async registrarUnidadesPresentadas(input: {

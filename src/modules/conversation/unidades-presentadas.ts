@@ -1,12 +1,20 @@
 import { hasLoadedMileage } from '../catalog/mileage';
 import {
+  rowMentionsFamily,
   textMentionsModel,
   type StockCar,
 } from '../catalog/clasificar-filas';
+import { detectGearbox, gearboxOf } from './gearbox';
 import {
   COLORS,
   colorMatches,
+  detectColorInText,
+  detectNamedModelAsk,
+  detectYearInText,
+  type VehicleLexicon,
 } from './vehicle-brand';
+import { emptyLexicon } from './fuzzy-vehicle-name';
+import { wantsPhotosOfListed } from './listed-photos';
 
 export const MAX_TURNOS_PRESENTADAS = 3;
 
@@ -217,4 +225,187 @@ export function appendTurnoPresentadas(
     return prev.slice(0, MAX_TURNOS_PRESENTADAS);
   }
   return [turno, ...prev].slice(0, MAX_TURNOS_PRESENTADAS);
+}
+
+export type ResolucionPresentada =
+  | { kind: 'una'; car: StockCar }
+  | { kind: 'varias'; cars: StockCar[] }
+  | { kind: 'ninguna' };
+
+const ORDINALES: { n: number; pattern: RegExp }[] = [
+  { n: 1, pattern: /\b(?:la|el)\s+primer[oa]s?\b|\b(?:la|el)\s+1(?:era?|er)?\b/i },
+  { n: 2, pattern: /\b(?:la|el)\s+segund[oa]s?\b|\b(?:la|el)\s+2(?:da?)?\b/i },
+  { n: 3, pattern: /\b(?:la|el)\s+tercer[oa]s?\b|\b(?:la|el)\s+3(?:era?)?\b/i },
+  { n: 4, pattern: /\b(?:la|el)\s+cuart[oa]s?\b|\b(?:la|el)\s+4(?:ta?)?\b/i },
+  { n: 5, pattern: /\b(?:la|el)\s+quint[oa]s?\b|\b(?:la|el)\s+5(?:ta?)?\b/i },
+];
+
+const REFERENCIA_VAGA =
+  /\b(?:es[ae]|ese|esta|este)\b|\b(?:la|el)\s+mism[oa](?:\s+(?:unidad|carro|auto|vehiculo))?\b|\bprecios?\b/i;
+
+function familiaDicha(
+  text: string,
+  lexicon: VehicleLexicon,
+): string | null {
+  const named = detectNamedModelAsk(text, lexicon);
+  if (!named?.family) {
+    return null;
+  }
+  if (/^(?:19|20)\d{2}$/.test(named.family)) {
+    return null;
+  }
+  return named.family;
+}
+
+function carsDeTurno(
+  turno: UnidadPresentada[],
+  byId: Map<string, StockCar>,
+): StockCar[] {
+  return turno
+    .slice()
+    .sort((a, b) => a.orden - b.orden)
+    .map((row) => byId.get(row.inventory_id))
+    .filter((car): car is StockCar => Boolean(car));
+}
+
+export function carsDesdePresentadas(
+  turnos: UnidadPresentada[][],
+  byId: Map<string, StockCar>,
+): StockCar[] {
+  const seen = new Set<string>();
+  const cars: StockCar[] = [];
+  for (const turno of turnos) {
+    for (const car of carsDeTurno(turno, byId)) {
+      if (seen.has(car.id)) {
+        continue;
+      }
+      seen.add(car.id);
+      cars.push(car);
+    }
+  }
+  return cars;
+}
+
+function detectOrdinal(text: string): number | null {
+  for (const row of ORDINALES) {
+    if (row.pattern.test(text)) {
+      return row.n;
+    }
+  }
+  return null;
+}
+
+function filtrarPorDatos(
+  cars: StockCar[],
+  text: string,
+  lexicon: VehicleLexicon,
+): StockCar[] {
+  const year = detectYearInText(text);
+  const color = detectColorInText(text);
+  const box = detectGearbox(text, lexicon);
+  const family = familiaDicha(text, lexicon);
+  let next = cars;
+  let used = false;
+  if (year != null) {
+    next = next.filter((car) => car.year === year);
+    used = true;
+  }
+  if (color) {
+    next = next.filter((car) => colorMatches(car.color, color));
+    used = true;
+  }
+  if (box) {
+    next = next.filter((car) => gearboxOf(car) === box);
+    used = true;
+  }
+  if (family) {
+    next = next.filter((car) => rowMentionsFamily(car.model, family));
+    used = true;
+  }
+  const byKm = next.filter((car) => textoMencionaKm(text, car.mileage));
+  if (byKm.length > 0) {
+    next = byKm;
+    used = true;
+  }
+  return used ? next : [];
+}
+
+function esReferenciaVaga(text: string): boolean {
+  return REFERENCIA_VAGA.test(text) || wantsPhotosOfListed(text);
+}
+
+/** Referencia a algo ya mostrado, sin un modelo nuevo fuera del registro. */
+export function esReferenciaAMostradas(
+  text: string,
+  turnos: UnidadPresentada[][],
+  byId: Map<string, StockCar>,
+  lexicon: VehicleLexicon = emptyLexicon(),
+): boolean {
+  const cars = carsDesdePresentadas(turnos, byId);
+  if (cars.length === 0) {
+    return false;
+  }
+  const family = familiaDicha(text, lexicon);
+  if (family && !cars.some((car) => rowMentionsFamily(car.model, family))) {
+    return false;
+  }
+  if (detectOrdinal(text) != null) {
+    return true;
+  }
+  if (esReferenciaVaga(text)) {
+    return true;
+  }
+  if (detectYearInText(text) != null || detectColorInText(text)) {
+    return true;
+  }
+  if (detectGearbox(text, lexicon)) {
+    return true;
+  }
+  if (family) {
+    return true;
+  }
+  return cars.some((car) => textoMencionaKm(text, car.mileage));
+}
+
+/**
+ * Resuelve contra el último turno presentado y, si no alcanza, los 2 anteriores.
+ * No parsea la prosa del bot.
+ */
+export function resolverReferenciaPresentadas(input: {
+  text: string;
+  turnos: UnidadPresentada[][];
+  byId: Map<string, StockCar>;
+  lexicon?: VehicleLexicon;
+}): ResolucionPresentada {
+  const lexicon = input.lexicon ?? emptyLexicon();
+  if (
+    !esReferenciaAMostradas(input.text, input.turnos, input.byId, lexicon)
+  ) {
+    return { kind: 'ninguna' };
+  }
+  const ordinal = detectOrdinal(input.text);
+  for (const turno of input.turnos) {
+    const cars = carsDeTurno(turno, input.byId);
+    if (cars.length === 0) {
+      continue;
+    }
+    if (ordinal != null) {
+      const hit = cars[ordinal - 1];
+      return hit ? { kind: 'una', car: hit } : { kind: 'ninguna' };
+    }
+    const filtered = filtrarPorDatos(cars, input.text, lexicon);
+    if (filtered.length === 1) {
+      return { kind: 'una', car: filtered[0] };
+    }
+    if (filtered.length > 1) {
+      return { kind: 'varias', cars: filtered };
+    }
+    if (cars.length === 1) {
+      return { kind: 'una', car: cars[0] };
+    }
+    if (esReferenciaVaga(input.text)) {
+      return { kind: 'varias', cars };
+    }
+  }
+  return { kind: 'ninguna' };
 }

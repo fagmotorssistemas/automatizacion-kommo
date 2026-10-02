@@ -1,9 +1,11 @@
 import type { StockCar } from '../catalog/clasificar-filas';
+import { TEST_LEXICON } from './test-lexicon';
 import {
   appendTurnoPresentadas,
   calcularUnidadesPresentadas,
   candidatosDadosAlLlm,
   parseRegistroPresentadas,
+  resolverReferenciaPresentadas,
   unidadMencionadaEnTexto,
 } from './unidades-presentadas';
 
@@ -193,5 +195,121 @@ describe('registro Redis', () => {
       [{ inventory_id: 'a', orden: 1, como: 'ficha' as const }],
     ];
     expect(appendTurnoPresentadas(prev, [])).toEqual(prev);
+  });
+});
+
+describe('resolverReferenciaPresentadas', () => {
+  const byId = new Map(
+    [xtrail2016, kicks2020, exp1998, exp2018, sportagePlata, sportageRoja].map(
+      (car) => [car.id, car],
+    ),
+  );
+
+  it('Fotos xfavor tras X-Trail y Kicks deja las dos, no niega', () => {
+    const turnos = [
+      [
+        { inventory_id: xtrail2016.id, orden: 1, como: 'lista' as const },
+        { inventory_id: kicks2020.id, orden: 2, como: 'lista' as const },
+      ],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'Fotos xfavor',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'varias', cars: [xtrail2016, kicks2020] });
+  });
+
+  it('La 2018 elige la Explorer 2018 del registro', () => {
+    const turnos = [
+      [
+        { inventory_id: exp1998.id, orden: 1, como: 'lista' as const },
+        { inventory_id: exp2018.id, orden: 2, como: 'lista' as const },
+      ],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'La 2018',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'una', car: exp2018 });
+  });
+
+  it('el plateado automático elige la Sportage GTI plateada', () => {
+    const turnos = [
+      [
+        { inventory_id: sportagePlata.id, orden: 1, como: 'lista' as const },
+        { inventory_id: sportageRoja.id, orden: 2, como: 'lista' as const },
+      ],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'el plateado automático',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'una', car: sportagePlata });
+  });
+
+  it('la segunda de una lista de 3', () => {
+    const turnos = [
+      [
+        { inventory_id: xtrail2016.id, orden: 1, como: 'lista' as const },
+        { inventory_id: kicks2020.id, orden: 2, como: 'lista' as const },
+        { inventory_id: exp2018.id, orden: 3, como: 'lista' as const },
+      ],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'la segunda',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'una', car: kicks2020 });
+  });
+
+  it('la misma unidad tras una sola ficha', () => {
+    const turnos = [
+      [{ inventory_id: xtrail2016.id, orden: 1, como: 'ficha' as const }],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'la misma unidad',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'una', car: xtrail2016 });
+  });
+
+  it('sin registro no resuelve: el camino viejo sigue', () => {
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'La 2018',
+        turnos: [],
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'ninguna' });
+  });
+
+  it('un modelo nuevo fuera del registro no se resuelve aquí', () => {
+    const turnos = [
+      [{ inventory_id: xtrail2016.id, orden: 1, como: 'ficha' as const }],
+    ];
+    expect(
+      resolverReferenciaPresentadas({
+        text: 'quiero una Hilux',
+        turnos,
+        byId,
+        lexicon: TEST_LEXICON,
+      }),
+    ).toEqual({ kind: 'ninguna' });
   });
 });
