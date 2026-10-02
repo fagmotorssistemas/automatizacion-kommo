@@ -5062,6 +5062,7 @@ El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay fic
         switchedModel: true,
         vehicleKind: kindFromTypeBody(resolved.car.typeBody),
         listedUnits: [resolved.car],
+        choseFromShown: true,
       };
     }
     if (wantsPhotosOfListed(input.customerText)) {
