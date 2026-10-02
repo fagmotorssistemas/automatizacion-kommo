@@ -1,6 +1,7 @@
 import type { EntregadoEnHilo } from '../conversation/entregado-en-hilo';
 import type { TurnPlanLog } from '../intelligence/turn-plan';
 import type { UnidadContexto } from './unidades-contexto';
+import type { UnidadPresentada } from '../conversation/unidades-presentadas';
 import type { CorreccionNumero } from './validar-numeros';
 
 export type AgentVehicleMeta = {
@@ -43,6 +44,8 @@ export type AgentTurnResult = {
   hechos?: Array<{ id: string; km: number | null; precio: number | null }>;
   /** Unidades cuya ficha o datos vio el modelo en este turno. Solo id y origen. */
   unidadesContexto?: UnidadContexto[];
+  /** Unidades que el texto final mencionó, de las que el turno le dio al LLM. */
+  unidadesPresentadas?: UnidadPresentada[];
   /** El cliente pidió un asesor; se registró (Kommo no crea tareas aún). */
   asesorPedido?: boolean;
   /** Pide precio: sí y la respuesta no trae el $ de la unidad pedida. */

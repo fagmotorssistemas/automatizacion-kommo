@@ -279,6 +279,7 @@ export class InboxFlushRunner {
         regenerado: turn.regenerado ?? false,
         hechos: turn.hechos ?? [],
         unidadesContexto: turn.unidadesContexto ?? [],
+        unidadesPresentadas: turn.unidadesPresentadas ?? [],
         rawLlm: turn.rawLlm ?? null,
         ...(turn.negacionSinContexto ? { negacionSinContexto: true } : {}),
         ...(turn.campoFiltrado ? { campoFiltrado: true } : {}),

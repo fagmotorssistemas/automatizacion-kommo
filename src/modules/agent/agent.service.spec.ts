@@ -43,6 +43,8 @@ describe('AgentService', () => {
     saveCashBudget: jest.fn(),
     loadPreviousResumen: jest.fn(),
     savePreviousResumen: jest.fn(),
+    loadUnidadesPresentadas: jest.fn(),
+    recordUnidadesPresentadas: jest.fn(),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
@@ -110,6 +112,10 @@ describe('AgentService', () => {
     conversation.loadPreviousResumen.mockReset();
     conversation.loadPreviousResumen.mockResolvedValue(null);
     conversation.savePreviousResumen.mockReset();
+    conversation.loadUnidadesPresentadas.mockReset();
+    conversation.loadUnidadesPresentadas.mockResolvedValue([]);
+    conversation.recordUnidadesPresentadas.mockReset();
+    conversation.recordUnidadesPresentadas.mockResolvedValue([]);
     conversation.recentMessages.mockResolvedValue([]);
     conversation.loadVehicleKind.mockResolvedValue(null);
     conversation.loadVehicleBrand.mockResolvedValue(null);

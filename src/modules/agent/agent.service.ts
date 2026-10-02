@@ -70,6 +70,11 @@ import {
   type UnidadContexto,
 } from './unidades-contexto';
 import {
+  calcularUnidadesPresentadas,
+  candidatosDadosAlLlm,
+  type UnidadPresentada,
+} from '../conversation/unidades-presentadas';
+import {
   asksAnyBrand,
   detectVehicleKind,
   formatPedidoVigente,
@@ -396,6 +401,12 @@ function unidadesParaTurno(
   unidades: UnidadContexto[],
 ): { unidadesContexto: UnidadContexto[] } | Record<string, never> {
   return unidades.length ? { unidadesContexto: unidades } : {};
+}
+
+function presentadasParaTurno(
+  unidades: UnidadPresentada[],
+): { unidadesPresentadas: UnidadPresentada[] } | Record<string, never> {
+  return unidades.length ? { unidadesPresentadas: unidades } : {};
 }
 
 function namedOfferId(
@@ -1663,6 +1674,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       this.logger.log(
         `Agente listo contactId=${input.contactId} inventory=cola:${revision.photoQueue.length}`,
       );
+      const presentadasCola = await this.registrarUnidadesPresentadas({
+        contactId: input.contactId,
+        mensaje: parsed.mensaje,
+        revision,
+        patio: patioDisponible,
+      });
       return {
         reply: parsed,
         resumen,
@@ -1679,6 +1696,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
             contextIds: revision.contextIds,
           }),
         ),
+        ...presentadasParaTurno(presentadasCola),
       };
     }
 
@@ -2087,6 +2105,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       contextIds: revision.contextIds,
       toolIds: toolInventoryIds,
     });
+    const presentadas = await this.registrarUnidadesPresentadas({
+      contactId: input.contactId,
+      mensaje: parsed.mensaje,
+      revision,
+      toolIds: toolInventoryIds,
+      patio: patioDisponible,
+    });
     const niegaStock = /\bno\s+(?:tenemos|contamos|disponemos)|no est[aá] (?:disponible|en (?:nuestro )?inventario)/i.test(
       parsed.mensaje,
     );
@@ -2109,6 +2134,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       ...(numeros.regenerado ? { regenerado: true } : {}),
       ...(numeros.hechos.length ? { hechos: numeros.hechos } : {}),
       ...unidadesParaTurno(unidadesCtx),
+      ...presentadasParaTurno(presentadas),
       ...(faltaAclararNoExiste ? { faltaAclararNoExiste } : {}),
       ...(resumenPideAsesor(resumen, input.customerText)
         ? { asesorPedido: true }
@@ -4889,6 +4915,56 @@ ${rule}`,
     }
 
     return JSON.stringify({ error: true, mensaje: `Tool desconocida: ${name}` });
+  }
+
+  private async registrarUnidadesPresentadas(input: {
+    contactId: string;
+    mensaje: string;
+    revision: BrandReview;
+    toolIds?: string[];
+    patio?: StockCar[] | null;
+  }): Promise<UnidadPresentada[]> {
+    const listed = input.revision.listedUnits ?? [];
+    const byId = new Map(listed.map((car) => [car.id, car]));
+    const needed = new Set<string>(
+      [
+        ...listed.map((car) => car.id),
+        input.revision.sendId,
+        ...(input.revision.contextIds ?? []),
+        ...(input.toolIds ?? []),
+      ].filter((id): id is string => Boolean(id?.trim())),
+    );
+    const missing = [...needed].filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      const patio =
+        input.patio ?? (await this.catalog.listAvailableExcept('_'));
+      for (const car of patio) {
+        if (needed.has(car.id)) {
+          byId.set(car.id, car);
+        }
+      }
+    }
+    const toolCars = (input.toolIds ?? [])
+      .map((id) => byId.get(id))
+      .filter((car): car is StockCar => Boolean(car));
+    const presentadas = calcularUnidadesPresentadas(
+      candidatosDadosAlLlm({
+        sendId: input.revision.sendId,
+        listedUnits: listed,
+        contextOrigin: input.revision.contextOrigin,
+        contextIds: input.revision.contextIds,
+        toolCars,
+        byId,
+      }),
+      input.mensaje,
+    );
+    if (presentadas.length > 0) {
+      await this.conversation.recordUnidadesPresentadas(
+        input.contactId,
+        presentadas,
+      );
+    }
+    return presentadas;
   }
 
   private async attachHandoffBrief(

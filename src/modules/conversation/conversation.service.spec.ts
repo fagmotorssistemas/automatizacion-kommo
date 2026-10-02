@@ -3,6 +3,8 @@ import { ConversationService } from './conversation.service';
 describe('ConversationService', () => {
   const stored: string[] = [];
   const redis = {
+    get: jest.fn(async () => null),
+    set: jest.fn(async () => 'OK'),
     lrange: jest.fn(async () => [...stored]),
     multi: jest.fn(() => {
       const chain = {
@@ -22,6 +24,10 @@ describe('ConversationService', () => {
     stored.length = 0;
     redis.lrange.mockClear();
     redis.multi.mockClear();
+    redis.get.mockReset();
+    redis.get.mockResolvedValue(null);
+    redis.set.mockReset();
+    redis.set.mockResolvedValue('OK');
   });
 
   it('al leer descarta el RESUMEN PREVIO guardado como user', async () => {
@@ -57,6 +63,25 @@ describe('ConversationService', () => {
     expect(chain.rpush).toHaveBeenCalledWith(
       expect.any(String),
       JSON.stringify({ role: 'user', content: 'me interesa' }),
+    );
+  });
+
+  it('guarda unidadesPresentadas con el TTL de la conversación', async () => {
+    const turno = [
+      { inventory_id: 'xt-2016', orden: 1, como: 'lista' as const },
+      { inventory_id: 'kicks-2020', orden: 2, como: 'lista' as const },
+    ];
+    redis.get.mockResolvedValueOnce(null);
+
+    await expect(
+      service.recordUnidadesPresentadas('59825503', turno),
+    ).resolves.toEqual([turno]);
+
+    expect(redis.set).toHaveBeenCalledWith(
+      'conversation:unidades-presentadas:59825503',
+      JSON.stringify([turno]),
+      'EX',
+      7 * 24 * 60 * 60,
     );
   });
 });

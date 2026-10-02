@@ -14,6 +14,7 @@ import {
   tomaChecklistKey,
   cashBudgetKey,
   previousResumenKey,
+  unidadesPresentadasKey,
   vehicleBrandKey,
   vehicleKindKey,
 } from './conversation.constants';
@@ -30,6 +31,12 @@ import {
   InboundTextResult,
   resolveInboundText,
 } from './resolve-inbound-text';
+import {
+  appendTurnoPresentadas,
+  parseRegistroPresentadas,
+  serializeRegistroPresentadas,
+  type UnidadPresentada,
+} from './unidades-presentadas';
 
 export type MemoryMessage = {
   role: 'user' | 'assistant';
@@ -211,6 +218,55 @@ export class ConversationService {
         `No se pudo guardar el resumen anterior contactId=${contactId}`,
         error instanceof Error ? error.stack : undefined,
       );
+    }
+  }
+
+  async loadUnidadesPresentadas(
+    contactId: string,
+  ): Promise<UnidadPresentada[][]> {
+    if (!contactId) {
+      return [];
+    }
+
+    try {
+      return parseRegistroPresentadas(
+        await this.redis.get(unidadesPresentadasKey(contactId)),
+      );
+    } catch (error) {
+      this.logger.error(
+        `No se pudo leer unidades presentadas contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
+    }
+  }
+
+  async recordUnidadesPresentadas(
+    contactId: string,
+    turno: UnidadPresentada[],
+  ): Promise<UnidadPresentada[][]> {
+    if (!contactId) {
+      return [];
+    }
+
+    try {
+      const next = appendTurnoPresentadas(
+        await this.loadUnidadesPresentadas(contactId),
+        turno,
+      );
+      await this.redis.set(
+        unidadesPresentadasKey(contactId),
+        serializeRegistroPresentadas(next),
+        'EX',
+        MEMORY_TTL_SECONDS,
+      );
+      return next;
+    } catch (error) {
+      this.logger.error(
+        `No se pudo guardar unidades presentadas contactId=${contactId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return [];
     }
   }
 
