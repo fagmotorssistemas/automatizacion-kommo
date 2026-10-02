@@ -546,9 +546,10 @@ describe('vehículo de interés', () => {
   });
 
   it('el precio queda interno hasta que el cliente lo pida', () => {
-    expect(formatInterestedCar(explorer)).not.toContain('$33990');
-    expect(formatInterestedCar(explorer)).toContain('precio_interno=33990');
-    expect(formatInterestedCar(explorer, true)).toContain('$33990');
+    expect(formatInterestedCar(explorer)).toContain('{{precio:u1}}');
+    expect(formatInterestedCar(explorer)).toContain('($33990)');
+    expect(formatInterestedCar(explorer)).toMatch(/escribe \{\{precio:u1\}\}/);
+    expect(formatInterestedCar(explorer, true)).toContain('{{precio:u1}}');
     expect(formatInterestedCar(explorer)).toMatch(/Si no cambió de carro, sigue ESTA/i);
   });
 
@@ -812,9 +813,10 @@ describe('vehículo de interés', () => {
       { slimAfterFicha: true, skipMileageCare: true },
     );
     expect(text).toMatch(/ficha YA se presentó/i);
-    expect(text).toContain('$33990');
+    expect(text).toContain('{{precio:u1}}');
+    expect(text).toContain('($33990)');
     expect(text).toContain('km=113692');
-    expect(text).toMatch(/justifica el valor/i);
+    expect(text).toMatch(/escribe \{\{precio:u1\}\}/);
     expect(text).not.toContain('color=plateado');
     expect(text).not.toContain('caja=manual');
     expect(text).not.toMatch(/AL CLIENTE:.*mecánico/i);
@@ -841,7 +843,7 @@ describe('vehículo de interés', () => {
         slimAfterFicha: true,
         afterFicha: 'both',
       }),
-    ).toMatch(/Di el \$ de inventario y, en la misma respuesta, dónde verla/i);
+    ).toMatch(/escribe \{\{precio:u1\}\} y, en la misma respuesta, dónde verla/i);
     expect(
       formatInterestedCar(explorer, false, {
         slimAfterFicha: true,

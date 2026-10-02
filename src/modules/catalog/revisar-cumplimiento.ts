@@ -1,5 +1,6 @@
 import { modelFamily, StockCar, unitCaja, unitDoors, unitDrive } from './clasificar-filas';
 import { hasLoadedMileage } from './mileage';
+import { asignarClavesPrecio, etiquetaPrecioFicha } from './precio-marcador';
 
 export const COMPLIANCE_SYSTEM_PROMPT = `Eres el revisor de inventario de una concesionaria. Decides qué vehículos CUMPLEN el pedido del cliente.
 
@@ -133,7 +134,7 @@ export function idsToOffer(
   return review.parecidos;
 }
 
-function label(car: StockCar, includePrice = false): string {
+function label(car: StockCar, clave = 'u1'): string {
   const family = modelFamily(car.model);
   const name =
     family === 'xtrail'
@@ -142,10 +143,7 @@ function label(car: StockCar, includePrice = false): string {
         ? family.charAt(0).toUpperCase() + family.slice(1)
         : car.model;
   const year = car.year ? ` ${car.year}` : '';
-  const price =
-    includePrice && car.price && car.price > 0
-      ? `, $${Math.round(car.price)}`
-      : '';
+  const price = ` ${etiquetaPrecioFicha(clave, car.price && car.price > 0 ? Math.round(car.price) : null)}`;
   return `${name}${year}${price} (inventory_id=${car.id})`;
 }
 
@@ -156,9 +154,12 @@ export function formatComplianceForAgent(
   includePrice = false,
 ): string {
   const byId = new Map(cars.map((car) => [car.id, car]));
+  const claves = asignarClavesPrecio(cars);
+  const claveDe = (id: string) =>
+    claves.find((item) => item.inventoryId === id)?.clave ?? 'u1';
   const line = (id: string) => {
     const car = byId.get(id);
-    return car ? label(car, includePrice) : id;
+    return car ? label(car, claveDe(id)) : id;
   };
   const no = review.noCumplen.map(line).join('; ');
   const parts = [`REVISIÓN DEL PEDIDO: ${ask}`];
@@ -193,7 +194,7 @@ export function formatComplianceForAgent(
         'Ninguno cumple exacto. Ofrece lo más cercano de ESTA misma marca (de la lista revisada). Nómbralos para que elija. No pases a otra marca todavía.',
       );
       parts.push(
-        `En patio de esta marca: ${cars.map((car) => label(car, includePrice)).join('; ')}.`,
+        `En patio de esta marca: ${cars.map((car) => label(car, claveDe(car.id))).join('; ')}.`,
       );
       parts.push('vehiculo null hasta que elija uno.');
     } else {
@@ -237,9 +238,12 @@ export function formatOtherBrands(
   includePrice = false,
 ): string {
   const byId = new Map(cars.map((car) => [car.id, car]));
+  const claves = asignarClavesPrecio(cars);
+  const claveDe = (id: string) =>
+    claves.find((item) => item.inventoryId === id)?.clave ?? 'u1';
   const line = (id: string) => {
     const car = byId.get(id);
-    return car ? `${car.brand} ${label(car, includePrice)}` : id;
+    return car ? `${car.brand} ${label(car, claveDe(id))}` : id;
   };
   const parts = [
     `De ${brand} ninguno cumple ni se acerca.`,

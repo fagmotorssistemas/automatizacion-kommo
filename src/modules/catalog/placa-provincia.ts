@@ -108,10 +108,7 @@ export function lexicalizarPlaca(
   plateShort: string | null | undefined,
 ): string {
   const frase = fraseDePlaca(plateShort) ?? FRASE_PLACA_PENDIENTE;
-  let out = mensaje.replace(/\{\{\s*placa\s*\}\}/gi, frase);
-  out = out.replace(/\{\{[^}]*\}\}/g, FRASE_PLACA_PENDIENTE);
-  out = out.replace(/\{\{/g, '');
-  return out;
+  return mensaje.replace(/\{\{\s*placa\s*\}\}/gi, frase);
 }
 
 export function filtrarCamposInternos(mensaje: string): {

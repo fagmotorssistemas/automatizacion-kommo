@@ -5,6 +5,7 @@ import {
   unitDrive,
   type StockCar,
 } from '../catalog/clasificar-filas';
+import { asignarClavesPrecio, type PrecioClave } from '../catalog/precio-marcador';
 import { colorMatches } from './vehicle-brand';
 import { gearboxLabel, gearboxOf, type Gearbox } from './gearbox';
 import { kindFromTypeBody, type VehicleKind } from './vehicle-kind';
@@ -106,6 +107,7 @@ export function formatFactMissInstruction(input: {
   holdVehicle: boolean;
   sendId: string | null;
   listedUnits?: StockCar[];
+  precioClaves?: PrecioClave[];
 } {
   const familia = input.family || 'unidad';
   const compact = familia.replace(/-/g, '');
@@ -124,12 +126,17 @@ export function formatFactMissInstruction(input: {
     Boolean(input.widenedToSuv) ||
     (Boolean(askedKind) &&
       alts.some((car) => tipoOf(car).toLowerCase() !== askedTipo.toLowerCase()));
+  const precioClaves = asignarClavesPrecio(
+    [...alts, ...(input.shown ? [input.shown] : [])],
+  );
+  const claveDe = (id: string) =>
+    precioClaves.find((item) => item.inventoryId === id)?.clave ?? 'u1';
   const lines = alts.map((car) => {
     const tipo = tipoOf(car);
-    return `${describeUnit(car, input.includePrice)} | tipo=${tipo}`;
+    return `${describeUnit(car, input.includePrice, claveDe(car.id))} | tipo=${tipo}`;
   });
   const shownLine = input.shown
-    ? describeUnit(input.shown, input.includePrice)
+    ? describeUnit(input.shown, input.includePrice, claveDe(input.shown.id))
     : '';
 
   const lead =
@@ -154,6 +161,7 @@ No hay otra unidad que cumpla ${input.askedLabel}. Di que no tenemos. ${shownNot
       holdVehicle: false,
       sendId: input.shown?.id ?? null,
       listedUnits: input.shown ? [input.shown] : undefined,
+      precioClaves,
     };
   }
 
@@ -171,6 +179,7 @@ ${shownNote}`.trim(),
     holdVehicle: alts.length > 1,
     sendId: alts.length === 1 ? alts[0].id : null,
     listedUnits: alts,
+    precioClaves,
   };
 }
 

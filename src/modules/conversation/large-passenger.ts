@@ -3,6 +3,7 @@ import {
   describeUnit,
   type StockCar,
 } from '../catalog/clasificar-filas';
+import { asignarClavesPrecio } from '../catalog/precio-marcador';
 import { carBodyGroup } from './gearbox';
 
 const VAN =
@@ -170,7 +171,10 @@ export function formatLargePassengerRevision(
     return `${header}
 No hay en patio un vehículo grande de pasajeros. Diló. No ofrezcas un carro chico ni una camioneta.`;
   }
+  const claves = asignarClavesPrecio(cars);
+  const claveDe = (id: string) =>
+    claves.find((item) => item.inventoryId === id)?.clave ?? 'u1';
   return `${header}
 Estos son los de MÁS ESPACIO en patio. Nómbralos y pregunta cuál le interesa. No elijas uno solo ni mandes fotos todavía.
-${cars.map((car) => describeUnit(car, includePrice)).join('\n')}`;
+${cars.map((car) => describeUnit(car, includePrice, claveDe(car.id))).join('\n')}`;
 }

@@ -552,7 +552,7 @@ describe('clasificar filas', () => {
     });
     expect(text).toContain('Sentra, Kicks, Frontier, X-Trail');
     expect(text).toContain('X-Trail 2016');
-    expect(text).not.toContain('$');
+    expect(text).toMatch(/\{\{precio:u\d+\}\}/);
     expect(text).toContain('No ofrezcas otra marca');
     expect(text).toContain('vehiculo null');
   });
@@ -589,14 +589,19 @@ describe('clasificar filas', () => {
     expect(varias.text).toMatch(/2024/);
     expect(varias.text).toContain('km=11061');
     expect(varias.text).toContain('cuál le interesa');
-    expect(varias.text).not.toContain('$');
+    expect(varias.text).toContain('{{precio:u1}}');
+    expect(varias.text).toContain('{{precio:u2}}');
+    expect(varias.text).toContain('($65990)');
+    expect(varias.precioClaves.map((item) => item.clave)).toEqual(['u1', 'u2']);
 
     const una = formatNamedUnits([rangers[0]], false);
     expect(una.sendId).toBe('r2026');
     expect(una.holdVehicle).toBe(false);
-    expect(una.text).toMatch(/precio_interno=65990/);
-    expect(una.text).toMatch(/dato interno/i);
-    expect(una.text).not.toMatch(/\$65990/);
+    expect(una.text).toMatch(/precio=\{\{precio:u1\}\} \(\$65990\)/);
+    expect(una.text).toMatch(/escribe \{\{precio:u1\}\}/);
+    expect(una.precioClaves).toEqual([
+      { clave: 'u1', inventoryId: 'r2026', price: 65990 },
+    ]);
 
     const sinKm = formatNamedUnits(
       [{ ...rangers[1], mileage: 0 }],

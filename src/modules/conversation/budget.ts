@@ -178,7 +178,13 @@ export function formatBudgetRevision(input: {
   budget: number;
   cars: StockCar[];
   over?: { family?: string | null; price?: number | null };
-}): { text: string; holdVehicle: boolean; sendId: string | null } {
+}): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  listedUnits?: StockCar[];
+  precioClaves?: ReturnType<typeof formatNamedUnits>['precioClaves'];
+} {
   const over =
     input.over?.price && input.over.price > input.budget
       ? `El ${input.over.family ?? 'que ya vieron'} ($${Math.round(input.over.price)}) queda por encima de este contado. Dilo. No armes cuota.`
@@ -199,5 +205,7 @@ ${over}
 ${named.text}`,
     holdVehicle: true,
     sendId: null,
+    listedUnits: named.listedUnits,
+    precioClaves: named.precioClaves,
   };
 }

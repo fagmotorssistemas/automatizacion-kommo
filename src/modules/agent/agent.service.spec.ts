@@ -9044,11 +9044,11 @@ Pide precio: no`,
 
     expect(openai.runSalesAgent).toHaveBeenCalledWith(
       expect.objectContaining({
-        system: expect.stringContaining('precio_interno=33990'),
+        system: expect.stringContaining('{{precio:u1}}'),
         user: expect.stringContaining('interested_cars'),
       }),
     );
-    expect(openai.runSalesAgent.mock.calls[0][0].system).not.toContain('$33990');
+    expect(openai.runSalesAgent.mock.calls[0][0].system).toContain('($33990)');
   });
 
   it('si pide el precio sí se lo muestra', async () => {
@@ -12534,8 +12534,8 @@ Pide precio: no`,
 
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
     expect(system).toMatch(/PRIMERA PRESENTACIÓN/i);
-    expect(system).toMatch(/precio_interno=13800/);
-    expect(system).not.toMatch(/\$13800/);
+    expect(system).toMatch(/\{\{precio:u1\}\}/);
+    expect(system).toMatch(/\(\$13800\)/);
     expect(result?.reply.mensaje).not.toMatch(/13800/);
     expect(result?.reply.mensaje).not.toMatch(/\$/);
     expect(result?.reply.mensaje).toMatch(/Grand Vitara 2015/i);

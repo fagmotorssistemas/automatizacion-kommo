@@ -40,7 +40,7 @@ describe('placa-provincia', () => {
       'La placa empieza con P (matriculado por primera vez en Pichincha) y termina en 5.',
     );
     expect(lexicalizarPlaca('{{placa}}', null)).toBe(FRASE_PLACA_PENDIENTE);
-    expect(lexicalizarPlaca('listo {{otro}}', 'P5')).not.toContain('{{');
+    expect(lexicalizarPlaca('listo {{otro}}', 'P5')).toBe('listo {{otro}}');
   });
 
   it('quita plate_short. y marca campoFiltrado', () => {

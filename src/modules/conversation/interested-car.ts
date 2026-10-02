@@ -56,7 +56,7 @@ import {
 import { otrasDiferidas } from '../intelligence/sanitize-resumen-flags';
 import { InterestedCarSnapshot } from '../persistence/lead.types';
 import { etiquetaPlacaFicha } from '../catalog/placa-provincia';
-import { hasLoadedPrice } from './strip-unsolicited-price';
+import { etiquetaPrecioFicha, notaEscribeMarcador } from '../catalog/precio-marcador';
 
 export type ShownCarContext = {
   text: string;
@@ -729,17 +729,19 @@ export function formatInterestedCar(
     replayFicha?: boolean;
     creditFollowUp?: boolean;
     afterFicha?: 'price' | 'location' | 'doubt' | 'both' | 'facts';
+    precioClave?: string;
   },
 ): string {
+  const clave = options?.precioClave ?? 'u1';
   const year = car.year ? ` ${car.year}` : '';
-  const shown =
-    includePrice && car.price && car.price > 0
-      ? `, $${Math.round(car.price)}`
-      : '';
-  const interno =
-    !includePrice && car.price && car.price > 0
-      ? `\nprecio_interno=${Math.round(car.price)} (solo para la herramienta de financiamiento. No lo escribas en respuesta_cliente.)`
-      : '';
+  const priceHint = etiquetaPrecioFicha(
+    clave,
+    car.price && car.price > 0 ? Math.round(car.price) : null,
+  );
+  const shown = includePrice ? `, ${priceHint}` : '';
+  const interno = !includePrice
+    ? `\n${priceHint} (dato interno. Si mencionas el valor, escribe {{precio:${clave}}}. PROHIBIDO un monto a mano.)`
+    : '';
   if (options?.replayFicha) {
     const tipo = kindFromTypeBody(car.typeBody);
     const tipoLine = tipo
@@ -774,9 +776,7 @@ PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km
         : after === 'facts'
           ? '\nkm=sin dato. km=aún no cargado (NO digas 0 km; si pregunta el kilometraje, dilo: todavía no está en patio)'
           : '';
-    const priceNote = hasLoadedPrice(car.price)
-      ? ''
-      : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
+    const priceNote = `\n${priceHint}`;
     const placaLine = `\n${etiquetaPlacaFicha(car.plateShort)}`;
     const close = options?.creditFollowUp
       ? 'YA vio esta unidad y el precio. Sigue ESA. Eligió el camino de financiamiento. PROHIBIDO repetir ficha, el $ ni “excelente estado / papeles / entrega”. Pregunta con cuánto de entrada y a qué plazo. No inventes cuota sin esos datos.'
@@ -785,12 +785,10 @@ PIDIÓ DE NUEVO LA FICHA de ESA unidad. Vuelve a darla completa (año, color, km
       : after === 'doubt'
       ? 'YA vio esta unidad. Contesta la duda de ESA. PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
       : after === 'both'
-      ? 'YA vio esta unidad. Di el $ de inventario y, en la misma respuesta, dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO repetir ficha, “tenemos disponible” o fotos.'
+      ? `YA vio esta unidad. Escribe {{precio:${clave}}} y, en la misma respuesta, dónde verla (Av. España 6-73 y Sevilla, Cuenca). PROHIBIDO un monto a mano. PROHIBIDO repetir ficha, “tenemos disponible” o fotos.`
       : after === 'facts'
       ? 'YA vio esta unidad. Contesta AHORA lo que pregunta (fotos, km, un detalle). PROHIBIDO volver a presentarla: no “tenemos disponible”, no ficha completa (color, caja, tracción, placa). Si pregunta el km y no está cargado, dilo así. No prometas fotos que no se van a enviar.'
-      : hasLoadedPrice(car.price)
-      ? 'YA vio esta unidad. Di el $ de inventario y justifica el valor (estado, km, garantía en documentos/traspaso). PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos. No inventes garantía mecánica.'
-      : 'YA vio esta unidad. El precio AÚN NO ESTÁ CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor. PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.';
+      : `YA vio esta unidad. Si pide el valor, escribe {{precio:${clave}}}. PROHIBIDO un monto a mano. ${notaEscribeMarcador(clave, true).trim()} PROHIBIDO repetir color, caja, tracción, “tenemos disponible” o fotos.`;
     return `VEHÍCULO DE INTERÉS (la ficha YA se presentó en el hilo)
 ${car.brand} ${car.model}${year}${shown}
 inventory_id=${car.inventoryId}${interno}${km}${priceNote}${placaLine}
@@ -819,9 +817,7 @@ ${close}`;
   ]
     .filter(Boolean)
     .join('\n');
-  const priceUnload = hasLoadedPrice(car.price)
-    ? ''
-    : '\nprecio=aún no cargado (NO digas $0 ni $00; el dato no está en patio)';
+  const priceUnload = `\n${priceHint}`;
   const factsLine = facts
     ? `\n${facts}
 Estos datos van etiquetados. caja = transmisión (solo manual/automática; si es sin dato, no la menciones). 4p/5p = puertas, no transmisión. 4x2/4x4 = tracción, no transmisión. Si preguntan placa o provincia, escribe exactamente {{placa}} (nunca inventes letras ni números; el km no es placa).`

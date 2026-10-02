@@ -5,6 +5,12 @@ import {
 } from '../conversation/vehicle-kind';
 import { hasLoadedMileage } from './mileage';
 import { etiquetaPlacaFicha } from './placa-provincia';
+import {
+  asignarClavesPrecio,
+  etiquetaPrecioFicha,
+  notaEscribeMarcador,
+  type PrecioClave,
+} from './precio-marcador';
 
 export type FilaClase = 'tres_filas' | 'posible' | 'no' | 'no_consta';
 
@@ -427,19 +433,20 @@ export function unitDrive(car: UnitFactSource): string | null {
 }
 
 export const UNIT_FIELD_LEGEND =
-  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). cabina=cs/cd si el modelo lo trae (si es sin dato, no la inventes). tm=manual, ta/cvt=automática. placa={{placa}} (matrícula: provincia de la primera matrícula). Si preguntan placa o provincia, escribe exactamente {{placa}}. Nunca letras ni números de placa.';
+  'Etiquetas: modelo/año/color/km se copian. caja=solo manual o automática (si es sin dato, no hables de transmisión). puertas=3p/4p/5p (NUNCA "transmisión 4p"). tracción=4x2/4x4 (NUNCA "transmisión 4x2"). cabina=cs/cd si el modelo lo trae (si es sin dato, no la inventes). tm=manual, ta/cvt=automática. placa={{placa}} (matrícula: provincia de la primera matrícula). Si preguntan placa o provincia, escribe exactamente {{placa}}. Nunca letras ni números de placa. precio={{precio:uN}} (el $ entre paréntesis solo dice si hay dato). Si mencionas el valor, escribe {{precio:uN}} de ESA unidad. PROHIBIDO un monto a mano.';
 
-function etiqueta(car: StockCar, includePrice = false): string {
-  const price =
-    includePrice && car.price && car.price > 0
-      ? `, $${Math.round(car.price)}`
-      : '';
+function etiqueta(car: StockCar, _includePrice = false, clave = 'u1'): string {
+  const price = ` ${etiquetaPrecioFicha(clave, car.price && car.price > 0 ? Math.round(car.price) : null)}`;
   const year = car.year ? ` ${car.year}` : '';
   return `${prettyFamily(car.model)}${year}${price}`;
 }
 
 /** Ficha etiquetada: cada campo dice qué es. El robot arma la frase con eso. */
-export function describeUnit(car: StockCar, includePrice = false): string {
+export function describeUnit(
+  car: StockCar,
+  includePrice = false,
+  clave = 'u1',
+): string {
   const caja = unitCaja(car);
   const puertas = unitDoors(car);
   const traccion = unitDrive(car);
@@ -456,11 +463,10 @@ export function describeUnit(car: StockCar, includePrice = false): string {
     `tracción=${traccion ?? 'sin dato'}`,
     `cabina=${cabina ?? 'sin dato'}`,
     km,
-    includePrice && car.price && car.price > 0
-      ? `precio=$${Math.round(car.price)}`
-      : includePrice
-        ? 'precio=aún no cargado (PROHIBIDO inventar un $)'
-        : '',
+    etiquetaPrecioFicha(
+      clave,
+      car.price && car.price > 0 ? Math.round(car.price) : null,
+    ),
     etiquetaPlacaFicha(car.plateShort),
     `inventory_id=${car.id}`,
   ].filter(Boolean);
@@ -556,16 +562,8 @@ export function unitsNamedByClient<T extends { year?: number | null }>(
     .slice(0, 3);
 }
 
-function notaPrecioFicha(car: StockCar, decirlo: boolean): string {
-  const amount = car.price && car.price > 0 ? Math.round(car.price) : null;
-  if (decirlo) {
-    return amount
-      ? '\nPidió el valor: di SOLO el $ de esta ficha. PROHIBIDO inventar otro.'
-      : '\nPidió el valor: el patio NO tiene $. Dilo así. PROHIBIDO inventar un número.';
-  }
-  return amount
-    ? `\nprecio_interno=${amount} (dato interno. PROHIBIDO escribirlo en la respuesta. PROHIBIDO inventar otro número.)`
-    : '\nEl precio no está cargado. PROHIBIDO inventar un $.';
+function notaPrecioFicha(clave: string, decirlo: boolean): string {
+  return notaEscribeMarcador(clave, decirlo);
 }
 
 /** Una unidad se manda. Varias se nombran para que elija. */
@@ -579,20 +577,29 @@ export function formatNamedUnits(
   unitPrice: number | null;
   listedUnits: StockCar[];
   choseFromShown?: boolean;
+  precioClaves: PrecioClave[];
 } {
   const units = tightenNamedLines(cars);
+  const precioClaves = asignarClavesPrecio(units);
+  const ficha = (car: StockCar, i: number) =>
+    describeUnit(car, includePrice, precioClaves[i]?.clave ?? 'u1');
+  const pideValores = includePrice
+    ? '\nPidió los valores: escribe {{precio:uN}} de CADA ficha que nombres. PROHIBIDO un monto a mano.'
+    : '';
   if (units.length === 1) {
     const car = units[0];
     const unitPrice =
       car.price && car.price > 0 ? Math.round(car.price) : null;
+    const clave = precioClaves[0]?.clave ?? 'u1';
     return {
-      text: `De este modelo hay una sola unidad y hay que mandarla: ${describeUnit(car, includePrice)}.
-En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(car, includePrice)}`,
+      text: `De este modelo hay una sola unidad y hay que mandarla: ${ficha(car, 0)}.
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(clave, includePrice)}`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
       listedUnits: units,
       choseFromShown: true,
+      precioClaves,
     };
   }
 
@@ -602,29 +609,23 @@ En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(car,
   if (lines.size > 1) {
     return {
       text: `Hay ${units.length} líneas distintas, no el mismo carro. Nombra CADA una con SU ficha (año, color, km, placa). Pregunta cuál. PROHIBIDO copiar los datos de una a la otra. vehiculo null.
-${units.map((car) => describeUnit(car, includePrice)).join('\n')}${
-        includePrice
-          ? '\nPidió los valores: di el $ de inventario de CADA ficha. PROHIBIDO redondear o inventar.'
-          : ''
-      }`,
+${units.map((car, i) => ficha(car, i)).join('\n')}${pideValores}`,
       holdVehicle: true,
       sendId: null,
       unitPrice: null,
       listedUnits: units,
+      precioClaves,
     };
   }
 
   return {
     text: `De este modelo hay ${units.length} unidades. Nómbralas todas y pregunta cuál le interesa. No elijas una. No mandes fotos: vehiculo null.
-${units.map((car) => describeUnit(car, includePrice)).join('\n')}${
-      includePrice
-        ? '\nPidió los valores: di el $ de inventario de CADA ficha. PROHIBIDO redondear o inventar.'
-        : ''
-    }`,
+${units.map((car, i) => ficha(car, i)).join('\n')}${pideValores}`,
     holdVehicle: true,
     sendId: null,
     unitPrice: null,
     listedUnits: units,
+    precioClaves,
   };
 }
 
@@ -968,6 +969,7 @@ export function formatMissingNamedModel(
   unitPrice: number | null;
   listedUnits?: StockCar[];
   choseFromShown?: boolean;
+  precioClaves?: PrecioClave[];
 } {
   const same = alternatives.filter((car) => {
     if (year != null && yearMax != null && yearMax !== year) {
@@ -1001,26 +1003,31 @@ export function formatMissingNamedModel(
     const car = close[0];
     const unitPrice =
       car.price && car.price > 0 ? Math.round(car.price) : null;
+    const precioClaves = asignarClavesPrecio([car]);
+    const clave = precioClaves[0]?.clave ?? 'u1';
     return {
       text: `${header}
-Lo más cercano, y hay que mandarlo solo después de decir que no hay ${asked}: ${describeUnit(car, includePrice)}.
-En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(car, includePrice)}`,
+Lo más cercano, y hay que mandarlo solo después de decir que no hay ${asked}: ${describeUnit(car, includePrice, clave)}.
+En meta.vehiculo.inventory_id pon exactamente "${car.id}".${notaPrecioFicha(clave, includePrice)}`,
       holdVehicle: false,
       sendId: car.id,
       unitPrice,
       listedUnits: [car],
       choseFromShown: true,
+      precioClaves,
     };
   }
   if (close.length > 1) {
+    const precioClaves = asignarClavesPrecio(close);
     return {
       text: `${header}
 Nómbralas para que elija. vehiculo null.
-${close.map((car) => describeUnit(car, includePrice)).join('\n')}`,
+${close.map((car, i) => describeUnit(car, includePrice, precioClaves[i]?.clave ?? 'u1')).join('\n')}`,
       holdVehicle: true,
       sendId: null,
       unitPrice: null,
       listedUnits: close,
+      precioClaves,
     };
   }
   return {
@@ -1052,6 +1059,9 @@ export function formatRevisionMarca(input: {
     return parts.join('\n');
   }
 
+  const clavesMarca = asignarClavesPrecio(input.cars);
+  const claveDe = (id: string) =>
+    clavesMarca.find((item) => item.inventoryId === id)?.clave ?? 'u1';
   const marked = input.cars.map((car) => ({
     car,
     clase: clasificarFilas(car.model, car.typeBody),
@@ -1059,7 +1069,13 @@ export function formatRevisionMarca(input: {
   const list = (clase: FilaClase) =>
     marked
       .filter((item) => item.clase === clase)
-      .map((item) => etiqueta(item.car, input.includePrice === true))
+      .map((item) =>
+        etiqueta(
+          item.car,
+          input.includePrice === true,
+          claveDe(item.car.id),
+        ),
+      )
       .join('; ');
 
   const confirmados = list('tres_filas');

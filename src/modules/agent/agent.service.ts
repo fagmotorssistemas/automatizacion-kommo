@@ -383,6 +383,15 @@ import {
   preguntaProvinciaPlaca,
 } from '../catalog/placa-provincia';
 import {
+  asignarClavesPrecio,
+  cerrarMarcadores,
+  clavePrecio,
+  lexicalizarPrecio,
+  marcarPreciosEnToolJson,
+  unirPrecioClaves,
+  PrecioClave,
+} from '../catalog/precio-marcador';
+import {
   carsForSpecLookup,
   factsFromResearch,
   formatSpecNotes,
@@ -433,6 +442,7 @@ type BrandReview = {
   sendId: string | null;
   unitPrice?: number | null;
   listedUnits?: StockCar[];
+  precioClaves?: PrecioClave[];
   switchedModel?: boolean;
   vehicleKind?: VehicleKind | null;
   photoQueue?: PhotoQueueItem[];
@@ -1301,6 +1311,16 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
               !objectionOnShown &&
               !financingFollowUp,
             {
+              precioClave:
+                (
+                  revision.precioClaves ??
+                  asignarClavesPrecio(revision.listedUnits ?? [])
+                ).find((item) => item.inventoryId === interested.inventoryId)
+                  ?.clave ??
+                clavePrecio(
+                  (revision.precioClaves ?? revision.listedUnits ?? []).length +
+                    1,
+                ),
               skipMileageCare:
                 replayFicha ||
                 historySaidMileageCare(history) ||
@@ -1487,7 +1507,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       hasConfirmedUnit &&
       unitPrice == null &&
       listedPriceKnown
-        ? 'PIDIÓ EL PRECIO pero en patio está 0 o vacío: AÚN NO CARGADO. Dilo así. PROHIBIDO $0 ni $00. No inventes un valor.'
+        ? 'PIDIÓ EL PRECIO pero en patio está 0 o vacío: escribe {{precio:uN}} de ESA ficha. PROHIBIDO un monto a mano. PROHIBIDO $0 ni $00.'
         : '';
     const precioHint = cuotaYaDicha || financingFollowUp
       ? ''
@@ -1496,13 +1516,13 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       : priceUnloadedHint
         ? priceUnloadedHint
       : justifyPriceAfterFicha
-        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: di el $ de inventario primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
+        ? 'YA SE DIO LA FICHA (historial/resumen). Pidió el precio: escribe {{precio:uN}} de ESA ficha primero. Si también pregunta la ciudad, contéstala en la misma respuesta, después del precio. PROHIBIDO un monto a mano. PROHIBIDO cambiar el tema al kilometraje o al mecánico. PROHIBIDO repetir la ficha (color, caja, tracción, “tenemos disponible”, fotos). No inventes garantía mecánica. No rebajes. Prohibido placa, cuota, cédula si el hilo no las pidió. Usa MANEJOCARO.'
       : canQuotePrice
       ? askedCredit
-        ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Di el precio de inventario (contado) Y abre financiamiento (entrada y plazo) en ESTE turno.'
+        ? 'PIDIÓ PRECIO DE CONTADO Y CRÉDITO. Escribe {{precio:uN}} de ESA ficha (contado) Y abre financiamiento (entrada y plazo) en ESTE turno. PROHIBIDO un monto de contado a mano.'
         : !alreadyShown && unitPrice != null
-          ? `EL CLIENTE YA PIDIÓ EL PRECIO en este mensaje. Aunque sea la primera ficha, presenta la unidad y di el precio de inventario: $${unitPrice}. PROHIBIDO omitirlo y prohibido dejar la frase cortada en "y".`
-          : 'PIDIÓ EL PRECIO de esta unidad: dilo ($…) SOLO el de inventario. Prohibido inventar. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
+          ? 'EL CLIENTE YA PIDIÓ EL PRECIO en este mensaje. Aunque sea la primera ficha, presenta la unidad y escribe {{precio:uN}} de ESA ficha. PROHIBIDO un monto a mano. PROHIBIDO omitirlo y prohibido dejar la frase cortada en "y".'
+          : 'PIDIÓ EL PRECIO de esta unidad: escribe {{precio:uN}} de ESA ficha. PROHIBIDO un monto a mano. Prohibido placa, cuota, cédula si el hilo no las pidió. Si el resumen también pide cuota o visita, atiende eso.'
       : askedPrice && !hasConfirmedUnit
         ? 'PIDIÓ PRECIO PERO NO HAY UNIDAD CONFIRMADA. Pregunta qué vehículo le interesa. PROHIBIDO inventar un precio. Prohibido $15000 ni cualquier número que no esté en inventario.'
         : !alreadyShown
@@ -1709,6 +1729,7 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     }
 
     const toolInventoryIds: string[] = [];
+    const toolPrecioClaves: PrecioClave[] = [];
     const executeTurnTool = async (name: string, argsJson: string) => {
       const out = await this.executeTool(
         name,
@@ -1720,6 +1741,14 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       );
       if (name === 'buscarvehiuclo') {
         toolInventoryIds.push(...idsDesdeToolJson(out));
+        const existentes = unirPrecioClaves(
+          revision.precioClaves ??
+            asignarClavesPrecio(revision.listedUnits ?? []),
+          toolPrecioClaves,
+        );
+        const marked = marcarPreciosEnToolJson(out, existentes);
+        toolPrecioClaves.push(...marked.claves);
+        return marked.json;
       }
       return out;
     };
@@ -1817,7 +1846,26 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       interested,
       listedUnits: revision.listedUnits,
     });
-    parsed.mensaje = lexicalizarPlaca(parsed.mensaje, plateRef);
+    const listedClaves =
+      revision.precioClaves ??
+      asignarClavesPrecio(revision.listedUnits ?? []);
+    const interestedClaves = interested
+      ? asignarClavesPrecio(
+          [{ id: interested.inventoryId, price: interested.price }],
+          listedClaves.length + toolPrecioClaves.length + 1,
+        )
+      : [];
+    const precioClaves = unirPrecioClaves(
+      listedClaves,
+      toolPrecioClaves,
+      interestedClaves,
+    );
+    parsed.mensaje = cerrarMarcadores(
+      lexicalizarPlaca(
+        lexicalizarPrecio(parsed.mensaje, precioClaves),
+        plateRef,
+      ),
+    );
 
     if (parsed.mensaje) {
       const askedPlate =
@@ -2631,6 +2679,7 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       sendId: formatted.sendId,
       unitPrice,
       listedUnits: formatted.listedUnits,
+      precioClaves: formatted.precioClaves,
       switchedModel: true,
       vehicleKind: kindOfNamedUnits(alts.length > 0 ? alts : [shown]),
       choseFromShown: alts.length > 0 ? false : choseFromShown,
@@ -3036,6 +3085,8 @@ vehiculo null.`,
         sendId: null,
         switchedModel: true,
         vehicleKind: null,
+        listedUnits: listed,
+        precioClaves: asignarClavesPrecio(listed),
       };
     }
     const solicitud = solicitudSinBanderas(resumen);
@@ -3117,7 +3168,7 @@ El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay fic
               ? `${named.text}
 El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro color u otra caja.`
               : `${named.text}
-PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Escribe {{precio:uN}} de CADA ficha que nombres. PROHIBIDO un monto a mano. Prohibido placa si no la pidió. Prohibido inventar.`,
           };
         }
         return {
@@ -3141,6 +3192,8 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
           pool,
           includePrice,
         ),
+        listedUnits: pool,
+        precioClaves: asignarClavesPrecio(pool),
         holdVehicle: true,
         sendId: null,
       };
@@ -3409,7 +3462,7 @@ PIDIÓ OTRO COLOR del ${reference.family}. Nombra ESTAS unidades (colores distin
           ? `${named.text}
 El resumen ya tiene esta unidad. Di su precio. PROHIBIDO otra versión, otro color u otra caja.`
           : `${named.text}
-PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Escribe {{precio:uN}} de CADA ficha que nombres. PROHIBIDO un monto a mano. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }
     let namedRpcEmpty = false;
@@ -4369,6 +4422,8 @@ ${missing.text}`,
         }),
         holdVehicle: true,
         sendId: null,
+        listedUnits: cars,
+        precioClaves: asignarClavesPrecio(cars),
       };
     }
 
@@ -4417,6 +4472,8 @@ ${missing.text}`,
         sendId: null,
         switchedModel: true,
         vehicleKind: kindForAsk,
+        listedUnits: cars,
+        precioClaves: asignarClavesPrecio(cars),
       };
     }
 
@@ -4427,6 +4484,8 @@ ${missing.text}`,
       sendId: vehicleToSend(review, namedId),
       switchedModel: Boolean(kindForAsk && kindForAsk !== vehicleKind),
       vehicleKind: kindForAsk,
+      listedUnits: cars,
+      precioClaves: asignarClavesPrecio(cars),
     };
   }
 
@@ -5079,7 +5138,7 @@ El cliente ELIGIÓ esta unidad de las que YA le mostramos en el hilo. Ya hay fic
         switchedModel: true,
         vehicleKind: kindOfNamedUnits(resolved.cars),
         text: `${named.text}
-PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de CADA una. Prohibido placa si no la pidió. Prohibido inventar.`,
+PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Escribe {{precio:uN}} de CADA ficha que nombres. PROHIBIDO un monto a mano. Prohibido placa si no la pidió. Prohibido inventar.`,
       };
     }
     const nombres = resolved.cars.map((car) => shortUnitLabel(car)).join(', ');

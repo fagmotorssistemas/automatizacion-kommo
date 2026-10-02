@@ -1,4 +1,9 @@
 import { modelFamily, StockCar } from '../catalog/clasificar-filas';
+import {
+  asignarClavesPrecio,
+  etiquetaPrecioFicha,
+  type PrecioClave,
+} from '../catalog/precio-marcador';
 import { kindFromTypeBody, VehicleKind } from './vehicle-kind';
 import { detectBrandFromModel } from './vehicle-brand';
 import { emptyLexicon, type VehicleLexicon } from './fuzzy-vehicle-name';
@@ -305,7 +310,13 @@ export function formatPatioKindList(input: {
   cars: StockCar[];
   includePrice: boolean;
   gearbox: Gearbox | null;
-}): { text: string; holdVehicle: boolean; sendId: string | null } {
+}): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  listedUnits?: StockCar[];
+  precioClaves?: PrecioClave[];
+} {
   const box = input.gearbox ? ` ${gearboxLabel(input.gearbox)}` : '';
   if (input.cars.length === 0) {
     return {
@@ -314,7 +325,10 @@ export function formatPatioKindList(input: {
       sendId: null,
     };
   }
-  const lines = input.cars.map((car) => carLabel(car, input.includePrice));
+  const precioClaves = asignarClavesPrecio(input.cars);
+  const lines = input.cars.map((car, i) =>
+    carLabel(car, precioClaves[i]?.clave ?? 'u1'),
+  );
   if (input.cars.length === 1) {
     return {
       text: `Hay una unidad${box} de ese tipo y hay que mandarla: ${lines[0]}.
@@ -322,6 +336,8 @@ En meta.vehiculo.inventory_id pon exactamente "${input.cars[0].id}".
 Prohibido decir que es el único del patio si el cliente no pidió marca.`,
       holdVehicle: false,
       sendId: input.cars[0].id,
+      listedUnits: input.cars,
+      precioClaves,
     };
   }
   return {
@@ -330,19 +346,18 @@ ${lines.join('\n')}
 Prohibido decir que no hay si hay líneas abajo. Prohibido mezclar camioneta/pickup. Prohibido clavar un solo automático si pidió cualquiera o la otra caja.`,
     holdVehicle: true,
     sendId: null,
+    listedUnits: input.cars,
+    precioClaves,
   };
 }
 
-function carLabel(car: StockCar, includePrice: boolean): string {
+function carLabel(car: StockCar, clave: string): string {
   const family = modelFamily(car.model);
   const name = family
     ? family.charAt(0).toUpperCase() + family.slice(1)
     : car.model;
   const year = car.year ? ` ${car.year}` : '';
-  const price =
-    includePrice && car.price && car.price > 0
-      ? `, $${Math.round(car.price)}`
-      : '';
+  const price = ` ${etiquetaPrecioFicha(clave, car.price && car.price > 0 ? Math.round(car.price) : null)}`;
   return `${car.brand} ${name}${year}${price} (inventory_id=${car.id})`;
 }
 
@@ -350,7 +365,13 @@ export function formatGearboxAlternatives(input: {
   gearbox: Gearbox;
   pick: GearboxPick;
   includePrice: boolean;
-}): { text: string; holdVehicle: boolean; sendId: string | null } {
+}): {
+  text: string;
+  holdVehicle: boolean;
+  sendId: string | null;
+  listedUnits?: StockCar[];
+  precioClaves?: PrecioClave[];
+} {
   const label = gearboxLabel(input.gearbox);
   const other = input.gearbox === 'manual' ? 'automática' : 'manual';
   if (input.pick.cars.length === 0) {
@@ -361,7 +382,10 @@ export function formatGearboxAlternatives(input: {
     };
   }
 
-  const lines = input.pick.cars.map((car) => carLabel(car, input.includePrice));
+  const precioClaves = asignarClavesPrecio(input.pick.cars);
+  const lines = input.pick.cars.map((car, i) =>
+    carLabel(car, precioClaves[i]?.clave ?? 'u1'),
+  );
   if (input.pick.cars.length === 1) {
     const car = input.pick.cars[0];
     const where = input.pick.widenedToSuv
@@ -375,6 +399,8 @@ Prohibido ofrecer la caja ${other}.
 En meta.vehiculo.inventory_id pon exactamente "${car.id}".`,
       holdVehicle: false,
       sendId: car.id,
+      listedUnits: input.pick.cars,
+      precioClaves,
     };
   }
 
@@ -387,5 +413,7 @@ ${lines.join('\n')}
 Prohibido ofrecer la caja ${other}.`,
     holdVehicle: true,
     sendId: null,
+    listedUnits: input.pick.cars,
+    precioClaves,
   };
 }
