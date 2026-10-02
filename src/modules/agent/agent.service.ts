@@ -146,15 +146,10 @@ import {
   shouldOfferGreeting,
 } from '../conversation/day-greeting';
 import {
-  appendUnloadedPrice,
   asksForPlate,
-  ensureListedSetPrices,
   hasLoadedPrice,
-  isStrippedReplyStub,
-  stripUnloadedPriceClaim,
   type ListedSetUnit,
   parsePricedUnitsFromReview,
-  stripShownUnitCashPrice,
   stripUnsolicitedPriceAndPlate,
 } from '../conversation/strip-unsolicited-price';
 import {
@@ -258,7 +253,6 @@ import {
   sanitizeInventedResumenFlags,
 } from '../intelligence/sanitize-resumen-flags';
 import {
-  ensureListedPrice,
   historySaidMileageCare,
   stripRepeatedMileageCare,
 } from '../catalog/mileage';
@@ -1878,24 +1872,17 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
         !askedPrice;
       const listedPrice =
         askedPrice && unitPrice != null ? unitPrice : null;
-      const firstFichaSinPrecio =
-        !alreadyShown && Boolean(replyId) && !askedPrice;
       const withoutPlate = stripUnsolicitedPriceAndPlate(parsed.mensaje, {
-        keepPrice: true,
         keepPlateShort: askedPlate || firstPresentation,
       });
-      const cleaned =
-        firstFichaSinPrecio && unitPrice != null
-          ? stripShownUnitCashPrice(withoutPlate, unitPrice)
-          : withoutPlate;
-      if (cleaned !== parsed.mensaje) {
+      if (withoutPlate !== parsed.mensaje) {
         this.logger.warn(
           `Se quitó dato no pedido contactId=${input.contactId}`,
         );
       }
       parsed.mensaje = historySaidMileageCare(history)
-        ? stripRepeatedMileageCare(cleaned)
-        : cleaned;
+        ? stripRepeatedMileageCare(withoutPlate)
+        : withoutPlate;
       parsed.mensaje = stripGestionarOffer(parsed.mensaje);
       const quoteBits = financingInputsFromThread(
         input.customerText,
@@ -2000,37 +1987,6 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
           parsed.mensaje,
           lastAssistantMsg?.content,
         );
-      }
-      const precioDeLaPedida = precioUnidadPedida({
-        family: patioAsk?.family,
-        interested,
-        listed: revision.listedUnits ?? [],
-        stayOnShown,
-        unitPrice,
-      });
-      if (askedPrice && hasLoadedPrice(precioDeLaPedida)) {
-        parsed.mensaje = stripUnloadedPriceClaim(parsed.mensaje);
-      }
-      if (listedPrice != null) {
-        parsed.mensaje = ensureListedPrice(parsed.mensaje, listedPrice);
-        parsed.meta.precioMostrado = true;
-      } else if (
-        unitPrice != null &&
-        isStrippedReplyStub(parsed.mensaje)
-      ) {
-        parsed.mensaje = ensureListedPrice(parsed.mensaje, unitPrice);
-        parsed.meta.precioMostrado = true;
-      } else if (quotingListedSet) {
-        parsed.mensaje = ensureListedSetPrices(parsed.mensaje, listedSet);
-        parsed.meta.precioMostrado = true;
-      } else if (
-        askedPrice &&
-        hasConfirmedUnit &&
-        !quotingListedSet &&
-        !hasLoadedPrice(unitPrice)
-      ) {
-        parsed.mensaje = appendUnloadedPrice(parsed.mensaje);
-        parsed.meta.precioMostrado = false;
       }
       if (
         hasCedula &&

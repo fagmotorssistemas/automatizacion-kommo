@@ -1,9 +1,3 @@
-import {
-  isStrippedReplyStub,
-  replyCarriesFinancing,
-  stripListedPriceAmounts,
-  stripUnloadedPriceClaim,
-} from '../conversation/strip-unsolicited-price';
 
 /** Piso: 15.000 km/año. Tope: 20.000 km/año. Alto solo si pasa el tope. */
 export const KM_PER_YEAR_MIN = 15_000;
@@ -128,66 +122,6 @@ export function stripRepeatedMileageCare(text: string): string {
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\s+\./g, '.')
     .trim();
-}
-
-function priceIsInText(text: string, amount: number): boolean {
-  const raw = String(amount);
-  const comma = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const dot = raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return text.includes(raw) || text.includes(comma) || text.includes(dot);
-}
-
-/** Quita el discurso del km cuando el cliente pidió el precio, no el recorrido. */
-export function stripMileageCareOnPriceAsk(text: string): string {
-  return text
-    .replace(/[,;]?\s*el kilometraje es acorde[^.]*\./gi, '.')
-    .replace(/[,;]?\s*es un carro cuidado y en buen estado[^.]*\./gi, '.')
-    .replace(/[,;]?\s*puede traer a su mec[aá]nico[^.]*\./gi, '.')
-    .replace(/\s+\./g, '.')
-    .replace(/\.\s*\./g, '.')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
-
-/**
- * Si preguntó el precio y el modelo no lo escribió, se pone el del patio.
- * La ciudad u otra frase del mismo mensaje se queda.
- */
-function dropDanglingAnd(text: string): string {
-  return text
-    .replace(/,\s*y\s*$/i, '.')
-    .replace(/\s+y\s*$/i, '.')
-    .replace(/\.\s*\./g, '.')
-    .trim();
-}
-
-export function ensureListedPrice(text: string, price: number): string {
-  const amount = Math.round(price);
-  const body = dropDanglingAnd(
-    stripMileageCareOnPriceAsk(stripUnloadedPriceClaim(text)),
-  );
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return body;
-  }
-  const lead = `El precio es $${amount.toLocaleString('en-US')}.`;
-  if (priceIsInText(body, amount)) {
-    return body;
-  }
-  if (isStrippedReplyStub(body)) {
-    return lead;
-  }
-  if (replyCarriesFinancing(body)) {
-    return `${lead} ${body}`.replace(/\s{2,}/g, ' ').trim();
-  }
-  if (
-    /\bno\s+(?:tenemos|contamos|disponemos)|no est[aá] (?:disponible|en (?:nuestro )?inventario)/i.test(
-      body,
-    )
-  ) {
-    return body;
-  }
-  const clean = dropDanglingAnd(stripListedPriceAmounts(body));
-  return isStrippedReplyStub(clean) || !clean ? lead : `${lead} ${clean}`;
 }
 
 export function formatMileageFact(

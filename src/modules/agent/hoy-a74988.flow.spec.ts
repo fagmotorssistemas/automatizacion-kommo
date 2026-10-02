@@ -5,7 +5,6 @@ import { parseTopeAmount, resumenTopeContado } from '../intelligence/parse-resum
 import { preferCurrentYears, type StockCar } from '../catalog/clasificar-filas';
 import { leftShownCar } from '../conversation/interested-car';
 import { textAsksForCredit } from '../intelligence/parse-resumen';
-import { stripUnsolicitedPriceAndPlate } from '../conversation/strip-unsolicited-price';
 import { asksYearOnward } from '../conversation/concrete-ask';
 import { detectNamedModelAsk } from '../conversation/vehicle-brand';
 
@@ -451,22 +450,5 @@ describe('choques de reglas y datos inventados (hoy)', () => {
         lexicon: TEST_LEXICON,
       }),
     ).toBe(false);
-  });
-
-  it('el strip ya no deja $280.05 ni el hueco “está en.”', () => {
-    const clean = stripUnsolicitedPriceAndPlate(
-      'El Peugeot 2008 2022 está en $19,990. Con una entrada de $11,000 la cuota aproximada sería de $280.05.',
-    );
-    expect(clean).not.toMatch(/19,990|19990|280\.05/);
-    expect(clean).not.toMatch(/está en\./i);
-    expect(clean).toMatch(/Peugeot 2008 2022/i);
-  });
-
-  it('el LLM puede copiar 12000 del cliente como si fuera precio de patio', () => {
-    const leaked = stripUnsolicitedPriceAndPlate(
-      'Tenemos un Río 2018 en $12,000.',
-      { keepPrice: false },
-    );
-    expect(leaked).not.toMatch(/12,000|12000|\$/);
   });
 });

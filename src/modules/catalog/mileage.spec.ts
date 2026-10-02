@@ -1,6 +1,5 @@
 import {
   assessMileageForYear,
-  ensureListedPrice,
   formatMileageFact,
   formatMileageForPrompt,
   formatUnitMileage,
@@ -48,56 +47,5 @@ describe('mileage', () => {
     expect(fact).toMatch(/km=77613/);
     expect(fact).not.toMatch(/mecánico/i);
     expect(fact).not.toMatch(/AL CLIENTE/i);
-  });
-
-  it('si pidió el precio y no vino el dólar, se pone y se quita el mecánico', () => {
-    const raw =
-      'Este Kia Seltos 2020 color plomo Está en Cuenca, con papeles en regla y entrega inmediata. El kilometraje es acorde al año, es un carro cuidado y en buen estado; puede traer a su mecánico para revisar.';
-    const clean = ensureListedPrice(raw, 19990);
-    expect(clean).toMatch(/\$19,990/);
-    expect(clean).toMatch(/Cuenca/i);
-    expect(clean).not.toMatch(/mecánico/i);
-    expect(clean).not.toMatch(/kilometraje es acorde/i);
-  });
-
-  it('si el recado inventó otro $, deja el de patio', () => {
-    const already = 'El Prado 2016 dorado tiene un precio de $53800.';
-    const clean = ensureListedPrice(already, 14990);
-    expect(clean).toMatch(/\$14,990/);
-    expect(clean).not.toMatch(/53800/);
-  });
-
-  it('si el precio se cortó, no deja la y colgada', () => {
-    const raw =
-      'Estimado, tenemos disponible un Santa Fe 2018 color azul, con 124923 km, y';
-    const clean = ensureListedPrice(raw, 22990);
-    expect(clean).toMatch(/\$22,990/);
-    expect(clean).toMatch(/124923 km\./);
-    expect(clean).not.toMatch(/km, y/);
-  });
-
-  it('si el recorte dejó “El”, pega el $ de patio', () => {
-    expect(ensureListedPrice('El', 22990)).toBe('El precio es $22,990.');
-  });
-
-  it('una frase de financiamiento no se recorta y se le pega el precio si falta', () => {
-    const raw =
-      'Con una entrada de $4,000 y financiamiento a 4 años, la cuota aproximada es $654.68 mensuales.';
-    const clean = ensureListedPrice(raw, 22900);
-    expect(clean).toMatch(/^El precio es \$22,900\./);
-    expect(clean).toMatch(/entrada de \$4,000/i);
-    expect(clean).toMatch(/financiamiento a 4 años/i);
-    expect(clean).toMatch(/\$654\.68 mensuales/i);
-  });
-
-  it('A 44666879: si ya trae el $ de patio no antepone ni abre huecos', () => {
-    const llm =
-      'El precio de la Chevrolet D-Max CRDi 2.5 CS 4x2 TM diesel 2020 color blanco que consultó es $28,990. Este valor se mantiene.';
-    expect(ensureListedPrice(llm, 28990)).toBe(llm);
-  });
-
-  it('F 59822499: no antepone el $ de otra unidad a una negación', () => {
-    const llm = 'El Golf no está en nuestro inventario.';
-    expect(ensureListedPrice(llm, 21400)).toBe(llm);
   });
 });

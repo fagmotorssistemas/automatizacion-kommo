@@ -1010,7 +1010,7 @@ describe('AgentService', () => {
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'No hay Picanto manual. El Fiat 500 está en $13,990. El precio de esta unidad aún no está cargado en patio.',
+          'No hay Picanto manual. El precio es {{precio:u1}}.',
         meta: { vehiculo: { inventory_id: 'fiat500', precio: 13990 } },
       }),
     );
@@ -1021,7 +1021,8 @@ describe('AgentService', () => {
     });
 
     expect(result?.reply.mensaje).not.toMatch(/13,?990/);
-    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+    expect(result?.reply.mensaje).toMatch(/el precio se lo confirmo en un momento/i);
+    expect(result?.reply.mensaje).not.toContain('{{');
   });
 
   it('falta carro + toma: no usa el atajo, contesta el agente y cierra con la pregunta del carro', async () => {
@@ -2083,7 +2084,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'El precio del Toyota 4runner 2004. un valor respaldado por el buen estado del vehículo y los documentos en regla.',
+          'El precio del Toyota 4runner 2004 es {{precio:u1}}, un valor respaldado por el buen estado del vehículo y los documentos en regla.',
         meta: { vehiculo: { inventory_id: 'runner-2004' } },
       }),
     );
@@ -2162,7 +2163,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'El Chevrolet D-max 2023 plateado. un valor respaldado por su estado y documentos.',
+          'El Chevrolet D-max 2023 plateado está en {{precio:u1}}, un valor respaldado por su estado y documentos.',
         meta: { vehiculo: { inventory_id: plateada.id } },
       }),
     );
@@ -2227,7 +2228,7 @@ Es despedida: no`;
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
-        respuesta_cliente: 'El D-max 2023 plateado está en patio.',
+        respuesta_cliente: 'El D-max 2023 plateado está en {{precio:u1}}.',
         meta: { vehiculo: { inventory_id: plateada.id } },
       }),
     );
@@ -2296,7 +2297,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo está en $70,000, y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en $65,000. ¿Cuál desea ver?',
+          'El Ford Ranger XLT AC 2.0 CD 4x4 automática diesel 2026 color plomo está en {{precio:u1}}, y el Ranger XL AC 2.0 CD 4x2 manual diesel 2024 color plomo en {{precio:u2}}. ¿Cuál desea ver?',
         meta: { precio_mostrado: true, vehiculo: null },
       }),
     );
@@ -3369,7 +3370,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'Este Kia Seltos 2020 color plomo Está en Cuenca, con papeles en regla. El kilometraje es acorde al año, es un carro cuidado y en buen estado; puede traer a su mecánico para revisar.',
+          'Este Kia Seltos 2020 color plomo está en {{precio:u1}}. Está en Cuenca, con papeles en regla.',
         meta: { vehiculo: { inventory_id: 'seltos-1' } },
       }),
     );
@@ -3410,7 +3411,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'El Nissan Xtrail 2016 que le mostramos está en excelente estado, con 144904 km que es un kilometraje acorde para su año. Incluye garantía en documentos para su confianza y el trámite de traspaso está al día.',
+          'El Nissan Xtrail 2016 que le mostramos está en {{precio:u1}}. Incluye garantía en documentos para su confianza y el trámite de traspaso está al día.',
         meta: { vehiculo: { inventory_id: 'xtrail-2016' } },
       }),
     );
@@ -3449,7 +3450,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'El contado del Hyundai Kona 2022 . un valor justo por su estado excelente, kilometraje acorde y documentos en regla. ¿Le interesa financiamiento o lo prefiere de contado?',
+          'El contado del Hyundai Kona 2022 es {{precio:u1}}, un valor justo por su estado excelente, kilometraje acorde y documentos en regla. ¿Le interesa financiamiento o lo prefiere de contado?',
         meta: { vehiculo: { inventory_id: 'kona-1' } },
       }),
     );
@@ -3929,7 +3930,7 @@ Es despedida: no`;
       .mockResolvedValueOnce('{"intenciones":["compra"]}');
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
-        respuesta_cliente: 'El valor es $0.',
+        respuesta_cliente: 'El valor es {{precio:u1}}.',
         meta: { vehiculo: { inventory_id: 'xtrail-2016' } },
       }),
     );
@@ -3940,9 +3941,10 @@ Es despedida: no`;
     });
 
     expect(result?.reply.mensaje).not.toMatch(/\$0\b/);
-    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+    expect(result?.reply.mensaje).toMatch(/el precio se lo confirmo en un momento/i);
+    expect(result?.reply.mensaje).not.toContain('{{');
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/AÚN NO CARGADO/i);
+    expect(system).toMatch(/\{\{precio:uN\}\}|aún no cargado/i);
     expect(system).not.toMatch(/di el \$ de inventario primero/i);
   });
 
@@ -3987,7 +3989,7 @@ Es despedida: no`;
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'Estimado, tenemos disponible un Kia Sportage SL AC 2.0 5p 4x2 manual 2019 color blanco, con el kilometraje aún no cargado, transmisión manual y precio de $18,500. El precio de esta unidad aún no está cargado en patio. En un momento un asesor le confirma el valor.',
+          'Estimado, el Kia Sportage SL 2019 blanco está en {{precio:u1}}.',
         meta: { vehiculo: { inventory_id: 'sp-blanco', precio: 18500 } },
       }),
     );
@@ -3999,10 +4001,11 @@ Es despedida: no`;
 
     expect(result?.reply.mensaje).not.toMatch(/18,?500/);
     expect(result?.reply.mensaje).not.toMatch(/\$\s*\d/);
-    expect(result?.reply.mensaje).toMatch(/aún no está cargado/i);
+    expect(result?.reply.mensaje).toMatch(/el precio se lo confirmo en un momento/i);
+    expect(result?.reply.mensaje).not.toContain('{{');
     expect(result?.reply.meta.vehiculo?.precio).toBeUndefined();
     const system = openai.runSalesAgent.mock.calls[0][0].system as string;
-    expect(system).toMatch(/AÚN NO CARGADO|PROHIBIDO inventar|no inventes/i);
+    expect(system).toMatch(/\{\{precio:uN\}\}|PROHIBIDO un monto|aún no cargado/i);
   });
 
   it('Q vale pide el precio de esa unidad y no repite la placa', async () => {
@@ -12522,7 +12525,7 @@ Pide precio: no`,
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km, transmisión 4x2 y precio de $13800. Aquí tiene también las fotos del vehículo.',
+          'Estimado, tenemos disponible un Suzuki Grand Vitara 2015 color blanco, con 207051 km, transmisión 4x2. Aquí tiene también las fotos del vehículo.',
         meta: { vehiculo: { inventory_id: 'vitara-2015', precio: 13800 } },
       }),
     );
@@ -12563,8 +12566,8 @@ Pide precio: no`,
     openai.runSalesAgent.mockResolvedValue(
       JSON.stringify({
         respuesta_cliente:
-          'Estimado, tenemos disponible un Grand Vitara 2015 color blanco, con 207051 km, y',
-        meta: { vehiculo: { inventory_id: 'vitara-2015' } },
+          'Estimado, tenemos disponible un Grand Vitara 2015 color blanco, con 207051 km. El precio es {{precio:u1}}.',
+        meta: { precio_mostrado: true, vehiculo: { inventory_id: 'vitara-2015' } },
       }),
     );
 
@@ -12579,7 +12582,7 @@ Pide precio: no`,
     expect(system).not.toMatch(/PROHIBIDO decir el precio, aunque el resumen/i);
     expect(result?.reply.mensaje).toMatch(/13,800/);
     expect(result?.reply.mensaje).toMatch(/Grand Vitara/i);
-    expect(result?.reply.mensaje).not.toMatch(/km, y/);
+    expect(result?.reply.mensaje).not.toContain('{{');
     expect(result?.reply.meta.precioMostrado).toBe(true);
   });
 
