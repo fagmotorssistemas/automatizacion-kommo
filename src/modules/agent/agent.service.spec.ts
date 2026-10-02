@@ -2845,6 +2845,38 @@ Es despedida: no`;
     expect(result?.reply.mensaje).toMatch(/empieza con B y termina en 3/i);
   });
 
+  it('registra precioCrudo si el LLM escribe un monto a mano', async () => {
+    persistence.latestInterestedCar.mockResolvedValue(bydFa52672a);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content: 'Tenemos el BYD Song Plus 2024. Aquí tiene las fotos.',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide el precio.\nPide precio: sí',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El Song Plus queda en $28,990.',
+        meta: { vehiculo: { inventory_id: 'fa52672a' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '41643589',
+      customerText: '¿Cuál es el precio?',
+    });
+
+    expect(result?.reply.mensaje).toBe('El Song Plus queda en $28,990.');
+    expect(result?.precioCrudo).toEqual({
+      dijo: '$28,990',
+      unidad: 'fa52672a',
+    });
+  });
+
   it('precio del Nissan no se queda en el Sportage ya mostrado', async () => {
     conversation.loadPreviousResumen.mockResolvedValue(
       'Vehículo: Kia Sportage R GTI 2019\nSOLICITUD: Cliente pidió el Sportage.',

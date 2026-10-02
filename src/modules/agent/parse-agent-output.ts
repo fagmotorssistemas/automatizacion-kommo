@@ -60,6 +60,8 @@ export type AgentTurnResult = {
   campoFiltrado?: boolean;
   /** La respuesta mencionó una placa que no coincide con la unidad de referencia. */
   placaNoCoincide?: { dijo: string; correcto: string };
+  /** El LLM escribió un monto de contado a mano en vez de {{precio:uN}}. */
+  precioCrudo?: { dijo: string; unidad: string | null };
 };
 
 const EMPTY_META: AgentMeta = {

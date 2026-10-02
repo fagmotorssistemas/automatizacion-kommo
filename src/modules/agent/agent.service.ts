@@ -380,6 +380,7 @@ import {
   asignarClavesPrecio,
   cerrarMarcadores,
   clavePrecio,
+  detectarPrecioCrudo,
   lexicalizarPrecio,
   marcarPreciosEnToolJson,
   unirPrecioClaves,
@@ -1854,6 +1855,10 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
       toolPrecioClaves,
       interestedClaves,
     );
+    const precioCrudo = detectarPrecioCrudo(
+      parsed.mensaje,
+      parsed.meta.vehiculo?.inventory_id ?? interested?.inventoryId ?? null,
+    );
     parsed.mensaje = cerrarMarcadores(
       lexicalizarPlaca(
         lexicalizarPrecio(parsed.mensaje, precioClaves),
@@ -2184,6 +2189,12 @@ Si cabe, UNA frase de garantía en documentos. Nada más.`
     if (placaNoCoincide) {
       Object.defineProperty(turn, 'placaNoCoincide', {
         value: placaNoCoincide,
+        enumerable: false,
+      });
+    }
+    if (precioCrudo) {
+      Object.defineProperty(turn, 'precioCrudo', {
+        value: precioCrudo,
         enumerable: false,
       });
     }

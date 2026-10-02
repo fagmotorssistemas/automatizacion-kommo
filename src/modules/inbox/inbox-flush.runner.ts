@@ -286,6 +286,7 @@ export class InboxFlushRunner {
         ...(turn.placaNoCoincide
           ? { placaNoCoincide: turn.placaNoCoincide }
           : {}),
+        ...(turn.precioCrudo ? { precioCrudo: turn.precioCrudo } : {}),
         ...stayFieldsForRunLog(stay),
         stayBandera: stay?.stayBandera ?? null,
         banderaSinEvidencia: stay?.banderaSinEvidencia ?? null,
