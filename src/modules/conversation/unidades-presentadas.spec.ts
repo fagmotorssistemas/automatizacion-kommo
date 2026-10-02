@@ -276,17 +276,27 @@ describe('resolverReferenciaPresentadas', () => {
   });
 
   it('la misma unidad tras una sola ficha', () => {
+    const xtrail2024: StockCar = {
+      id: 'xt-2024',
+      brand: 'nissan',
+      model: 'x-trail e-power exclusive',
+      year: 2024,
+      price: 32900,
+      typeBody: 'jeep',
+      color: 'blanco',
+      mileage: 21000,
+    };
     const turnos = [
-      [{ inventory_id: xtrail2016.id, orden: 1, como: 'ficha' as const }],
+      [{ inventory_id: xtrail2024.id, orden: 1, como: 'ficha' as const }],
     ];
     expect(
       resolverReferenciaPresentadas({
         text: 'la misma unidad',
         turnos,
-        byId,
+        byId: new Map([[xtrail2024.id, xtrail2024]]),
         lexicon: TEST_LEXICON,
       }),
-    ).toEqual({ kind: 'una', car: xtrail2016 });
+    ).toEqual({ kind: 'una', car: xtrail2024 });
   });
 
   it('sin registro no resuelve: el camino viejo sigue', () => {

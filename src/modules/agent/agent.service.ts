@@ -1151,7 +1151,9 @@ No rellenes con placa, visita, papeles, cuota o cédula si el hilo no lo pidió.
         pedido,
         tresFilas,
         stayOnShown ? null : motivo,
-        await this.conversation.loadUnidadesPresentadas(input.contactId),
+        (await this.conversation.loadUnidadesPresentadas?.(
+          input.contactId,
+        )) ?? [],
       );
     }
     if (
@@ -5128,7 +5130,10 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
       }),
       input.mensaje,
     );
-    if (presentadas.length > 0) {
+    if (
+      presentadas.length > 0 &&
+      this.conversation.recordUnidadesPresentadas
+    ) {
       await this.conversation.recordUnidadesPresentadas(
         input.contactId,
         presentadas,

@@ -92,6 +92,8 @@ function buildService(opts?: { patio?: typeof santaFe[]; resumen?: string }) {
     saveCashBudget: jest.fn(),
     loadPreviousResumen: jest.fn().mockResolvedValue(null),
     savePreviousResumen: jest.fn(),
+    loadUnidadesPresentadas: jest.fn().mockResolvedValue([]),
+    recordUnidadesPresentadas: jest.fn().mockResolvedValue([]),
   };
   const persistence = {
     loadHandoffBrief: jest.fn().mockResolvedValue(null),

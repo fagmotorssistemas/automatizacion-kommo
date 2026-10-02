@@ -12582,4 +12582,342 @@ Pide precio: no`,
     expect(result?.reply.mensaje).not.toMatch(/km, y/);
     expect(result?.reply.meta.precioMostrado).toBe(true);
   });
+
+  const xtrail2016 = {
+    id: 'xt-2016',
+    brand: 'nissan',
+    model: 'x-trail ac 2.5',
+    year: 2016,
+    price: 16890,
+    typeBody: 'jeep',
+    color: 'azul',
+    mileage: 144904,
+  };
+  const kicks2020 = {
+    id: 'kicks-2020',
+    brand: 'nissan',
+    model: 'kicks exclusive',
+    year: 2020,
+    price: 17900,
+    typeBody: 'jeep',
+    color: 'blanco',
+    mileage: 42000,
+  };
+  const xtrail2024 = {
+    id: 'xt-2024',
+    brand: 'nissan',
+    model: 'x-trail e-power exclusive',
+    year: 2024,
+    price: 32900,
+    typeBody: 'jeep',
+    color: 'blanco',
+    mileage: 21000,
+  };
+  const exp1998 = {
+    id: 'exp-1998',
+    brand: 'ford',
+    model: 'explorer xlt 4.0 4x4',
+    year: 1998,
+    price: 6800,
+    typeBody: 'jeep',
+    color: 'blanco',
+  };
+  const exp2018 = {
+    id: 'exp-2018',
+    brand: 'ford',
+    model: 'explorer xlt ac 3.5 5p 4x4',
+    year: 2018,
+    price: 33900,
+    typeBody: 'jeep',
+    color: 'blanco',
+    mileage: 107740,
+    transmission: 'automática',
+  };
+  const sportagePlata = {
+    id: 'f690857b-48e8-4ee4-92ff-a89e2d43c622',
+    brand: 'kia',
+    model: 'sportage r gti lx ac 2.0 5p 4x2 ta',
+    year: 2019,
+    price: 21900,
+    typeBody: 'jeep',
+    color: 'plateado',
+    mileage: 113170,
+    transmission: 'automática',
+  };
+  const sportageRoja = {
+    id: 'sp-rojo',
+    brand: 'kia',
+    model: 'sportage r gti ac 2.0 5p 4x2',
+    year: 2019,
+    price: 21000,
+    typeBody: 'jeep',
+    color: 'rojo',
+    mileage: 91096,
+    transmission: 'manual',
+  };
+
+  it('el texto final registra las unidades que el turno le dio al LLM', async () => {
+    catalog.listByBrand.mockResolvedValue([exp1998, exp2018]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      xtrail2016,
+      kicks2020,
+      exp1998,
+      exp2018,
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente quiere una Explorer.\nPide precio: no\nPide otras: no\nOtro vehículo: Explorer',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente:
+          'Puedo ofrecerle una Explorer XLT 1998 blanca o una Explorer XLT 2018 blanca.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59825503',
+      customerText: 'una ford explorer',
+    });
+
+    expect(result?.unidadesPresentadas?.map((row) => row.inventory_id).sort()).toEqual(
+      ['exp-1998', 'exp-2018'],
+    );
+    expect(result?.unidadesPresentadas?.every((row) => row.como === 'lista')).toBe(
+      true,
+    );
+    expect(conversation.recordUnidadesPresentadas).toHaveBeenCalled();
+  });
+
+  it('59825503 17:12 Fotos xfavor no niega el Kicks', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([
+      [
+        { inventory_id: 'xt-2016', orden: 1, como: 'lista' },
+        { inventory_id: 'kicks-2020', orden: 2, como: 'lista' },
+      ],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([xtrail2016, kicks2020]);
+    catalog.listByBrand.mockResolvedValue([xtrail2016, kicks2020]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide fotos del Kicks.\nPide precio: no\nPide otras: no\nOtro vehículo: Kicks',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'No tenemos Kicks. Le mando las fotos.',
+        meta: { vehiculo: null },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: '59825503',
+      customerText: 'Fotos xfavor',
+    });
+
+    const blob = `${result?.reply.mensaje ?? ''}\n${JSON.stringify(result?.photoQueue ?? [])}\n${openai.runSalesAgent.mock.calls[0]?.[0]?.system ?? ''}`;
+    expect(blob).not.toMatch(/no tenemos Kicks/i);
+    expect(blob).not.toMatch(/PRIMERO dilo/i);
+    const ids =
+      result?.photoQueue?.map((item) => item.inventoryId) ??
+      (result?.reply.meta.vehiculo?.inventory_id
+        ? [result.reply.meta.vehiculo.inventory_id]
+        : []);
+    if (ids.length === 0 && openai.runSalesAgent.mock.calls[0]) {
+      expect(openai.runSalesAgent.mock.calls[0][0].system).toMatch(
+        /cuál quiere ver|X-Trail 2016|Kicks 2020/i,
+      );
+    } else {
+      expect(ids.sort()).toEqual(['kicks-2020', 'xt-2016']);
+    }
+  });
+
+  it('Explorer la 2018 del registro ancla exp-2018', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([
+      [
+        { inventory_id: 'exp-1998', orden: 1, como: 'lista' },
+        { inventory_id: 'exp-2018', orden: 2, como: 'lista' },
+      ],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([exp1998, exp2018]);
+    catalog.listByBrand.mockResolvedValue([exp1998, exp2018]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide la 2018.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Explorer XLT 2018 blanca.',
+        meta: { vehiculo: { inventory_id: 'exp-2018' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'exp-lista',
+      customerText: 'La 2018',
+    });
+
+    const system = openai.runSalesAgent.mock.calls[0][0].system as string;
+    expect(system).toContain('exp-2018');
+    expect(system).toMatch(/ELIGIÓ esta unidad/i);
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'exp-lista',
+      'exp-2018',
+    );
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe('exp-2018');
+  });
+
+  it('gemelas Sportage: el plateado automático es f690857b', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([
+      [
+        { inventory_id: sportagePlata.id, orden: 1, como: 'lista' },
+        { inventory_id: sportageRoja.id, orden: 2, como: 'lista' },
+      ],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([sportagePlata, sportageRoja]);
+    catalog.listByBrand.mockResolvedValue([sportagePlata, sportageRoja]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide el plateado automático.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Sportage R GTI plateada automática.',
+        meta: { vehiculo: { inventory_id: sportagePlata.id } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'gemelas',
+      customerText: 'el plateado automático',
+    });
+
+    expect(openai.runSalesAgent.mock.calls[0][0].system).toContain(
+      sportagePlata.id,
+    );
+    expect(result?.reply.meta.vehiculo?.inventory_id).toBe(sportagePlata.id);
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'gemelas',
+      sportagePlata.id,
+    );
+  });
+
+  it('la segunda de 3 presentadas es esa unidad', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([
+      [
+        { inventory_id: 'xt-2016', orden: 1, como: 'lista' },
+        { inventory_id: 'kicks-2020', orden: 2, como: 'lista' },
+        { inventory_id: 'exp-2018', orden: 3, como: 'lista' },
+      ],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([
+      xtrail2016,
+      kicks2020,
+      exp2018,
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide la segunda.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Kicks 2020.',
+        meta: { vehiculo: { inventory_id: 'kicks-2020' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'orden',
+      customerText: 'la segunda',
+    });
+
+    expect(openai.runSalesAgent.mock.calls[0][0].system).toContain(
+      'kicks-2020',
+    );
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'orden',
+      'kicks-2020',
+    );
+  });
+
+  it('la misma unidad tras el X-Trail 2024 es esa', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([
+      [{ inventory_id: 'xt-2024', orden: 1, como: 'ficha' }],
+    ]);
+    catalog.listAvailableExcept.mockResolvedValue([xtrail2024]);
+    catalog.listByBrand.mockResolvedValue([xtrail2024]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente sigue con la misma unidad.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'El X-Trail 2024 blanco.',
+        meta: { vehiculo: { inventory_id: 'xt-2024' } },
+      }),
+    );
+
+    await service.handleTurn({
+      contactId: 'misma',
+      customerText: 'la misma unidad',
+    });
+
+    expect(openai.runSalesAgent.mock.calls[0][0].system).toContain('xt-2024');
+    expect(persistence.saveChosenInterestedCar).toHaveBeenCalledWith(
+      'misma',
+      'xt-2024',
+    );
+  });
+
+  it('sin registro el listado viejo sigue eligiendo la roja', async () => {
+    conversation.loadUnidadesPresentadas.mockResolvedValue([]);
+    const patio = [
+      {
+        id: 'sp-2024',
+        brand: 'kia',
+        model: 'sportage ac 2.0',
+        year: 2024,
+        price: 29200,
+        typeBody: 'jeep',
+        color: 'plomo',
+        mileage: 79187,
+      },
+      sportageRoja,
+    ];
+    catalog.listAvailableExcept.mockResolvedValue(patio);
+    catalog.listByBrand.mockResolvedValue(patio);
+    conversation.recentMessages.mockResolvedValue([
+      {
+        role: 'assistant',
+        content:
+          'Estas son las opciones: 1) Sportage AC 2.0 año 2024 color plomo, con 79187 km, 2) Sportage R GTI año 2019 color rojo, con 91096 km. ¿Cuál le interesa para enviar fotos?',
+      },
+    ]);
+    openai.complete
+      .mockResolvedValueOnce(
+        'SOLICITUD ACTUAL:\nCliente pide la roja.\nPide precio: no\nPide otras: no',
+      )
+      .mockResolvedValueOnce('{"intenciones":["compra"]}');
+    openai.runSalesAgent.mockResolvedValue(
+      JSON.stringify({
+        respuesta_cliente: 'La Sportage roja.',
+        meta: { vehiculo: { inventory_id: 'sp-rojo' } },
+      }),
+    );
+
+    const result = await service.handleTurn({
+      contactId: 'viejo',
+      customerText: 'la roja',
+    });
+
+    expect(result?.reply.meta.vehiculo).toEqual(
+      expect.objectContaining({ inventory_id: 'sp-rojo' }),
+    );
+  });
 });

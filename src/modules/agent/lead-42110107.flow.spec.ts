@@ -135,6 +135,8 @@ describe('flujo lead 42110107 (compra vs toma)', () => {
     saveCashBudget: jest.fn(),
     loadPreviousResumen: jest.fn(),
     savePreviousResumen: jest.fn(),
+    loadUnidadesPresentadas: jest.fn().mockResolvedValue([]),
+    recordUnidadesPresentadas: jest.fn().mockResolvedValue([]),
   };
   const persistence = {
     loadHandoffBrief: jest.fn(),
