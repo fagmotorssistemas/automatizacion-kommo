@@ -268,6 +268,29 @@ function carsDeTurno(
     .filter((car): car is StockCar => Boolean(car));
 }
 
+/** Unidades de esa familia ya mostradas o halladas por el tool. */
+export function unidadesDeFamiliaEnContexto(
+  family: string | null | undefined,
+  pools: StockCar[][],
+): StockCar[] {
+  const wanted = family?.trim();
+  if (!wanted) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const hits: StockCar[] = [];
+  for (const pool of pools) {
+    for (const car of pool) {
+      if (seen.has(car.id) || !rowMentionsFamily(car.model, wanted)) {
+        continue;
+      }
+      seen.add(car.id);
+      hits.push(car);
+    }
+  }
+  return hits;
+}
+
 export function carsDesdePresentadas(
   turnos: UnidadPresentada[][],
   byId: Map<string, StockCar>,

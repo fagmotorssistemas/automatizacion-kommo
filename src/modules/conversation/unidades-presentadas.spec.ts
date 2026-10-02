@@ -7,6 +7,7 @@ import {
   parseRegistroPresentadas,
   resolverReferenciaPresentadas,
   unidadMencionadaEnTexto,
+  unidadesDeFamiliaEnContexto,
 } from './unidades-presentadas';
 
 const xtrail2016: StockCar = {
@@ -297,6 +298,15 @@ describe('resolverReferenciaPresentadas', () => {
         lexicon: TEST_LEXICON,
       }),
     ).toEqual({ kind: 'ninguna' });
+  });
+
+  it('si la familia está en el registro, no se niega', () => {
+    expect(
+      unidadesDeFamiliaEnContexto('kicks', [[xtrail2016, kicks2020]]).map(
+        (car) => car.id,
+      ),
+    ).toEqual([kicks2020.id]);
+    expect(unidadesDeFamiliaEnContexto('kicks', [[xtrail2016]])).toEqual([]);
   });
 
   it('un modelo nuevo fuera del registro no se resuelve aquí', () => {

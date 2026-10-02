@@ -72,7 +72,9 @@ import {
 import {
   calcularUnidadesPresentadas,
   candidatosDadosAlLlm,
+  carsDesdePresentadas,
   resolverReferenciaPresentadas,
+  unidadesDeFamiliaEnContexto,
   type ResolucionPresentada,
   type UnidadPresentada,
 } from '../conversation/unidades-presentadas';
@@ -2784,21 +2786,25 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
       (traccionPedida === '4x2' || traccionPedida === '4x4')
         ? traccionPedida
         : detectAskedDrive(cabDriveText);
-    if (presentadas.length > 0 && !pideOtras) {
+    let presentadasCars: StockCar[] = [];
+    if (presentadas.length > 0) {
       const patio = await this.catalog.listAvailableExcept('_');
       const byId = new Map(patio.map((car) => [car.id, car]));
-      const resolved = resolverReferenciaPresentadas({
-        text: customerText,
-        turnos: presentadas,
-        byId,
-        lexicon,
-      });
-      const fromRegistro = this.revisionDesdePresentadas(resolved, {
-        customerText,
-        includePrice,
-      });
-      if (fromRegistro) {
-        return fromRegistro;
+      presentadasCars = carsDesdePresentadas(presentadas, byId);
+      if (!pideOtras) {
+        const resolved = resolverReferenciaPresentadas({
+          text: customerText,
+          turnos: presentadas,
+          byId,
+          lexicon,
+        });
+        const fromRegistro = this.revisionDesdePresentadas(resolved, {
+          customerText,
+          includePrice,
+        });
+        if (fromRegistro) {
+          return fromRegistro;
+        }
       }
     }
     const anyBrandPedido =
@@ -2957,6 +2963,14 @@ Los datos que dijo coinciden con esta unidad. Preséntala. PROHIBIDO decir que n
           const names = nombresSeparados(pedido ?? '');
           if (names.length >= 2) {
             return this.revisionPorNombres(pedido ?? '', names);
+          }
+          const yaMostrada = this.revisionFamiliaEnContexto(
+            phrase || pedido,
+            includePrice,
+            presentadasCars,
+          );
+          if (yaMostrada) {
+            return yaMostrada;
           }
           return {
             text: `PEDIDO: ${pedido}
@@ -3619,10 +3633,12 @@ El cliente eligió entre las unidades que YA le mostramos en el hilo. Nombra ESA
               listed,
               includePrice,
               kindForAsk,
+              presentadasCars,
             );
           }
           if (yearAsk) {
-            const missingYear = formatMissingNamedModel(
+            const missingYear = this.missingNamedOrContexto(
+              presentadasCars,
               threadFamily,
               yearAsk,
               inFamily,
@@ -3676,7 +3692,8 @@ Pidió otro año del MISMO modelo. Solo esas unidades. PROHIBIDO otra línea de 
             yearAsk ? car.year === yearAsk : true,
           );
           return {
-            ...formatMissingNamedModel(
+            ...this.missingNamedOrContexto(
+              presentadasCars,
               trimAsk || targetBrand || 'unidad',
               yearAsk,
               close,
@@ -3779,6 +3796,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           listed,
           includePrice,
           kindForAsk ?? kindOfNamedUnits(pool),
+          presentadasCars,
         );
       }
       let offer = unitsNamedByClient(
@@ -3853,7 +3871,8 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
               yearFromThread,
             );
           }
-          const missingYear = formatMissingNamedModel(
+          const missingYear = this.missingNamedOrContexto(
+            presentadasCars,
             family || 'unidad',
             yearFromThread,
             offer,
@@ -3907,6 +3926,7 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
           listed,
           includePrice,
           kindForAsk,
+          presentadasCars,
         );
       }
       const floorYear = yearFromThread;
@@ -4020,7 +4040,8 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
         floorYear,
         yearOnward,
       );
-      const missing = formatMissingNamedModel(
+      const missing = this.missingNamedOrContexto(
+        presentadasCars,
         asked.family,
         yearOnward ? floorYear : yearFromThread,
         alternatives,
@@ -4167,9 +4188,18 @@ El cliente eligió entre las unidades que YA le mostramos. Manda ESA. Prohibido 
             yearOnward,
           );
       if (offerCars.length === 0 && yearSpan) {
+        const misma = this.revisionFamiliaEnContexto(
+          asked?.family,
+          includePrice,
+          presentadasCars,
+        );
+        if (misma) {
+          return misma;
+        }
         const sameType = preferCurrentYears(cabDriveOffer.cars);
         const brandsLabel = brandsNow.join(', ') || targetBrand || 'esas marcas';
-        const missing = formatMissingNamedModel(
+        const missing = this.missingNamedOrContexto(
+          presentadasCars,
           brandsLabel,
           yearSpan.min,
           sameType,
@@ -4217,9 +4247,18 @@ ${missing.text}`,
       if (inSpan.length > 0) {
         cars = inSpan;
       } else if (kindForAsk && cars.length > 0) {
+        const misma = this.revisionFamiliaEnContexto(
+          asked?.family,
+          includePrice,
+          presentadasCars,
+        );
+        if (misma) {
+          return misma;
+        }
         const brandsLabel =
           brandsNow.join(', ') || targetBrand || 'esas marcas';
-        const missing = formatMissingNamedModel(
+        const missing = this.missingNamedOrContexto(
+          presentadasCars,
           brandsLabel,
           yearSpan.min,
           preferCurrentYears(cars),
@@ -4244,7 +4283,8 @@ ${missing.text}`,
           yearSpan,
         );
         if (alts.length > 0) {
-          const missing = formatMissingNamedModel(
+          const missing = this.missingNamedOrContexto(
+            presentadasCars,
             family,
             yearSpan.min,
             alts,
@@ -4268,6 +4308,14 @@ ${missing.text}`,
         ? `No hay ${targetBrand ?? 'esa marca'} ${kindForAsk ?? ''} ${askedDrive} en patio. PRIMERO dilo. DESPUÉS ofrece la de abajo solo si es el mismo tipo. 4x2/4x4 es tracción, no el tipo. Prohibido un SUV o jeep si pidió camioneta.`
         : '');
     if (kindForAsk && listed.length > 0 && cars.length === 0) {
+      const misma = this.revisionFamiliaEnContexto(
+        asked?.family,
+        includePrice,
+        presentadasCars,
+      );
+      if (misma) {
+        return misma;
+      }
       return {
         text: `De ${targetBrand} no hay ${kindForAsk} disponible. PRIMERO dilo. No ofrezcas otro tipo (camioneta no es SUV, sedán no es hatch). 4x2/4x4 es tracción, no el tipo. vehiculo null.`,
         holdVehicle: true,
@@ -4751,13 +4799,23 @@ inventory_id=${sendId ?? interested.inventoryId ?? 'null'}`,
     listed: StockCar[],
     includePrice: boolean,
     kind: VehicleKind | null,
+    presentadasCars: StockCar[] = [],
   ): Promise<BrandReview> {
+    const misma = this.revisionFamiliaEnContexto(
+      family,
+      includePrice,
+      presentadasCars,
+    );
+    if (misma) {
+      return misma;
+    }
     let alts = pickSpanAlternatives(listed, family, kind, span);
     if (alts.length === 0) {
       const patio = await this.catalog.listAvailableExcept('_');
       alts = pickSpanAlternatives(patio, family, kind, span);
     }
-    const missing = formatMissingNamedModel(
+    const missing = this.missingNamedOrContexto(
+      presentadasCars,
       family,
       span.min,
       alts,
@@ -4939,6 +4997,55 @@ ${rule}`,
     return JSON.stringify({ error: true, mensaje: `Tool desconocida: ${name}` });
   }
 
+  private revisionFamiliaEnContexto(
+    family: string | null | undefined,
+    includePrice: boolean,
+    ...pools: StockCar[][]
+  ): BrandReview | null {
+    const hits = unidadesDeFamiliaEnContexto(family, pools);
+    if (hits.length === 0) {
+      return null;
+    }
+    const named = formatNamedUnits(hits, includePrice);
+    return {
+      ...named,
+      switchedModel: true,
+      vehicleKind: kindOfNamedUnits(hits),
+      listedUnits: hits,
+    };
+  }
+
+  private missingNamedOrContexto(
+    contexto: StockCar[],
+    family: string,
+    year: number | null,
+    alternatives: StockCar[],
+    includePrice = false,
+    onward = false,
+    kind?: VehicleKind | null,
+    yearMax?: number | null,
+    extra: StockCar[][] = [],
+  ): ReturnType<typeof formatMissingNamedModel> {
+    const misma = this.revisionFamiliaEnContexto(
+      family,
+      includePrice,
+      contexto,
+      ...extra,
+    );
+    if (misma) {
+      return misma;
+    }
+    return formatMissingNamedModel(
+      family,
+      year,
+      alternatives,
+      includePrice,
+      onward,
+      kind,
+      yearMax,
+    );
+  }
+
   private revisionDesdePresentadas(
     resolved: ResolucionPresentada,
     input: { customerText: string; includePrice: boolean },
@@ -4999,12 +5106,9 @@ PIDIÓ LOS PRECIOS de las unidades que YA le mostró. Di el $ de inventario de C
         ...(input.toolIds ?? []),
       ].filter((id): id is string => Boolean(id?.trim())),
     );
-    const missing = [...needed].filter((id) => !byId.has(id));
-    if (missing.length > 0) {
-      const patio =
-        input.patio ?? (await this.catalog.listAvailableExcept('_'));
-      for (const car of patio) {
-        if (needed.has(car.id)) {
+    if (input.patio) {
+      for (const car of input.patio) {
+        if (needed.has(car.id) && !byId.has(car.id)) {
           byId.set(car.id, car);
         }
       }
